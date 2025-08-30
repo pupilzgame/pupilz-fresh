@@ -355,7 +355,7 @@ const AccordionItem: React.FC<AccordionItemProps> = ({ section, isOpen, onToggle
     }).start();
   }, [isOpen]);
 
-  const maxHeight = (section.bullets?.length || 0) * 36 + 28;
+  const maxHeight = (section.bullets?.length || 0) * 50 + 32; // Increased from 36 to 50 per bullet, 28 to 32 base
   const height = contentAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [0, maxHeight],
@@ -399,13 +399,47 @@ type EnhancedMenuProps = {
 const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart }) => {
   const [openId, setOpenId] = useState<string>("stackables");
   const [animPhase, setAnimPhase] = useState(0);
+  const menuStarsRef = useRef<Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}>>([]);
+  const { width, height } = useWindowDimensions();
 
   useEffect(() => {
+    // Initialize menu stars
+    const stars: Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}> = [];
+    const layers = [
+      { count: 15, parallax: 0.3, size: 2, opacity: 0.4 },
+      { count: 10, parallax: 0.6, size: 3, opacity: 0.6 },
+      { count: 8, parallax: 0.9, size: 4, opacity: 0.8 },
+    ];
+    
+    layers.forEach((layer, li) => {
+      for (let i = 0; i < layer.count; i++) {
+        stars.push({
+          id: `menu-L${li}-${i}`,
+          x: Math.random() * width,
+          y: Math.random() * height,
+          size: layer.size,
+          parallax: layer.parallax,
+          opacity: layer.opacity
+        });
+      }
+    });
+    menuStarsRef.current = stars;
+
     const interval = setInterval(() => {
       setAnimPhase(p => (p + 1) % 100);
-    }, 50);
+      
+      // Update star positions smoothly
+      menuStarsRef.current.forEach(star => {
+        star.y += star.parallax * 0.8; // Slow downward movement
+        if (star.y > height + 10) {
+          star.y = -10;
+          star.x = Math.random() * width;
+        }
+      });
+    }, 16); // 60fps for smooth movement
+    
     return () => clearInterval(interval);
-  }, []);
+  }, [width, height]);
 
   const handleToggle = (id: string) => {
     setOpenId(current => current === id ? "" : id);
@@ -417,51 +451,45 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart }) => {
     textShadowRadius: 8 + Math.sin(animPhase * 0.15) * 2,
   };
 
-  const pulseOpacity = 0.7 + Math.sin(animPhase * 0.1) * 0.3;
+  const subtleFade = 0.85 + Math.sin(animPhase * 0.06) * 0.15; // Slightly more noticeable fade effect
 
   return (
     <View style={styles.menuContainer}>
-      {/* Animated background particles */}
+      {/* Smooth background stars */}
       <View style={styles.menuParticles} pointerEvents="none">
-        {Array.from({ length: 12 }).map((_, i) => {
-          const x = (i * 123 + animPhase * 2) % 100;
-          const y = (i * 67 + animPhase * 1.5) % 100;
-          const size = 2 + (i % 3);
-          const opacity = 0.3 + Math.sin(animPhase * 0.08 + i) * 0.2;
-          return (
-            <View
-              key={i}
-              style={{
-                position: 'absolute',
-                left: `${x}%`,
-                top: `${y}%`,
-                width: size,
-                height: size,
-                borderRadius: size / 2,
-                backgroundColor: '#00FFFF',
-                opacity,
-              }}
-            />
-          );
-        })}
+        {menuStarsRef.current.map((star) => (
+          <View
+            key={star.id}
+            style={{
+              position: 'absolute',
+              left: star.x,
+              top: star.y,
+              width: star.size,
+              height: star.size,
+              borderRadius: star.size / 2,
+              backgroundColor: '#8FB7FF', // Same blue as game stars
+              opacity: star.opacity,
+            }}
+          />
+        ))}
       </View>
 
       {/* Logo treatment */}
       <View style={styles.logoContainer}>
         <Image 
           source={require('./assets/pupilz-logo.png')} 
-          style={[styles.logoImage, { opacity: pulseOpacity }]}
+          style={styles.logoImage}
           resizeMode="contain"
         />
-        <Text style={[styles.logoSub, { opacity: pulseOpacity }]}>
+        <Text style={styles.logoSub}>
           POD DESCENT
         </Text>
-        <View style={[styles.logoUnderline, { opacity: pulseOpacity }]} />
+        <View style={styles.logoUnderline} />
       </View>
 
       <ScrollView style={styles.menuScrollView} showsVerticalScrollIndicator={false}>
         <Text style={styles.menuSubtitle}>
-          🌍 INFILTRATE EARTH'S ATMOSPHERE • ESTABLISH DOMINANCE 🌍
+          • INFILTRATE EARTH'S ATMOSPHERE •{'\n'}• ESTABLISH DOMINANCE •
         </Text>
         
         <View style={styles.menuSections}>
@@ -480,11 +508,11 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart }) => {
           style={({ pressed }) => [
             styles.menuCTA,
             pressed && styles.menuCTAPressed,
-            { opacity: pulseOpacity }
+            { opacity: subtleFade }
           ]}
         >
           <View style={styles.menuCTAGlow} />
-          <Text style={styles.menuCTAText}>⚡ BEGIN INVASION ⚡</Text>
+          <Text style={styles.menuCTAText}>BEGIN INVASION</Text>
         </Pressable>
       </ScrollView>
     </View>
@@ -499,6 +527,10 @@ function Game() {
   const [phase, _setPhase] = useState<Phase>("menu");
   const phaseRef = useRef<Phase>("menu");
   const setPhase = (p: Phase) => { phaseRef.current = p; _setPhase(p); };
+  
+  // Random crash messages
+  const crashMessages = ["POD DESTROYED!", "CRASH AND BURN, PUPIL!", "OBLITERATED!"];
+  const crashMessage = useRef(crashMessages[0]);
 
   const [timeSec, setTimeSec] = useState(0);
   const [, setTick] = useState(0);
@@ -1249,6 +1281,8 @@ function Game() {
     shakeMag.current = Math.max(shakeMag.current, 14);
     shakeT.current = Math.max(shakeT.current, 0.22);
 
+    // Pick random crash message
+    crashMessage.current = crashMessages[Math.floor(Math.random() * crashMessages.length)];
     setPhase("dead");
   };
 
@@ -2523,7 +2557,7 @@ function Game() {
               hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
             >
               <View style={[styles.inventoryItem, styles.nukeItem]}>
-                <Text style={styles.inventoryLabel}>⚡</Text>
+                <Text style={styles.inventoryLabel}>N</Text>
                 <Text style={styles.inventoryCount}>{nukesLeft.current}</Text>
               </View>
             </Pressable>
@@ -2536,7 +2570,7 @@ function Game() {
         <View style={styles.overlay}>
           {phase !== "menu" && (
             <Text style={styles.overlayTitle}>
-              {phase === "win" ? "EARTH REACHED!" : "💥 Crashed!"}
+              {phase === "win" ? "EARTH REACHED!" : crashMessage.current}
             </Text>
           )}
 
@@ -2858,12 +2892,11 @@ const styles = StyleSheet.create({
     zIndex: 30,
     backgroundColor: "rgba(5,10,25,0.85)",
     alignItems: "center",
-    justifyContent: "flex-start",
+    justifyContent: "center", // Changed from flex-start to center for vertical centering
     gap: 10,
     paddingHorizontal: 20,
-    paddingTop: 40,
   },
-  overlayTitle: { color: "#FFFFFF", fontSize: 28, fontWeight: "800", marginBottom: 6, marginTop: 40, textAlign: "center" },
+  overlayTitle: { color: "#FFFFFF", fontSize: 28, fontWeight: "800", marginBottom: 6, textAlign: "center" },
   overlayText:  { color: "#E6F3FF", fontSize: 16, fontWeight: "700", textAlign: "center" },
   overlayHint:  { color: "#BFD4E6", fontSize: 14, marginTop: 8, textAlign: "center" },
 
@@ -3038,12 +3071,13 @@ const styles = StyleSheet.create({
   menuBullets: {
     paddingHorizontal: 20,
     paddingBottom: 16,
+    paddingRight: 24, // Extra padding on right to prevent cutoff
   },
   menuBullet: {
     flexDirection: "row",
     alignItems: "flex-start",
     marginBottom: 10,
-    paddingRight: 8,
+    paddingRight: 16, // Increased from 8 to 16 for more breathing room
   },
   menuBulletDot: {
     color: "#FFD79A",
@@ -3055,8 +3089,9 @@ const styles = StyleSheet.create({
     color: "#E5E7EB",
     fontSize: 14,
     flex: 1,
-    lineHeight: 22,
+    lineHeight: 20, // Reduced from 22 to 20 for better text fitting
     flexWrap: "wrap",
+    textAlign: "left", // Ensure left alignment
   },
   menuCTA: {
     marginTop: 30,
