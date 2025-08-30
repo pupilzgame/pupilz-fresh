@@ -512,7 +512,7 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart }) => {
           ]}
         >
           <View style={styles.menuCTAGlow} />
-          <Text style={styles.menuCTAText}>BEGIN INVASION</Text>
+          <Text style={styles.menuCTAText}>INVADE EARTH!</Text>
         </Pressable>
       </ScrollView>
     </View>
@@ -600,6 +600,7 @@ function Game() {
   const shakeT = useRef(0);
   const shakeMag = useRef(0);
   const flashTime = useRef(0);
+  const crashFlashTime = useRef(0); // Separate flash timer for crashes
 
   // Nuke sweep
   const sweepActive = useRef(false);
@@ -954,7 +955,7 @@ function Game() {
     resetSegment(true);
     spawnAhead();
 
-    shakeT.current = 0; shakeMag.current = 0; flashTime.current = 0;
+    shakeT.current = 0; shakeMag.current = 0; flashTime.current = 0; crashFlashTime.current = 0;
     sweepActive.current = false; sweepR.current = 0;
 
 
@@ -1278,8 +1279,10 @@ function Game() {
         color: i % 3 === 0 ? "#39D3FF" : i % 3 === 1 ? "#A7F3D0" : "#FFE486",
       });
     }
-    shakeMag.current = Math.max(shakeMag.current, 14);
-    shakeT.current = Math.max(shakeT.current, 0.22);
+    // Dramatic crash effects
+    shakeMag.current = Math.max(shakeMag.current, 20); // Increased from 14 to 20 for more impact
+    shakeT.current = Math.max(shakeT.current, 0.35);   // Increased from 0.22 to 0.35 for longer shake
+    crashFlashTime.current = 0.3; // Red flash effect for crash (longer than nuke flash)
 
     // Pick random crash message
     crashMessage.current = crashMessages[Math.floor(Math.random() * crashMessages.length)];
@@ -1303,6 +1306,7 @@ function Game() {
       if (s.y > height + 4) { s.y = -4; s.x = rand(0, width); }
     }
     if (flashTime.current > 0) flashTime.current = Math.max(0, flashTime.current - dt);
+    if (crashFlashTime.current > 0) crashFlashTime.current = Math.max(0, crashFlashTime.current - dt);
     if (shakeT.current > 0) { shakeT.current = Math.max(0, shakeT.current - dt); shakeMag.current *= 0.9; }
     if (invulnTime.current > 0) invulnTime.current = Math.max(0, invulnTime.current - dt);
     if (hudFadeT.current > 0)  hudFadeT.current = Math.max(0, hudFadeT.current - dt);
@@ -2507,6 +2511,9 @@ function Game() {
 
         {/* Flash for nuke (lower zIndex so overlays win) */}
         {flashTime.current > 0 && <View style={[styles.flash, { opacity: flashTime.current / NUKE_FLASH_TIME }]} />}
+        
+        {/* Red flash for crashes */}
+        {crashFlashTime.current > 0 && <View style={[styles.crashFlash, { opacity: crashFlashTime.current / 0.3 }]} />}
       </View>
 
       {/* BOTTOM INVENTORY BAR - SEPARATE from game view hierarchy for proper multi-touch */}
@@ -2587,7 +2594,6 @@ function Game() {
 
           {phase === "dead" && (
             <>
-              <Text style={styles.overlayText}>Time: {Math.floor(timeSec)}s</Text>
               <Pressable onPress={goMenu} style={styles.startBtn}>
                 <Text style={styles.startBtnText}>MENU</Text>
               </Pressable>
@@ -2955,12 +2961,15 @@ const styles = StyleSheet.create({
 
   // NUKE flash (zIndex below overlay so UI always wins)
   flash: { ...StyleSheet.absoluteFillObject, backgroundColor: "#FFFFFF", zIndex: 25 },
+  crashFlash: { ...StyleSheet.absoluteFillObject, backgroundColor: "#FF3030", zIndex: 25 }, // Red flash for crashes
 
   // Enhanced Menu Styles - Professional Game Studio Quality
   menuContainer: {
     flex: 1,
     position: 'relative',
-    paddingTop: 20,
+    justifyContent: 'flex-end', // Position content towards bottom
+    paddingHorizontal: 20,
+    paddingBottom: '20%', // Push content up from very bottom
   },
   menuParticles: {
     position: 'absolute',
@@ -2972,9 +2981,8 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 20, // Reduced from 30
     zIndex: 2,
-    paddingVertical: 20,
   },
   logoMain: {
     fontSize: 42,
@@ -3013,10 +3021,10 @@ const styles = StyleSheet.create({
   },
   menuSubtitle: {
     color: "#E6F3FF",
-    fontSize: 16,
+    fontSize: 14, // Reduced from 16 to 14 to prevent wrapping
     textAlign: "center",
     marginBottom: 24,
-    lineHeight: 22,
+    lineHeight: 20, // Reduced from 22 to 20
     paddingHorizontal: 20,
   },
   menuSections: {
