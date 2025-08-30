@@ -13,6 +13,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
     Animated,
     Easing,
+    Image,
     Platform,
     Pressable,
     ScrollView,
@@ -447,9 +448,11 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart }) => {
 
       {/* Logo treatment */}
       <View style={styles.logoContainer}>
-        <Text style={[styles.logoMain, logoGlow]}>
-          PUPILZ
-        </Text>
+        <Image 
+          source={require('./assets/pupilz-logo.png')} 
+          style={[styles.logoImage, { opacity: pulseOpacity }]}
+          resizeMode="contain"
+        />
         <Text style={[styles.logoSub, { opacity: pulseOpacity }]}>
           POD DESCENT
         </Text>
@@ -2947,6 +2950,12 @@ const styles = StyleSheet.create({
     letterSpacing: 4,
     marginBottom: 5,
     textAlign: 'center',
+  },
+  logoImage: {
+    width: 250,
+    height: 80,
+    marginBottom: 5,
+    alignSelf: 'center',
   },
   logoSub: {
     fontSize: 18,
