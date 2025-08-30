@@ -2531,9 +2531,11 @@ function Game() {
       {/* Overlays */}
       {phase !== "playing" && (
         <View style={styles.overlay}>
-          <Text style={styles.overlayTitle}>
-            {phase === "menu" ? "Pupilz Pod Descent" : phase === "win" ? "EARTH REACHED!" : "💥 Crashed!"}
-          </Text>
+          {phase !== "menu" && (
+            <Text style={styles.overlayTitle}>
+              {phase === "win" ? "EARTH REACHED!" : "💥 Crashed!"}
+            </Text>
+          )}
 
           {phase === "menu" && <EnhancedMenu onStart={startGame} />}
 
