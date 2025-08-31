@@ -1079,6 +1079,11 @@ function Game() {
     shipsRequiredForLevel.current = getShipsRequiredForLevel(1);
     levelRingSpawned.current = false;
     
+    // Reset ring state - no ring visible at start
+    ringSpawnT.current = 0;
+    ringCenterY.current = 0;
+    ringCenterX.current = 0;
+    
     // NO initial ring spawn - rings only spawn after meeting ship kill quotas
     
     // Reset tip system
@@ -2504,48 +2509,54 @@ function Game() {
         </View>
       )}
 
-      {/* RING GOAL + label */}
-      <View
-        style={[
-          styles.goalRing,
-          {
-            width: rNow * 2,
-            height: rNow * 2,
-            borderRadius: rNow,
-            transform: [{ translateX: ringCenterX.current - rNow }, { translateY: yToScreen(ringCenterY.current) - rNow }],
-            borderColor: boss.current.active ? "#D66D5A" : "#5AD66F",
-          },
-        ]}
-      />
-      <View
-        style={[
-          styles.goalRingInner,
-          {
-            width: Math.max(0, rNow * 2 - 12),
-            height: Math.max(0, rNow * 2 - 12),
-            borderRadius: Math.max(0, rNow - 6),
-            transform: [{ translateX: ringCenterX.current - Math.max(0, rNow - 6) }, { translateY: yToScreen(ringCenterY.current) - Math.max(0, rNow - 6) }],
-            borderColor: boss.current.active ? "rgba(156,46,46,0.6)" : "rgba(46,156,69,0.6)",
-            backgroundColor: boss.current.active ? "rgba(156,46,46,0.12)" : "rgba(46,156,69,0.12)",
-          },
-        ]}
-      />
-      <View
-        pointerEvents="none"
-        style={[
-          styles.ringLabelBox,
-          {
-            width: rNow * 2,
-            height: rNow * 2,
-            borderRadius: rNow,
-            transform: [{ translateX: ringCenterX.current - rNow }, { translateY: yToScreen(ringCenterY.current) - rNow }],
-          },
-        ]}
-      >
-        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={styles.ringLabel}>
-          {ringText}
-        </Text>
-      </View>
+      {/* RING GOAL + label - only render if ring has been spawned */}
+      {ringSpawnT.current > 0 && (
+        <View
+          style={[
+            styles.goalRing,
+            {
+              width: rNow * 2,
+              height: rNow * 2,
+              borderRadius: rNow,
+              transform: [{ translateX: ringCenterX.current - rNow }, { translateY: yToScreen(ringCenterY.current) - rNow }],
+              borderColor: boss.current.active ? "#D66D5A" : "#5AD66F",
+            },
+          ]}
+        />
+      )}
+      {ringSpawnT.current > 0 && (
+        <>
+          <View
+            style={[
+              styles.goalRingInner,
+              {
+                width: Math.max(0, rNow * 2 - 12),
+                height: Math.max(0, rNow * 2 - 12),
+                borderRadius: Math.max(0, rNow - 6),
+                transform: [{ translateX: ringCenterX.current - Math.max(0, rNow - 6) }, { translateY: yToScreen(ringCenterY.current) - Math.max(0, rNow - 6) }],
+                borderColor: boss.current.active ? "rgba(156,46,46,0.6)" : "rgba(46,156,69,0.6)",
+                backgroundColor: boss.current.active ? "rgba(156,46,46,0.12)" : "rgba(46,156,69,0.12)",
+              },
+            ]}
+          />
+          <View
+            pointerEvents="none"
+            style={[
+              styles.ringLabelBox,
+              {
+                width: rNow * 2,
+                height: rNow * 2,
+                borderRadius: rNow,
+                transform: [{ translateX: ringCenterX.current - rNow }, { translateY: yToScreen(ringCenterY.current) - rNow }],
+              },
+            ]}
+          >
+            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={styles.ringLabel}>
+              {ringText}
+            </Text>
+          </View>
+        </>
+      )}
 
       {/* Hexagon Asteroids with red damage progression */}
       {asteroids.current.map((a) => {
