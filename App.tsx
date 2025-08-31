@@ -102,7 +102,7 @@ type Barrier = {
 };
 type Star     = { id: string; x: number; y: number; size: number; parallax: number; opacity: number };
 type PowerUp  = { id: number; x: number; y: number; kind: PUKind, vy: number };
-type Phase    = "menu" | "playing" | "dead" | "win";
+type Phase    = "menu" | "playing" | "dead" | "win" | "respawning";
 
 type PUKind = "S" | "M" | "L" | "F" | "H" | "R" | "B" | "E" | "T" | "D";
 
@@ -290,7 +290,7 @@ const MENU_SECTIONS: MenuSection[] = [
     icon: "🕹",
     title: "BASIC CONTROLS",
     bullets: [
-      "Drag anywhere on screen to pilot your combat pod",
+      "Drag anywhere on screen to control your combat pod",
       "You start with a basic single blaster - hunt for upgrades!",
       "Fly through glowing rings to advance toward Earth",
       "Collect items by flying into them",
@@ -521,16 +521,145 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart }) => {
 
 function Game() {
   const { width, height } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
+  const rawInsets = useSafeAreaInsets();
+  // Safety fallback for insets to prevent undefined errors
+  const insets = {
+    top: rawInsets?.top || 0,
+    bottom: rawInsets?.bottom || 0,
+    left: rawInsets?.left || 0,
+    right: rawInsets?.right || 0,
+  };
 
   // Phase
   const [phase, _setPhase] = useState<Phase>("menu");
   const phaseRef = useRef<Phase>("menu");
   const setPhase = (p: Phase) => { phaseRef.current = p; _setPhase(p); };
   
-  // Random crash messages
-  const crashMessages = ["POD DESTROYED!", "CRASH AND BURN, PUPIL!", "OBLITERATED!"];
-  const crashMessage = useRef(crashMessages[0]);
+  // Smart Tip System - Contextual and Adaptive
+  const gameplayTips = {
+    // Core survival (always relevant)
+    survival: [
+      { id: 'movement', text: '💫 Drag in the lower screen area to move your pod smoothly', priority: 'high' },
+      { id: 'shields', text: '🛡️ Collect blue bubble shields (B) for protection - stack up to 6!', priority: 'high' },
+      { id: 'invuln', text: '✨ After respawn, you have brief invulnerability - use it to escape danger!', priority: 'medium' },
+    ],
+    
+    // Weapon mastery
+    weapons: [
+      { id: 'upgrade_hunt', text: '⚡ Hunt for weapon upgrades: M=Multi, S=Spread, L=Laser, F=Flame, H=Homing', priority: 'high' },
+      { id: 'laser_power', text: '🔥 Laser (L) weapons pierce through multiple enemies - great for crowds!', priority: 'medium' },
+      { id: 'homing_ships', text: '🎯 Homing missiles (H) prioritize enemy ships - perfect for evasive targets', priority: 'medium' },
+      { id: 'rapid_fire', text: '⚡ Rapid-fire (R) pickup reduces weapon cooldown - spam those shots!', priority: 'low' },
+    ],
+    
+    // Advanced tactics
+    advanced: [
+      { id: 'energy_cells', text: '🔋 Energy cells (E) are lifesavers: +3 shields + 3s invulnerability on use!', priority: 'high' },
+      { id: 'drone_sacrifice', text: '🤖 Drones (D) will sacrifice themselves to save you - keep them close!', priority: 'medium' },
+      { id: 'nuke_clear', text: '💥 Nuke clears all threats but spares power-ups - perfect for emergencies!', priority: 'low' },
+      { id: 'boss_pattern', text: '👾 Boss moves in predictable patterns - learn the rhythm to survive!', priority: 'medium' },
+    ],
+    
+    // Death-specific advice
+    asteroids: [
+      { id: 'asteroid_dodge', text: '🌪️ Asteroids move predictably - stay mobile and create escape routes', priority: 'high' },
+      { id: 'asteroid_clear', text: '💥 Use spread weapons (S) or lasers (L) to clear asteroid fields efficiently', priority: 'medium' },
+    ],
+    
+    barriers: [
+      { id: 'barrier_gaps', text: '🚧 Look for gaps in barrier walls - sometimes patience beats firepower', priority: 'high' },
+      { id: 'barrier_flame', text: '🔥 Flame weapons (F) excel at melting through barrier clusters', priority: 'medium' },
+    ],
+    
+    enemies: [
+      { id: 'enemy_dodge', text: '👾 Enemy projectiles are slow - side-step while maintaining forward pressure', priority: 'high' },
+      { id: 'enemy_homing', text: '🎯 Use homing missiles (H) against evasive enemy ships', priority: 'medium' },
+    ],
+  };
+  
+  const getContextualTip = (): string => {
+    // Build pool of relevant tips based on context
+    const relevantTips = [];
+    
+    // Always include high-priority survival tips for new players
+    if (livesLostThisSession.current <= 3) {
+      relevantTips.push(...gameplayTips.survival.filter(tip => tip.priority === 'high'));
+    }
+    
+    // Add contextual tips based on last death cause
+    if (lastDeathCause.current && gameplayTips[lastDeathCause.current]) {
+      relevantTips.push(...gameplayTips[lastDeathCause.current]);
+    }
+    
+    // Add weapon tips if player seems to be struggling
+    if (livesLostThisSession.current >= 2) {
+      relevantTips.push(...gameplayTips.weapons.filter(tip => tip.priority !== 'low'));
+    }
+    
+    // Advanced tips for experienced players
+    if (livesLostThisSession.current >= 5) {
+      relevantTips.push(...gameplayTips.advanced);
+    }
+    
+    // Fallback to all survival tips if no relevant tips
+    if (relevantTips.length === 0) {
+      relevantTips.push(...gameplayTips.survival);
+    }
+    
+    // Filter out tips already shown this session
+    const availableTips = relevantTips.filter(tip => !tipsShown.current.has(tip.id));
+    
+    if (availableTips.length === 0) {
+      // Reset shown tips if we've cycled through all relevant ones
+      tipsShown.current.clear();
+      return getContextualTip();
+    }
+    
+    // Simple random selection from available tips
+    const selectedTip = availableTips[Math.floor(Math.random() * availableTips.length)];
+    tipsShown.current.add(selectedTip.id);
+    
+    return selectedTip.text;
+  };
+  
+  // Enhanced respawn messaging based on session context
+  const getRespawnMessage = () => {
+    const isFirstLoss = livesLostThisSession.current === 1;
+    const isLastLife = lives.current === 1;
+    
+    if (isFirstLoss) {
+      return {
+        title: "⚡ EMERGENCY RESPAWN INITIATED ⚡",
+        message: "Don't worry, Pupil. The mothership is tracking your position. You'll be respawned in a safer location with temporary shields.",
+        tip: currentDeathTip.current
+      };
+    } else if (isLastLife) {
+      return {
+        title: "⚠️ CRITICAL CONDITION - LAST LIFE ⚠️",
+        message: "This is your final chance, Pupil. The mothership cannot risk another pod loss.",
+        tip: "🛡️ EMERGENCY: Energy cells (E) give +3 shields + invulnerability - find one now!"
+      };
+    } else {
+      const messages = [
+        { title: "⚡ POD RECONSTRUCTED ⚡", message: "Emergency nanobots have rebuilt your pod. Respawning with backup systems." },
+        { title: "⚡ BACKUP SYSTEMS ONLINE ⚡", message: "Secondary pod deployed. You're cleared for continued mission." },
+        { title: "⚡ EMERGENCY TELEPORT ⚡", message: "Mothership engaged emergency extraction. Materializing in safe zone." }
+      ];
+      const selected = messages[Math.floor(Math.random() * messages.length)];
+      return { ...selected, tip: currentDeathTip.current };
+    }
+  };
+  
+  const getCrashMessage = () => {
+    if (lives.current > 1) {
+      return "SYSTEM FAILURE - POD LOST";
+    } else if (lives.current === 1) {
+      return "CRITICAL CONDITION! Last life remaining!";
+    } else {
+      return "MISSION FAILED. All pods lost.";
+    }
+  };
+  const crashMessage = useRef("POD DESTROYED!"); // Will be updated by getCrashMessage()
 
   const [timeSec, setTimeSec] = useState(0);
   const [, setTick] = useState(0);
@@ -582,6 +711,23 @@ function Game() {
 
   // Energy Cells ("E")
   const energyCells = useRef(0);
+
+  // Lives system
+  const lives = useRef(3);
+  const maxLives = 3;
+  const respawnCountdown = useRef(0);
+  const livesLostThisSession = useRef(0);
+  
+  // User preferences for respawn experience
+  const [showRespawnTips, setShowRespawnTips] = useState(true);
+  const [quickRespawn, setQuickRespawn] = useState(false);
+  const canSkipCountdown = useRef(false);
+  
+  // Advanced tip system
+  const lastDeathCause = useRef<'asteroid' | 'barrier' | 'enemy' | 'boss' | 'ship' | null>(null);
+  const deathStats = useRef({ asteroid: 0, barrier: 0, enemy: 0, boss: 0, ship: 0 });
+  const tipsShown = useRef<Set<string>>(new Set());
+  const currentDeathTip = useRef<string>(''); // Cache tip for current death
 
   // Entities
   const asteroids = useRef<Asteroid[]>([]);
@@ -908,11 +1054,39 @@ function Game() {
   };
 
   /* ----- Reset world ----- */
+  const respawnPlayer = () => {
+    // Reset pod position to safe area
+    podY.current = Math.round(height * 0.7);
+    invulnTime.current = 2.5; // Generous invulnerability
+    hudFadeT.current = 4.0; // Extended HUD visibility
+    canSkipCountdown.current = false;
+    setPhase("playing");
+  };
+  
+  const skipRespawnCountdown = () => {
+    if (!canSkipCountdown.current) return;
+    
+    // Clear any running countdown
+    if ((window as any).currentRespawnInterval) {
+      clearInterval((window as any).currentRespawnInterval);
+    }
+    respawnCountdown.current = 0;
+    respawnPlayer();
+  };
+  
   const hardResetWorld = () => {
     scrollY.current = 0;
     worldV.current = FREE_FALL;
 
     level.current = 1;
+    lives.current = maxLives; // Reset lives for new mission
+    livesLostThisSession.current = 0; // Reset session tracking
+    respawnCountdown.current = 0;
+    
+    // Reset tip system
+    tipsShown.current.clear();
+    lastDeathCause.current = null;
+    deathStats.current = { asteroid: 0, barrier: 0, enemy: 0, boss: 0, ship: 0 };
 
     // Pod center-ish
     podX.current = width * 0.5;
@@ -1015,7 +1189,6 @@ function Game() {
 
     const wz = scrollY.current + podY.current;
     const wX = podX.current;
-    const nextId = () => (projs.current[projs.current.length - 1]?.id ?? -1) + 1;
 
     switch (weapon.current.kind) {
       case "basic": {
@@ -1145,6 +1318,9 @@ function Game() {
     }
   };
 
+  /* ---------- ID helper ---------- */
+  const nextId = () => (projs.current[projs.current.length - 1]?.id ?? -1) + 1;
+
   /* ---------- FX helpers ---------- */
   const spawnMuzzle = (x: number, y: number, color: string) => {
     const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
@@ -1255,7 +1431,14 @@ function Game() {
     return false; // No drones left
   };
 
-  const killPlayer = () => {
+  const killPlayer = (cause: 'asteroid' | 'barrier' | 'enemy' | 'boss' | 'ship' = 'enemy') => {
+    // Track death cause for contextual tips
+    lastDeathCause.current = cause;
+    deathStats.current[cause] += 1;
+    
+    // Generate tip once for this death
+    currentDeathTip.current = getContextualTip();
+    
     // clear nearby enemy shots
     enemyProjs.current = enemyProjs.current.filter((ep) => {
       const dx = ep.x - podX.current;
@@ -1284,9 +1467,36 @@ function Game() {
     shakeT.current = Math.max(shakeT.current, 0.35);   // Increased from 0.22 to 0.35 for longer shake
     crashFlashTime.current = 0.3; // Red flash effect for crash (longer than nuke flash)
 
-    // Pick random crash message
-    crashMessage.current = crashMessages[Math.floor(Math.random() * crashMessages.length)];
-    setPhase("dead");
+    // Lives system logic
+    lives.current = Math.max(0, lives.current - 1);
+    crashMessage.current = getCrashMessage();
+    
+    if (lives.current > 0) {
+      // Still have lives - enhanced respawn system
+      setPhase("respawning");
+      livesLostThisSession.current += 1;
+      
+      // Smart countdown based on user preferences
+      const isFirstLoss = livesLostThisSession.current === 1;
+      const baseTime = isFirstLoss ? 4.0 : 3.0;
+      const countdownTime = quickRespawn ? 1.5 : baseTime;
+      respawnCountdown.current = countdownTime;
+      canSkipCountdown.current = true;
+      
+      const countdownInterval = setInterval(() => {
+        respawnCountdown.current -= 0.1;
+        if (respawnCountdown.current <= 0) {
+          clearInterval(countdownInterval);
+          respawnPlayer();
+        }
+      }, 100);
+      
+      // Store interval ID for skip functionality
+      (window as any).currentRespawnInterval = countdownInterval;
+    } else {
+      // No lives left - true game over
+      setPhase("dead");
+    }
   };
 
   // helper
@@ -1919,7 +2129,7 @@ function Game() {
               asteroids.current.splice(i, 1);
               break;
             } else {
-              killPlayer(); return;
+              killPlayer('asteroid'); return;
             }
           }
         }
@@ -1943,7 +2153,7 @@ function Game() {
               barriers.current.splice(i, 1);
               break;
             } else {
-              killPlayer(); return;
+              killPlayer('barrier'); return;
             }
           }
         }
@@ -1963,7 +2173,7 @@ function Game() {
               invulnTime.current = HIT_INVULN_TIME;
               boom(ep.x, ep.y, 0.7, "#9FFFB7");
             } else {
-              killPlayer(); return;
+              killPlayer('enemy'); return;
             }
             break;
           }
@@ -2035,7 +2245,7 @@ function Game() {
               boom(s.x, s.y, 1.0, "#9FFFB7");
               ships.current.splice(i, 1);
             } else {
-              killPlayer(); return;
+              killPlayer('ship'); return;
             }
             break;
           }
@@ -2176,7 +2386,7 @@ function Game() {
       {/* Minimal HUD (auto-fades) - hide during menu */}
       {phase !== "menu" && (
         <View style={[styles.hud, { opacity: 0.25 + 0.75 * hudAlpha, top: 10 + insets.top }]} pointerEvents="none">
-          <Text style={styles.score}>LVL {level.current} • ⏱ {Math.floor(timeSec)}s</Text>
+          <Text style={styles.score}>LVL {level.current} • ⏱ {Math.floor(timeSec)}s • ❤️ {lives.current}</Text>
         </View>
       )}
 
@@ -2359,9 +2569,9 @@ function Game() {
                   width: m.r * 2, 
                   height: 28,
                   opacity: 0.8 + m.r * 0.05, // brighter for thicker lasers
-                  boxShadowColor: "#B1E1FF",
-                  boxShadowOpacity: 0.6,
-                  boxShadowRadius: m.r,
+                  shadowColor: "#B1E1FF",
+                  shadowOpacity: 0.6,
+                  shadowRadius: m.r,
                   transform: [{ translateX: m.x - m.r }, { translateY: yToScreen(m.y - 14) }] 
                 }]
               : m.kind === "homing"
@@ -2592,11 +2802,101 @@ function Game() {
             </>
           )}
 
+          {phase === "respawning" && (() => {
+            const respawnMsg = getRespawnMessage();
+            const countdown = Math.ceil(respawnCountdown.current);
+            const isLastLife = lives.current === 1;
+            const showFullMessage = showRespawnTips || isLastLife;
+            
+            // Simple flicker effect for emergency feel
+            const flickerOpacity = Math.sin(Date.now() * 0.01) * 0.1 + 0.9;
+            
+            return (
+              <>
+                {/* Emergency title with subtle flicker */}
+                <Text style={[
+                  showFullMessage ? styles.respawnTitle : styles.respawnTitleCompact,
+                  { opacity: flickerOpacity }
+                ]}>
+                  {showFullMessage ? respawnMsg.title : `⚡ LIFE LOST - ${lives.current} REMAINING ⚡`}
+                </Text>
+                
+                {/* Conditional detailed message */}
+                {showFullMessage && (
+                  <Text style={styles.overlayText}>{respawnMsg.message}</Text>
+                )}
+                
+                {/* Emergency countdown with tap-to-skip */}
+                <Pressable onPress={skipRespawnCountdown} style={[
+                  styles.countdownContainer,
+                  { opacity: flickerOpacity }
+                ]}>
+                  <Text style={styles.countdownNumber}>{countdown}</Text>
+                  <Text style={styles.countdownLabel}>
+                    {quickRespawn ? "Quick respawn" : "Respawning in"}
+                  </Text>
+                  {canSkipCountdown.current && (
+                    <Text style={styles.skipHint}>Tap to skip</Text>
+                  )}
+                </Pressable>
+                
+                {/* Tips and preferences */}
+                {showFullMessage && (
+                  <Text style={styles.respawnTip}>{respawnMsg.tip}</Text>
+                )}
+                
+                <View style={styles.livesDisplay}>
+                  {Array.from({ length: maxLives }).map((_, i) => (
+                    <Text key={i} style={[
+                      styles.lifeIcon, 
+                      i < lives.current ? styles.lifeActive : styles.lifeLost
+                    ]}>❤️</Text>
+                  ))}
+                </View>
+                
+                {/* User preferences - only show for non-critical situations */}
+                {!isLastLife && livesLostThisSession.current >= 2 && (
+                  <View style={styles.preferencesContainer}>
+                    <Pressable 
+                      onPress={() => setShowRespawnTips(!showRespawnTips)}
+                      style={styles.checkboxContainer}
+                    >
+                      <View style={[styles.checkbox, showRespawnTips && styles.checkboxChecked]}>
+                        {showRespawnTips && <Text style={styles.checkmark}>✓</Text>}
+                      </View>
+                      <Text style={styles.checkboxLabel}>Show detailed tips</Text>
+                    </Pressable>
+                    
+                    <Pressable 
+                      onPress={() => setQuickRespawn(!quickRespawn)}
+                      style={styles.checkboxContainer}
+                    >
+                      <View style={[styles.checkbox, quickRespawn && styles.checkboxChecked]}>
+                        {quickRespawn && <Text style={styles.checkmark}>✓</Text>}
+                      </View>
+                      <Text style={styles.checkboxLabel}>Quick respawn (1.5s)</Text>
+                    </Pressable>
+                  </View>
+                )}
+              </>
+            );
+          })()}
+
           {phase === "dead" && (
             <>
-              <Pressable onPress={goMenu} style={styles.startBtn}>
-                <Text style={styles.startBtnText}>MENU</Text>
-              </Pressable>
+              <View style={styles.missionFailedText}>
+                <Text style={styles.overlayText}>Your mission ends here, Pupil.</Text>
+                <Text style={styles.overlayText}>Return to base for reassignment.</Text>
+                <Text style={styles.overlayText}>The galaxy needs better-trained pilots.</Text>
+              </View>
+              <View style={styles.buttonContainer}>
+                <Pressable onPress={startGame} style={styles.startBtn}>
+                  <Text style={styles.startBtnText}>NEW MISSION</Text>
+                </Pressable>
+                <Pressable onPress={goMenu} style={[styles.startBtn, styles.secondaryBtn]}>
+                  <Text style={[styles.startBtnText, styles.secondaryBtnText]}>RETURN TO MOTHERSHIP</Text>
+                </Pressable>
+              </View>
             </>
           )}
         </View>
@@ -2958,6 +3258,176 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   startBtnText: { color: "#E6F3FF", fontSize: 16, fontWeight: "900", letterSpacing: 1.2 },
+
+  // Lives system UI
+  livesRemaining: {
+    color: "#FFD700",
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center" as const,
+    marginTop: 12,
+    letterSpacing: 0.8,
+  },
+  buttonContainer: {
+    flexDirection: "column" as const,
+    alignItems: "center" as const,
+    gap: 10,
+    marginTop: 8,
+  },
+  secondaryBtn: {
+    backgroundColor: "#1A1A35",
+    borderColor: "#2A2A45",
+  },
+  secondaryBtnText: {
+    color: "#B8B8CC",
+    fontSize: 14,
+  },
+
+  // Enhanced respawn screen styles - Emergency Theme
+  respawnTitle: {
+    color: "#FF3030",
+    fontSize: 22,
+    fontWeight: "900" as const,
+    textAlign: "center" as const,
+    marginBottom: 16,
+    letterSpacing: 1.2,
+    textShadowColor: "rgba(255, 48, 48, 0.8)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
+    textTransform: "uppercase" as const,
+  },
+  countdownContainer: {
+    alignItems: "center" as const,
+    marginVertical: 20,
+    backgroundColor: "rgba(20,0,0,0.8)",
+    borderRadius: 15,
+    padding: 16,
+    borderWidth: 3,
+    borderColor: "#FF3030",
+    shadowColor: "#FF3030",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  countdownNumber: {
+    color: "#FF4444",
+    fontSize: 52,
+    fontWeight: "900" as const,
+    lineHeight: 54,
+    textShadowColor: "rgba(255, 68, 68, 0.8)",
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 8,
+  },
+  countdownLabel: {
+    color: "#E6F3FF",
+    fontSize: 14,
+    fontWeight: "600" as const,
+    marginTop: 4,
+    opacity: 0.9,
+  },
+  respawnTip: {
+    color: "#FFD700",
+    fontSize: 16,
+    fontWeight: "600" as const,
+    textAlign: "center" as const,
+    marginTop: 16,
+    backgroundColor: "rgba(255, 215, 0, 0.1)",
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 215, 0, 0.3)",
+  },
+  livesDisplay: {
+    flexDirection: "row" as const,
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+    marginTop: 20,
+    gap: 8,
+  },
+  lifeIcon: {
+    fontSize: 28,
+    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  lifeActive: {
+    opacity: 1.0,
+    transform: [{ scale: 1.1 }],
+  },
+  lifeLost: {
+    opacity: 0.3,
+    transform: [{ scale: 0.9 }],
+  },
+  
+  // Mission failed text formatting
+  missionFailedText: {
+    alignItems: "center" as const,
+    marginVertical: 16,
+  },
+  
+  // Compact mode styles - Emergency theme
+  respawnTitleCompact: {
+    color: "#FF6666",
+    fontSize: 18,
+    fontWeight: "700" as const,
+    textAlign: "center" as const,
+    marginBottom: 12,
+    letterSpacing: 0.8,
+    textShadowColor: "rgba(255, 102, 102, 0.6)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+    textTransform: "uppercase" as const,
+  },
+  skipHint: {
+    color: "#FFD700",
+    fontSize: 12,
+    fontWeight: "600" as const,
+    marginTop: 6,
+    opacity: 0.8,
+  },
+  
+  // Preferences UI
+  preferencesContainer: {
+    marginTop: 20,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  checkboxContainer: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    marginVertical: 6,
+    paddingVertical: 4,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: "#4ECDC4",
+    borderRadius: 4,
+    marginRight: 12,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    backgroundColor: "transparent",
+  },
+  checkboxChecked: {
+    backgroundColor: "#4ECDC4",
+  },
+  checkmark: {
+    color: "#000",
+    fontSize: 14,
+    fontWeight: "900" as const,
+    lineHeight: 16,
+  },
+  checkboxLabel: {
+    color: "#E6F3FF",
+    fontSize: 14,
+    fontWeight: "500" as const,
+    flex: 1,
+  },
 
   // NUKE flash (zIndex below overlay so UI always wins)
   flash: { ...StyleSheet.absoluteFillObject, backgroundColor: "#FFFFFF", zIndex: 25 },
