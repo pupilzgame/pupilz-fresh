@@ -2491,7 +2491,7 @@ function Game() {
         <View style={[styles.hud, { opacity: 0.25 + 0.75 * hudAlpha, top: 10 + insets.top }]} pointerEvents="none">
           <Text style={styles.score}>
             LVL {level.current} • ⏱ {Math.floor(timeSec)}s • ❤️ {lives.current}
-            {level.current < 5 && !levelRingSpawned.current && (
+            {level.current < 5 && shipsRequiredForLevel.current > 0 && (
               <Text style={styles.shipProgress}> • 🚀 {shipsKilledThisLevel.current}/{shipsRequiredForLevel.current}</Text>
             )}
           </Text>
