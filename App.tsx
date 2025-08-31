@@ -951,26 +951,12 @@ function Game() {
     }
     ringDisintegrated.current = false; // reset disintegration flag for new ring
 
-    // Stage 1: boss only at LVL 5 AND only for new levels (avoid re-spawning after defeat)
-    if (level.current === 5 && isNewLevel) {
-      if (!boss.current.active) {
-        boss.current.active = true;
-        boss.current.hpMax = 60 + level.current * 24;
-        boss.current.hp = boss.current.hpMax;
-        // Spawn from bottom inside band
-        const margin = 40;
-        const bottomBound = height - margin;
-        boss.current.x = clamp(ringCenterX.current, 40, width - 40);
-        boss.current.y = scrollY.current + bottomBound - 60;
-        boss.current.vx = Math.random() < 0.5 ? 85 : -85;
-        boss.current.vy = -70; // going upward at start
-        boss.current.fireT = 1.0;
-        boss.current.pattern = 0;
-        hudFadeT.current = 3.0; // show HUD briefly
-        // Clear ships while boss active
-        ships.current = [];
-      }
-    } else {
+    // Boss spawning is now handled only in levelUp() function when reaching level 5
+    // This prevents premature boss spawning when rings are created
+    console.log(`spawnRingAt: level ${level.current}, isNewLevel ${isNewLevel}`);
+    
+    // Ensure boss is not active when spawning progression rings
+    if (!isNewLevel || level.current < 5) {
       boss.current.active = false;
     }
   };
@@ -1343,14 +1329,19 @@ function Game() {
   
   const checkLevelProgression = () => {
     // Level 5 is boss fight only, no ship progression
-    if (level.current >= 5) return false;
+    if (level.current >= 5) {
+      console.log(`BLOCKED: checkLevelProgression at level ${level.current} >= 5`);
+      return false;
+    }
     
     const required = shipsRequiredForLevel.current;
     const killed = shipsKilledThisLevel.current;
+    console.log(`CHECK PROGRESSION: Level ${level.current}, Killed ${killed}/${required}`);
     
     // Check if quota met and ring hasn't been spawned yet
     if (killed >= required && !levelRingSpawned.current && level.current < 5) {
       levelRingSpawned.current = true;
+      console.log(`SPAWNING RING: Level ${level.current} → Level ${level.current + 1}`);
       
       // Spawn the level advancement ring
       const ringY = scrollY.current + height * 0.3; // Spawn ahead of player
