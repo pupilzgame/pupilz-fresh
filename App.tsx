@@ -1093,6 +1093,10 @@ function Game() {
     shipsRequiredForLevel.current = getShipsRequiredForLevel(1);
     levelRingSpawned.current = false;
     
+    // Spawn initial ring for level 1→2 progression
+    const initialRingY = scrollY.current + height * 0.7; // Spawn initial ring ahead
+    spawnRingAt(initialRingY, true);
+    
     // Reset tip system
     tipsShown.current.clear();
     lastDeathCause.current = null;
@@ -1369,12 +1373,13 @@ function Game() {
   const onShipKilled = () => {
     shipsKilledThisLevel.current += 1;
     killsShip.current += 1;
+    console.log(`SHIP KILLED: ${shipsKilledThisLevel.current}/${shipsRequiredForLevel.current} at level ${level.current}`);
     
     // Check if this kill triggers level progression
     const ringSpawned = checkLevelProgression();
     
     if (ringSpawned) {
-      // TODO: Add celebration effects, sound, etc.
+      console.log('RING SPAWNED DUE TO SHIP QUOTA MET');
     }
   };
 
@@ -1463,11 +1468,14 @@ function Game() {
   };
 
   const levelUp = () => {
+    const oldLevel = level.current;
     level.current += 1;
+    console.log(`LEVEL UP: ${oldLevel} → ${level.current}`);
     hudFadeT.current = 3.0;
 
     if (level.current > 5) {
       // Stage 1 clear — handled when you pass EARTH ring after boss
+      console.log('GAME COMPLETE - LEVEL > 5');
       return;
     }
     
@@ -1483,6 +1491,7 @@ function Game() {
     
     // Spawn boss immediately when reaching level 5
     if (level.current === 5) {
+      console.log('SPAWNING BOSS AT LEVEL 5!');
       if (!boss.current.active) {
         boss.current.active = true;
         boss.current.hpMax = 60 + level.current * 24;
