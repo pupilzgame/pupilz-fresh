@@ -1093,9 +1093,7 @@ function Game() {
     shipsRequiredForLevel.current = getShipsRequiredForLevel(1);
     levelRingSpawned.current = false;
     
-    // Spawn initial ring for level 1→2 progression
-    const initialRingY = scrollY.current + height * 0.7; // Spawn initial ring ahead
-    spawnRingAt(initialRingY, true);
+    // NO initial ring spawn - rings only spawn after meeting ship kill quotas
     
     // Reset tip system
     tipsShown.current.clear();
