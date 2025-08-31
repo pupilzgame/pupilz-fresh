@@ -629,7 +629,7 @@ function Game() {
     
     if (isFirstLoss) {
       return {
-        title: "⚡ EMERGENCY RESPAWN INITIATED ⚡",
+        title: "⚡ EMERGENCY ⚡ RESPAWN ⚡ INITIATED ⚡",
         message: "Don't worry, Pupil. The mothership is tracking your position. You'll be respawned in a safer location with temporary shields.",
         tip: currentDeathTip.current
       };
@@ -717,6 +717,11 @@ function Game() {
   const maxLives = 3;
   const respawnCountdown = useRef(0);
   const livesLostThisSession = useRef(0);
+  
+  // Ship-based progression system
+  const shipsKilledThisLevel = useRef(0);
+  const shipsRequiredForLevel = useRef(2); // Start with 2 ships for level 1->2
+  const levelRingSpawned = useRef(false); // Track if ring has been spawned for current level
   
   // User preferences for respawn experience
   const [showRespawnTips, setShowRespawnTips] = useState(true);
@@ -973,7 +978,7 @@ function Game() {
   const resetSegment = (first = false) => {
     const segLen = rand(LEVEL_MIN, LEVEL_MAX);
     const baseY = first ? segLen : ringCenterY.current + segLen;
-    spawnRingAt(baseY, true); // This is a new level
+    // Ring spawning now handled by ship-based progression, not automatic
 
     const viewBottom = scrollY.current + height;
     nextAstY.current = viewBottom + rand(80, 200);
@@ -1082,6 +1087,11 @@ function Game() {
     lives.current = maxLives; // Reset lives for new mission
     livesLostThisSession.current = 0; // Reset session tracking
     respawnCountdown.current = 0;
+    
+    // Reset ship-based progression
+    shipsKilledThisLevel.current = 0;
+    shipsRequiredForLevel.current = getShipsRequiredForLevel(1);
+    levelRingSpawned.current = false;
     
     // Reset tip system
     tipsShown.current.clear();
@@ -1320,6 +1330,48 @@ function Game() {
 
   /* ---------- ID helper ---------- */
   const nextId = () => (projs.current[projs.current.length - 1]?.id ?? -1) + 1;
+  
+  /* ---------- Ship-based progression helpers ---------- */
+  const getShipsRequiredForLevel = (currentLevel: number): number => {
+    // Level 1 -> 2: need 2 ships, Level 2 -> 3: need 3 ships, etc.
+    return currentLevel + 1;
+  };
+  
+  const checkLevelProgression = () => {
+    const required = shipsRequiredForLevel.current;
+    const killed = shipsKilledThisLevel.current;
+    
+    // Check if quota met and ring hasn't been spawned yet
+    if (killed >= required && !levelRingSpawned.current && level.current < 5) {
+      levelRingSpawned.current = true;
+      
+      // Spawn the level advancement ring
+      const ringY = scrollY.current + height * 0.3; // Spawn ahead of player
+      spawnRingAt(ringY, true);
+      
+      // Visual celebration
+      hudFadeT.current = 4.0;
+      flashTime.current = 0.3; // Brief flash
+      shakeT.current = 0.4;
+      shakeMag.current = 8;
+      
+      return true; // Ring spawned
+    }
+    
+    return false; // No ring spawned
+  };
+  
+  const onShipKilled = () => {
+    shipsKilledThisLevel.current += 1;
+    killsShip.current += 1;
+    
+    // Check if this kill triggers level progression
+    const ringSpawned = checkLevelProgression();
+    
+    if (ringSpawned) {
+      // TODO: Add celebration effects, sound, etc.
+    }
+  };
 
   /* ---------- FX helpers ---------- */
   const spawnMuzzle = (x: number, y: number, color: string) => {
@@ -1413,11 +1465,16 @@ function Game() {
       // Stage 1 clear — handled when you pass EARTH ring after boss
       return;
     }
+    
+    // Reset progression tracking for new level
+    shipsKilledThisLevel.current = 0;
+    shipsRequiredForLevel.current = getShipsRequiredForLevel(level.current);
+    levelRingSpawned.current = false;
 
-    const extra = rand(LEVEL_MIN, LEVEL_MAX);
-    spawnRingAt(ringCenterY.current + extra, true); // This is a new level
-
+    // Give nuke on even levels
     if (level.current % 2 === 0) nukesLeft.current += 1;
+    
+    // Note: Ring spawning is now handled by checkLevelProgression() when quota is met
   };
 
   const sacrificeDrone = (x: number, y: number) => {
@@ -1696,7 +1753,7 @@ function Game() {
         const dx = s.x - cx, dy = s.y - cy;
         if (dx*dx + dy*dy <= (sweepR.current + 14) * (sweepR.current + 14)) {
           ships.current.splice(i, 1);
-          killsShip.current += 1;
+          onShipKilled();
           boom(s.x, s.y, 1.2, "#FFD890");
         }
       }
@@ -2073,7 +2130,7 @@ function Game() {
               boom(p.x, p.y, 0.7, "#FFD890");
               if (s.hp <= 0) {
                 ships.current.splice(j, 1);
-                killsShip.current += 1;
+                onShipKilled();
                 boom(s.x, s.y, 1.1, "#FFB46B");
               }
               if (p.kind === "laser" && (p.pierce ?? 0) > 1) { p.pierce!--; hit = false; }
@@ -2217,7 +2274,7 @@ function Game() {
               boom(ship.x, shipScreenY, 1.0, "#FF6B35"); // Ship impact explosion
               if (ship.hp <= 0) {
                 ships.current.splice(j, 1);
-                killsShip.current += 1;
+                onShipKilled();
                 boom(ship.x, ship.y, 1.5, "#FFD890"); // Larger ship destruction explosion
               } else {
                 // Even if ship survives, create dramatic explosion effect
@@ -2346,12 +2403,8 @@ function Game() {
       if (pa.ttl <= 0 || pa.y - scrollY.current < -80) particles.current.splice(i, 1);
     }
 
-    // If ring scrolls off the top, respawn further down (same level)
-    const screenY = ringCenterY.current - scrollY.current;
-    if (screenY < -(currentRingRadius() + 80)) {
-      const extra = rand(LEVEL_MIN * 0.7, LEVEL_MAX);
-      spawnRingAt(ringCenterY.current + extra);
-    }
+    // Ring respawning now handled by ship-based progression system
+    // No automatic ring respawning needed
   };
 
   /* ----- Start / Restart ----- */
@@ -2386,7 +2439,12 @@ function Game() {
       {/* Minimal HUD (auto-fades) - hide during menu */}
       {phase !== "menu" && (
         <View style={[styles.hud, { opacity: 0.25 + 0.75 * hudAlpha, top: 10 + insets.top }]} pointerEvents="none">
-          <Text style={styles.score}>LVL {level.current} • ⏱ {Math.floor(timeSec)}s • ❤️ {lives.current}</Text>
+          <Text style={styles.score}>
+            LVL {level.current} • ⏱ {Math.floor(timeSec)}s • ❤️ {lives.current}
+            {level.current < 5 && !levelRingSpawned.current && (
+              <Text style={styles.shipProgress}> • 🚀 {shipsKilledThisLevel.current}/{shipsRequiredForLevel.current}</Text>
+            )}
+          </Text>
         </View>
       )}
 
@@ -2960,6 +3018,13 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(0,0,0,0.8)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
+  },
+  shipProgress: {
+    color: "#FFD700",
+    fontWeight: "900" as const,
+    textShadowColor: "rgba(255, 215, 0, 0.6)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 
   star: { position: "absolute", backgroundColor: "#8FB7FF", borderRadius: 2, zIndex: 0 },
