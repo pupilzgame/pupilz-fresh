@@ -723,6 +723,7 @@ function Game() {
   const shipsRequiredForLevel = useRef(2); // Start with 2 ships for level 1->2
   const levelRingSpawned = useRef(false); // Track if ring has been spawned for current level
   const quotaJustMet = useRef(false); // Track when quota is first met for celebration
+  const levelUpProcessed = useRef(false); // Prevent multiple levelUp calls per ring
   
   // Level advancement notifications
   const levelNotificationTimer = useRef(0);
@@ -1089,6 +1090,7 @@ function Game() {
     shipsRequiredForLevel.current = getShipsRequiredForLevel(1);
     levelRingSpawned.current = false;
     quotaJustMet.current = false; // CRITICAL: Reset quota state
+    levelUpProcessed.current = false; // Reset level up protection
     
     // Reset ring state - no ring visible at start
     ringSpawnT.current = 0;
@@ -1390,6 +1392,7 @@ function Game() {
     // Set ring to start position and begin animation
     spawnRingAt(ringFloatStartY.current, true);
     ringFloatProgress.current = 0.01; // Start animation (0.01 to trigger updateRingFloatAnimation)
+    levelUpProcessed.current = false; // Reset for new ring
     
     console.log('RING FLOAT ANIMATION STARTED');
   };
@@ -2477,7 +2480,11 @@ function Game() {
             return;
           }
         } else {
-          levelUp();
+          // Prevent multiple levelUp calls per ring collision
+          if (!levelUpProcessed.current) {
+            levelUpProcessed.current = true;
+            levelUp();
+          }
           return;
         }
       }
