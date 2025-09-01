@@ -963,7 +963,10 @@ function Game() {
 
   const resetSegment = (first = false) => {
     const segLen = rand(LEVEL_MIN, LEVEL_MAX);
-    const baseY = first ? segLen : ringCenterY.current + segLen;
+    
+    // FIXED: Always spawn ring ahead of player's current position
+    // Use consistent spacing from player position
+    const baseY = scrollY.current + height * 1.5 + segLen;
     
     // RESTORE ORIGINAL: Spawn ring automatically for level progression
     spawnRingAt(baseY, true);
@@ -2395,14 +2398,8 @@ function Game() {
       }
     }
 
-    // Ring respawning: if ring scrolls off screen, spawn a new one
-    const screenY = ringCenterY.current - scrollY.current;
-    const ringRadius = currentRingRadius();
-    
-    if (ringSpawnT.current > 0 && screenY < -(ringRadius + 80) && level.current < 5) {
-      console.log('RING SCROLLED OFF SCREEN - SPAWNING NEW RING');
-      resetSegment();
-    }
+    // Ring progression is handled by levelUp() when player goes through rings
+    // No automatic respawning needed - rings only spawn when levels advance
 
     // particles update
     for (let i = particles.current.length - 1; i >= 0; i--) {
