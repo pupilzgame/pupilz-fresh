@@ -1093,7 +1093,9 @@ function Game() {
     ringCenterY.current = 0;
     ringCenterX.current = 0;
     
-    // NO initial ring spawn - rings only spawn after meeting ship kill quotas
+    // Spawn initial ring for level 1 progression
+    const initialRingY = scrollY.current + height * 1.5;
+    spawnRingAt(initialRingY, true);
     
     // Reset tip system
     tipsShown.current.clear();
