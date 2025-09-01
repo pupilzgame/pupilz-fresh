@@ -1354,11 +1354,11 @@ function Game() {
       quotaJustMet.current = true;
       console.log(`QUOTA MET! Level ${level.current}: ${killed}/${required} ships`);
       
-      // DOPAMINE HIT 1: Green celebration effect
+      // DOPAMINE HIT 1: Subtle celebration effect (no distracting flash)
       hudFadeT.current = 4.0;
-      flashTime.current = 0.8; // Longer green flash
-      shakeT.current = 0.5;
-      shakeMag.current = 12;
+      // flashTime.current removed - no white screen flash
+      shakeT.current = 0.3;
+      shakeMag.current = 6; // Gentler shake
       
       // DOPAMINE HIT 2: Level notification  
       levelNotificationTimer.current = 4.0; // Show for 4 seconds
