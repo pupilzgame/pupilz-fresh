@@ -1448,8 +1448,13 @@ function Game() {
     // Give nuke on even levels
     if (level.current % 2 === 0) nukesLeft.current += 1;
     
-    // Boss spawning is now handled by separate boss spawning logic
-    // Level 5 reached - boss will spawn after a brief delay
+    // Spawn next ring for continued progression
+    if (level.current < 5) {
+      resetSegment();
+    } else if (level.current === 5) {
+      // Level 5: Boss fight - no ring needed yet
+      console.log('LEVEL 5: Boss fight begins');
+    }
     
     // Note: Ring spawning for levels 1-4 is handled by checkLevelProgression() when quota is met
   };
@@ -2390,8 +2395,14 @@ function Game() {
       }
     }
 
-    // BOSS SPAWNING DISABLED - causing premature boss fights
-    // Need to debug why level.current jumps to 5 after first ring
+    // Ring respawning: if ring scrolls off screen, spawn a new one
+    const screenY = ringCenterY.current - scrollY.current;
+    const ringRadius = currentRingRadius();
+    
+    if (ringSpawnT.current > 0 && screenY < -(ringRadius + 80) && level.current < 5) {
+      console.log('RING SCROLLED OFF SCREEN - SPAWNING NEW RING');
+      resetSegment();
+    }
 
     // particles update
     for (let i = particles.current.length - 1; i >= 0; i--) {
