@@ -1079,6 +1079,7 @@ function Game() {
     worldV.current = FREE_FALL;
 
     level.current = 1;
+    console.log(`GAME RESET: Level set to ${level.current}`);
     lives.current = maxLives; // Reset lives for new mission
     livesLostThisSession.current = 0; // Reset session tracking
     respawnCountdown.current = 0;
@@ -1343,14 +1344,20 @@ function Game() {
   };
   
   const checkShipQuota = () => {
+    console.log(`CHECK QUOTA: Level ${level.current}, Killed ${shipsKilledThisLevel.current}/${shipsRequiredForLevel.current}, QuotaJustMet: ${quotaJustMet.current}`);
+    
     // Level 5 is boss fight only, no ship progression
-    if (level.current >= 5) return false;
+    if (level.current >= 5) {
+      console.log('QUOTA CHECK BLOCKED: Level >= 5');
+      return false;
+    }
     
     const required = shipsRequiredForLevel.current;
     const killed = shipsKilledThisLevel.current;
     
     // Check if quota just met for first time
     if (killed >= required && !quotaJustMet.current) {
+      console.log('QUOTA CELEBRATION TRIGGERED!');
       quotaJustMet.current = true;
       console.log(`QUOTA MET! Level ${level.current}: ${killed}/${required} ships`);
       
