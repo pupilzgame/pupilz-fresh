@@ -964,7 +964,9 @@ function Game() {
   const resetSegment = (first = false) => {
     const segLen = rand(LEVEL_MIN, LEVEL_MAX);
     const baseY = first ? segLen : ringCenterY.current + segLen;
-    // Ring spawning now handled by ship-based progression, not automatic
+    
+    // RESTORE ORIGINAL: Spawn ring automatically for level progression
+    spawnRingAt(baseY, true);
 
     const viewBottom = scrollY.current + height;
     nextAstY.current = viewBottom + rand(80, 200);
@@ -1332,49 +1334,11 @@ function Game() {
     return currentLevel + 1;
   };
   
-  const checkLevelProgression = () => {
-    // Level 5 is boss fight only, no ship progression
-    if (level.current >= 5) {
-      console.log(`BLOCKED: checkLevelProgression at level ${level.current} >= 5`);
-      return false;
-    }
-    
-    const required = shipsRequiredForLevel.current;
-    const killed = shipsKilledThisLevel.current;
-    console.log(`CHECK PROGRESSION: Level ${level.current}, Killed ${killed}/${required}`);
-    
-    // Check if quota met and ring hasn't been spawned yet
-    if (killed >= required && !levelRingSpawned.current && level.current < 5) {
-      levelRingSpawned.current = true;
-      console.log(`SPAWNING RING: Level ${level.current} → Level ${level.current + 1}`);
-      
-      // Spawn the level advancement ring
-      const ringY = scrollY.current + height * 0.3; // Spawn ahead of player
-      spawnRingAt(ringY, true);
-      
-      // Visual celebration
-      hudFadeT.current = 4.0;
-      flashTime.current = 0.3; // Brief flash
-      shakeT.current = 0.4;
-      shakeMag.current = 8;
-      
-      return true; // Ring spawned
-    }
-    
-    return false; // No ring spawned
-  };
+  // Ship-based progression removed - using original ring spawning system
   
   const onShipKilled = () => {
-    shipsKilledThisLevel.current += 1;
     killsShip.current += 1;
-    console.log(`SHIP KILLED: ${shipsKilledThisLevel.current}/${shipsRequiredForLevel.current} at level ${level.current}`);
-    
-    // Check if this kill triggers level progression
-    const ringSpawned = checkLevelProgression();
-    
-    if (ringSpawned) {
-      console.log('RING SPAWNED DUE TO SHIP QUOTA MET');
-    }
+    console.log(`SHIP KILLED: Total ${killsShip.current}`);
   };
 
   /* ---------- FX helpers ---------- */
@@ -1478,6 +1442,7 @@ function Game() {
       shipsKilledThisLevel.current = 0;
       shipsRequiredForLevel.current = getShipsRequiredForLevel(level.current);
       levelRingSpawned.current = false;
+      console.log(`LEVEL ${level.current}: Need ${shipsRequiredForLevel.current} ships for next level`);
     }
 
     // Give nuke on even levels
@@ -2476,9 +2441,6 @@ function Game() {
         <View style={[styles.hud, { opacity: 0.25 + 0.75 * hudAlpha, top: 10 + insets.top }]} pointerEvents="none">
           <Text style={styles.score}>
             LVL {level.current} • ⏱ {Math.floor(timeSec)}s • ❤️ {lives.current}
-            {level.current < 5 && shipsRequiredForLevel.current > 0 && (
-              <Text style={styles.shipProgress}> • 🚀 {shipsKilledThisLevel.current}/{shipsRequiredForLevel.current}</Text>
-            )}
           </Text>
         </View>
       )}
