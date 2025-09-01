@@ -1483,29 +1483,8 @@ function Game() {
     // Give nuke on even levels
     if (level.current % 2 === 0) nukesLeft.current += 1;
     
-    // Spawn boss immediately when reaching level 5
-    if (level.current === 5) {
-      console.log('SPAWNING BOSS AT LEVEL 5!');
-      if (!boss.current.active) {
-        boss.current.active = true;
-        boss.current.hpMax = 60 + level.current * 24;
-        boss.current.hp = boss.current.hpMax;
-        // Spawn from bottom inside band
-        const margin = 40;
-        const bottomBound = height - margin;
-        boss.current.x = clamp(podX.current, 40, width - 40);
-        boss.current.y = scrollY.current + bottomBound - 60;
-        boss.current.vx = Math.random() < 0.5 ? 85 : -85;
-        boss.current.vy = -70; // going upward at start
-        boss.current.fireT = 1.0;
-        
-        // Boss announcement effects
-        hudFadeT.current = 4.0;
-        flashTime.current = 0.5;
-        shakeT.current = 0.6;
-        shakeMag.current = 12;
-      }
-    }
+    // Boss spawning is now handled by separate boss spawning logic
+    // Level 5 reached - boss will spawn after a brief delay
     
     // Note: Ring spawning for levels 1-4 is handled by checkLevelProgression() when quota is met
   };
@@ -2444,6 +2423,28 @@ function Game() {
           return;
         }
       }
+    }
+
+    // Boss spawning logic for level 5
+    if (level.current === 5 && !boss.current.active && ringSpawnT.current === 0) {
+      console.log('AUTO-SPAWNING BOSS AT LEVEL 5 (no ships required)');
+      boss.current.active = true;
+      boss.current.hpMax = 60 + level.current * 24;
+      boss.current.hp = boss.current.hpMax;
+      // Spawn from bottom inside band
+      const margin = 40;
+      const bottomBound = height - margin;
+      boss.current.x = clamp(podX.current, 40, width - 40);
+      boss.current.y = scrollY.current + bottomBound - 60;
+      boss.current.vx = Math.random() < 0.5 ? 85 : -85;
+      boss.current.vy = -70; // going upward at start
+      boss.current.fireT = 1.0;
+      
+      // Boss announcement effects
+      hudFadeT.current = 4.0;
+      flashTime.current = 0.5;
+      shakeT.current = 0.6;
+      shakeMag.current = 12;
     }
 
     // particles update
