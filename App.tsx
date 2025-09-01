@@ -1341,13 +1341,6 @@ function Game() {
     return currentLevel + 1;
   };
   
-  const getShipsRequiredForLevel = (currentLevel: number): number => {
-    // Level 1 -> 2: need 2 ships, Level 2 -> 3: need 3 ships, etc.
-    // Level 5 is boss fight only, no ship requirement
-    if (currentLevel >= 5) return 0;
-    return currentLevel + 1;
-  };
-  
   const checkShipQuota = () => {
     // Level 5 is boss fight only, no ship progression
     if (level.current >= 5) return false;
