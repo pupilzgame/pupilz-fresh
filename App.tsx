@@ -1369,7 +1369,7 @@ function Game() {
       
       // DOPAMINE HIT 2: Level notification  
       levelNotificationTimer.current = 4.0; // Show for 4 seconds
-      levelNotificationText.current = `⭐ LEVEL ${level.current + 1} UNLOCKED ⭐`;
+      levelNotificationText.current = `🎯 RING SPAWNED FOR LEVEL ${level.current + 1} 🎯`;
       
       // DOPAMINE HIT 3: Ring starts floating from bottom (0.5s delay)
       setTimeout(() => {
