@@ -1055,8 +1055,8 @@ function Game() {
 
   /* ----- Reset world ----- */
   const respawnPlayer = () => {
-    // Reset pod position to safe area
-    podY.current = Math.round(height * 0.7);
+    // Reset pod position to safe area - top of screen below HUD
+    podY.current = Math.round(height * 0.15); // Top area, safe from threats
     invulnTime.current = 2.5; // Generous invulnerability
     hudFadeT.current = 4.0; // Extended HUD visibility
     canSkipCountdown.current = false;
@@ -2536,16 +2536,21 @@ function Game() {
           <View key={s.id} style={[styles.star, { width: s.size, height: s.size, opacity: s.opacity, transform: [{ translateX: s.x }, { translateY: s.y + insets.top }] }]} />
         ))}
 
-      {/* Minimal HUD (auto-fades) - hide during menu */}
+      {/* Minimal HUD (auto-fades) - hide during menu - tap to show */}
       {phase !== "menu" && (
-        <View style={[styles.hud, { opacity: 0.25 + 0.75 * hudAlpha, top: 10 + insets.top }]} pointerEvents="none">
+        <Pressable 
+          style={[styles.hud, { opacity: 0.25 + 0.75 * hudAlpha, top: 10 + insets.top }]} 
+          onPress={() => {
+            hudFadeT.current = 4.0; // Show HUD for 4 seconds when tapped
+          }}
+        >
           <Text style={styles.score}>
             LVL {level.current} • ⏱ {Math.floor(timeSec)}s • ❤️ {lives.current}
             {level.current < 5 && shipsRequiredForLevel.current > 0 && (
               <Text style={styles.shipProgress}> • 🚀 {shipsKilledThisLevel.current}/{shipsRequiredForLevel.current}</Text>
             )}
           </Text>
-        </View>
+        </Pressable>
       )}
       
       {/* Level Advancement Notification */}
