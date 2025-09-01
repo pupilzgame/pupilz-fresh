@@ -718,10 +718,19 @@ function Game() {
   const respawnCountdown = useRef(0);
   const livesLostThisSession = useRef(0);
   
-  // Ship-based progression system
+  // Ship-based progression system (HYBRID APPROACH)
   const shipsKilledThisLevel = useRef(0);
   const shipsRequiredForLevel = useRef(2); // Start with 2 ships for level 1->2
   const levelRingSpawned = useRef(false); // Track if ring has been spawned for current level
+  const quotaJustMet = useRef(false); // Track when quota is first met for celebration
+  
+  // Level advancement notifications
+  const levelNotificationTimer = useRef(0);
+  const levelNotificationText = useRef('');
+  
+  // Ring animation for floating from bottom
+  const ringFloatStartY = useRef(0);
+  const ringFloatProgress = useRef(0); // 0-1 animation progress
   
   // User preferences for respawn experience
   const [showRespawnTips, setShowRespawnTips] = useState(true);
@@ -964,12 +973,7 @@ function Game() {
   const resetSegment = (first = false) => {
     const segLen = rand(LEVEL_MIN, LEVEL_MAX);
     
-    // FIXED: Always spawn ring ahead of player's current position
-    // Use consistent spacing from player position
-    const baseY = scrollY.current + height * 1.5 + segLen;
-    
-    // RESTORE ORIGINAL: Spawn ring automatically for level progression
-    spawnRingAt(baseY, true);
+    // Ring spawning now handled by ship quota system - no automatic spawning in resetSegment
 
     const viewBottom = scrollY.current + height;
     nextAstY.current = viewBottom + rand(80, 200);
@@ -1337,11 +1341,83 @@ function Game() {
     return currentLevel + 1;
   };
   
-  // Ship-based progression removed - using original ring spawning system
+  const getShipsRequiredForLevel = (currentLevel: number): number => {
+    // Level 1 -> 2: need 2 ships, Level 2 -> 3: need 3 ships, etc.
+    // Level 5 is boss fight only, no ship requirement
+    if (currentLevel >= 5) return 0;
+    return currentLevel + 1;
+  };
+  
+  const checkShipQuota = () => {
+    // Level 5 is boss fight only, no ship progression
+    if (level.current >= 5) return false;
+    
+    const required = shipsRequiredForLevel.current;
+    const killed = shipsKilledThisLevel.current;
+    
+    // Check if quota just met for first time
+    if (killed >= required && !quotaJustMet.current) {
+      quotaJustMet.current = true;
+      console.log(`QUOTA MET! Level ${level.current}: ${killed}/${required} ships`);
+      
+      // DOPAMINE HIT 1: Green celebration effect
+      hudFadeT.current = 4.0;
+      flashTime.current = 0.8; // Longer green flash
+      shakeT.current = 0.5;
+      shakeMag.current = 12;
+      
+      // DOPAMINE HIT 2: Level notification  
+      levelNotificationTimer.current = 4.0; // Show for 4 seconds
+      levelNotificationText.current = `⭐ LEVEL ${level.current + 1} UNLOCKED ⭐`;
+      
+      // DOPAMINE HIT 3: Ring starts floating from bottom (0.5s delay)
+      setTimeout(() => {
+        startRingFloatAnimation();
+      }, 500);
+      
+      return true; // Quota met
+    }
+    
+    return false; // No quota met
+  };
+  
+  const startRingFloatAnimation = () => {
+    // Ring spawns at bottom of screen and floats up
+    ringFloatStartY.current = scrollY.current + height + 100; // Start below screen
+    
+    // Set ring to start position and begin animation
+    spawnRingAt(ringFloatStartY.current, true);
+    ringFloatProgress.current = 0.01; // Start animation (0.01 to trigger updateRingFloatAnimation)
+    
+    console.log('RING FLOAT ANIMATION STARTED');
+  };
+  
+  const updateRingFloatAnimation = (dt: number) => {
+    if (ringFloatProgress.current < 1 && ringFloatProgress.current > 0) {
+      // Animate ring floating up over 2.5 seconds
+      ringFloatProgress.current += dt / 2.5;
+      
+      if (ringFloatProgress.current >= 1) {
+        ringFloatProgress.current = 1;
+        console.log('RING FLOAT ANIMATION COMPLETE');
+      }
+      
+      // Update ring position using easing
+      const progress = ringFloatProgress.current;
+      const eased = 1 - Math.pow(1 - progress, 3); // Ease out cubic
+      const targetY = scrollY.current + height * 0.4;
+      
+      ringCenterY.current = ringFloatStartY.current + (targetY - ringFloatStartY.current) * eased;
+    }
+  };
   
   const onShipKilled = () => {
+    shipsKilledThisLevel.current += 1;
     killsShip.current += 1;
-    console.log(`SHIP KILLED: Total ${killsShip.current}`);
+    console.log(`SHIP KILLED: ${shipsKilledThisLevel.current}/${shipsRequiredForLevel.current} at level ${level.current}`);
+    
+    // Check if this kill triggers the celebration sequence
+    checkShipQuota();
   };
 
   /* ---------- FX helpers ---------- */
@@ -1448,15 +1524,22 @@ function Game() {
       console.log(`LEVEL ${level.current}: Need ${shipsRequiredForLevel.current} ships for next level`);
     }
 
+    // Reset ship progression for new level (only for levels 1-4)
+    if (level.current < 5) {
+      shipsKilledThisLevel.current = 0;
+      shipsRequiredForLevel.current = getShipsRequiredForLevel(level.current);
+      levelRingSpawned.current = false;
+      quotaJustMet.current = false;
+      console.log(`LEVEL ${level.current}: Need ${shipsRequiredForLevel.current} ships for next level`);
+    }
+    
     // Give nuke on even levels
     if (level.current % 2 === 0) nukesLeft.current += 1;
     
-    // Spawn next ring for continued progression
-    if (level.current < 5) {
-      resetSegment();
-    } else if (level.current === 5) {
-      // Level 5: Boss fight - no ring needed yet
+    // Level 5: Boss spawns immediately (no ship requirement)
+    if (level.current === 5) {
       console.log('LEVEL 5: Boss fight begins');
+      // Boss spawning logic will be added separately
     }
     
     // Note: Ring spawning for levels 1-4 is handled by checkLevelProgression() when quota is met
@@ -2398,8 +2481,16 @@ function Game() {
       }
     }
 
-    // Ring progression is handled by levelUp() when player goes through rings
-    // No automatic respawning needed - rings only spawn when levels advance
+    // Update ring floating animation
+    updateRingFloatAnimation(dt);
+    
+    // Update level notification timer
+    if (levelNotificationTimer.current > 0) {
+      levelNotificationTimer.current -= dt;
+      if (levelNotificationTimer.current <= 0) {
+        levelNotificationText.current = '';
+      }
+    }
 
     // particles update
     for (let i = particles.current.length - 1; i >= 0; i--) {
@@ -2449,6 +2540,18 @@ function Game() {
         <View style={[styles.hud, { opacity: 0.25 + 0.75 * hudAlpha, top: 10 + insets.top }]} pointerEvents="none">
           <Text style={styles.score}>
             LVL {level.current} • ⏱ {Math.floor(timeSec)}s • ❤️ {lives.current}
+            {level.current < 5 && shipsRequiredForLevel.current > 0 && (
+              <Text style={styles.shipProgress}> • 🚀 {shipsKilledThisLevel.current}/{shipsRequiredForLevel.current}</Text>
+            )}
+          </Text>
+        </View>
+      )}
+      
+      {/* Level Advancement Notification */}
+      {levelNotificationTimer.current > 0 && (
+        <View style={[styles.levelNotification, { top: 60 + insets.top }]} pointerEvents="none">
+          <Text style={styles.levelNotificationText}>
+            {levelNotificationText.current}
           </Text>
         </View>
       )}
@@ -3690,5 +3793,41 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
+  },
+  
+  // Ship progress indicator
+  shipProgress: {
+    color: "#FFD700",
+    fontWeight: "900" as const,
+    textShadowColor: "rgba(255, 215, 0, 0.6)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  
+  // Level advancement notification
+  levelNotification: {
+    position: "absolute" as const,
+    alignSelf: "center" as const,
+    left: 20,
+    right: 20,
+    alignItems: "center" as const,
+    zIndex: 30,
+    pointerEvents: "none" as const,
+  },
+  
+  levelNotificationText: {
+    color: "#FFD700",
+    fontSize: 24,
+    fontWeight: "900" as const,
+    textAlign: "center" as const,
+    textShadowColor: "rgba(0,0,0,0.8)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "rgba(255,215,0,0.5)",
   },
 });
