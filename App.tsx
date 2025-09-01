@@ -1088,6 +1088,7 @@ function Game() {
     shipsKilledThisLevel.current = 0;
     shipsRequiredForLevel.current = getShipsRequiredForLevel(1);
     levelRingSpawned.current = false;
+    quotaJustMet.current = false; // CRITICAL: Reset quota state
     
     // Reset ring state - no ring visible at start
     ringSpawnT.current = 0;
