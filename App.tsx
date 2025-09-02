@@ -104,7 +104,7 @@ type Star     = { id: string; x: number; y: number; size: number; parallax: numb
 type PowerUp  = { id: number; x: number; y: number; kind: PUKind, vy: number };
 type Phase    = "menu" | "playing" | "dead" | "win" | "respawning";
 
-type PUKind = "S" | "M" | "L" | "F" | "H" | "R" | "B" | "E" | "T" | "D";
+type PUKind = "S" | "M" | "L" | "F" | "H" | "R" | "B" | "E" | "T" | "D" | "N";
 
 type ProjKind = "bullet" | "laser" | "fire" | "homing";
 type Projectile = {
@@ -308,7 +308,7 @@ const MENU_SECTIONS: MenuSection[] = [
       "[E] Emergency Shield — collectable inventory (max 2)",
       "[E] Use E: gives +3 bubble shield rings + 3s invincibility",
       "[T] Time Slow — slows all enemies and projectiles for 5 seconds",
-      "Nuke — expanding sweep clears threats, spares power-ups",
+      "[N] Nuke — rare pickup, expanding sweep clears threats, spares power-ups",
     ],
   },
   {
@@ -515,11 +515,11 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
           </Text>
           <View style={[
             styles.toggleSwitch,
-            leftHandedMode && styles.toggleSwitchActive
+            !leftHandedMode && styles.toggleSwitchActive
           ]}>
             <View style={[
               styles.toggleKnob,
-              leftHandedMode && styles.toggleKnobActive
+              !leftHandedMode && styles.toggleKnobActive
             ]} />
           </View>
         </Pressable>
@@ -556,13 +556,33 @@ function Game() {
   const phaseRef = useRef<Phase>("menu");
   const setPhase = (p: Phase) => { phaseRef.current = p; _setPhase(p); };
   
-  // Smart Tip System - Contextual and Adaptive
+  // AAA-Quality Smart Tip System - Comprehensive & Contextual
   const gameplayTips = {
     // Core survival (always relevant)
     survival: [
-      { id: 'movement', text: '💫 Drag in the lower screen area to move your pod smoothly', priority: 'high' },
+      { id: 'movement', text: '💫 Drag anywhere on screen to move your pod smoothly', priority: 'high' },
       { id: 'shields', text: '🛡️ Collect blue bubble shields (B) for protection - stack up to 6!', priority: 'high' },
       { id: 'invuln', text: '✨ After respawn, you have brief invulnerability - use it to escape danger!', priority: 'medium' },
+      { id: 'corner_safety', text: '🏃 Screen corners are usually safer - retreat there when overwhelmed', priority: 'medium' },
+      { id: 'prediction', text: '🎯 Watch enemy movement patterns - anticipate where they\'ll be', priority: 'medium' },
+      { id: 'breathing_room', text: '💨 Don\'t hug the bottom edge - give yourself room to maneuver', priority: 'high' },
+    ],
+
+    // Control mastery
+    controls: [
+      { id: 'full_screen', text: '📱 You can control your pod from anywhere on the screen - use the full area!', priority: 'high' },
+      { id: 'handedness', text: '👈👉 Switch left/right handed controls in menu or during respawn', priority: 'medium' },
+      { id: 'smooth_movement', text: '🌊 Smooth, small movements are more effective than large jerky ones', priority: 'medium' },
+      { id: 'multi_finger', text: '✋ Use inventory items while moving - the game supports multi-touch', priority: 'low' },
+    ],
+
+    // Power-up mastery  
+    powerups: [
+      { id: 'energy_priority', text: '🔋 Energy cells (E) are lifesavers: +3 shields + 3s invulnerability!', priority: 'critical' },
+      { id: 'drone_bodyguard', text: '🤖 Drones (D) sacrifice themselves to save you - keep them close!', priority: 'high' },
+      { id: 'nuke_smart_use', text: '💥 Nukes clear threats but spare power-ups - perfect for emergencies!', priority: 'medium' },
+      { id: 'shield_stacking', text: '🛡️ Shield bubbles stack! Collect multiple for maximum protection', priority: 'high' },
+      { id: 'rapid_fire_timing', text: '⚡ Rapid-fire (R) reduces weapon cooldown - grab it before tough sections!', priority: 'medium' },
     ],
     
     // Weapon mastery
@@ -570,15 +590,31 @@ function Game() {
       { id: 'upgrade_hunt', text: '⚡ Hunt for weapon upgrades: M=Multi, S=Spread, L=Laser, F=Flame, H=Homing', priority: 'high' },
       { id: 'laser_power', text: '🔥 Laser (L) weapons pierce through multiple enemies - great for crowds!', priority: 'medium' },
       { id: 'homing_ships', text: '🎯 Homing missiles (H) prioritize enemy ships - perfect for evasive targets', priority: 'medium' },
-      { id: 'rapid_fire', text: '⚡ Rapid-fire (R) pickup reduces weapon cooldown - spam those shots!', priority: 'low' },
+      { id: 'multi_lanes', text: '🔫 Multi (M) weapons fire in multiple lanes - excellent for wide coverage', priority: 'medium' },
+      { id: 'spread_burst', text: '💥 Spread (S) fires multiple pellets - devastating at close range', priority: 'medium' },
+      { id: 'flame_area', text: '🔥 Flame (F) weapons excel at area damage - great for clusters', priority: 'medium' },
+      { id: 'weapon_stacking', text: '📈 Collect the same weapon type multiple times to upgrade it!', priority: 'high' },
+      { id: 'auto_fire', text: '🎯 Weapons auto-fire continuously - focus on movement and dodging', priority: 'high' },
     ],
-    
-    // Advanced tactics
+
+    // Level progression & strategy
+    progression: [
+      { id: 'ship_quota', text: '🚀 Kill required ships each level to spawn the level-up ring', priority: 'critical' },
+      { id: 'ring_timing', text: '⭕ Level rings float up from bottom - don\'t let them fall off the top!', priority: 'critical' },
+      { id: 'level_difficulty', text: '📊 Each level requires more ship kills: 2→3→4→5→Boss', priority: 'high' },
+      { id: 'boss_preparation', text: '👾 Level 5 = Boss fight! You\'ll get drone reinforcements + any shields/energy cells', priority: 'high' },
+      { id: 'drone_reinforcements', text: '🤖 Mothership sends 3 drone reinforcements each level - they\'ll sacrifice themselves to save you!', priority: 'high' },
+      { id: 'earth_ring_final', text: '🌍 After beating the boss, fly through the EARTH ring to win!', priority: 'critical' },
+    ],
+
+    // Pro tips & advanced tactics
     advanced: [
-      { id: 'energy_cells', text: '🔋 Energy cells (E) are lifesavers: +3 shields + 3s invulnerability on use!', priority: 'high' },
-      { id: 'drone_sacrifice', text: '🤖 Drones (D) will sacrifice themselves to save you - keep them close!', priority: 'medium' },
-      { id: 'nuke_clear', text: '💥 Nuke clears all threats but spares power-ups - perfect for emergencies!', priority: 'low' },
-      { id: 'boss_pattern', text: '👾 Boss moves in predictable patterns - learn the rhythm to survive!', priority: 'medium' },
+      { id: 'threat_prioritization', text: '🎯 Priority targets: Ships > Missiles > Asteroids > Barriers', priority: 'medium' },
+      { id: 'safe_zones', text: '🛡️ Create safe zones by clearing one side, then work the other side', priority: 'medium' },
+      { id: 'resource_conservation', text: '💾 Save energy cells and nukes for boss fight or emergencies', priority: 'medium' },
+      { id: 'boss_pattern', text: '👾 Boss bounces predictably - learn the pattern to avoid damage', priority: 'high' },
+      { id: 'inventory_position', text: '📱 Inventory appears in corners - won\'t block your movement space', priority: 'low' },
+      { id: 'respawn_safety', text: '🔄 You respawn with temporary shields and invulnerability - use wisely!', priority: 'medium' },
     ],
     
     // Death-specific advice
@@ -605,46 +641,62 @@ function Game() {
   };
   
   const getContextualTip = (): string => {
-    // Build pool of relevant tips based on context
-    const relevantTips = [];
+    // AAA-Quality Tip Selection Algorithm
+    const allTips = [];
     
-    // Always include high-priority survival tips for new players
-    if (livesLostThisSession.current <= 3) {
-      relevantTips.push(...gameplayTips.survival.filter(tip => tip.priority === 'high'));
-    }
+    // Base pool: Always include survival and controls for all players
+    allTips.push(...gameplayTips.survival);
+    allTips.push(...gameplayTips.controls);
+    allTips.push(...gameplayTips.powerups);
     
-    // Add contextual tips based on last death cause
+    // Add progression tips for all players (critical game knowledge)
+    allTips.push(...gameplayTips.progression);
+    
+    // Weapon tips - always relevant
+    allTips.push(...gameplayTips.weapons);
+    
+    // Contextual death-specific tips (boosted priority)
     if (lastDeathCause.current && gameplayTips[lastDeathCause.current]) {
-      relevantTips.push(...gameplayTips[lastDeathCause.current]);
-    }
-    
-    // Add weapon tips if player seems to be struggling
-    if (livesLostThisSession.current >= 2) {
-      relevantTips.push(...gameplayTips.weapons.filter(tip => tip.priority !== 'low'));
+      const deathTips = gameplayTips[lastDeathCause.current];
+      // Add death-specific tips multiple times for higher selection chance
+      allTips.push(...deathTips, ...deathTips, ...deathTips);
     }
     
     // Advanced tips for experienced players
-    if (livesLostThisSession.current >= 5) {
-      relevantTips.push(...gameplayTips.advanced);
+    if (livesLostThisSession.current >= 3) {
+      allTips.push(...gameplayTips.advanced);
     }
     
-    // Fallback to all survival tips if no relevant tips
-    if (relevantTips.length === 0) {
-      relevantTips.push(...gameplayTips.survival);
-    }
+    // Priority weighting: Critical and High priority tips get multiple entries
+    const weightedTips = [];
+    allTips.forEach(tip => {
+      if (tip.priority === 'critical') {
+        weightedTips.push(tip, tip, tip, tip); // 4x chance
+      } else if (tip.priority === 'high') {
+        weightedTips.push(tip, tip, tip); // 3x chance  
+      } else if (tip.priority === 'medium') {
+        weightedTips.push(tip, tip); // 2x chance
+      } else {
+        weightedTips.push(tip); // 1x chance
+      }
+    });
     
-    // Filter out tips already shown this session
-    const availableTips = relevantTips.filter(tip => !tipsShown.current.has(tip.id));
+    // Filter out recently shown tips (but more lenient - only last 8 tips)
+    const recentTips = Array.from(tipsShown.current).slice(-8);
+    const availableTips = weightedTips.filter(tip => !recentTips.includes(tip.id));
     
-    if (availableTips.length === 0) {
-      // Reset shown tips if we've cycled through all relevant ones
-      tipsShown.current.clear();
-      return getContextualTip();
-    }
+    // If we filtered too much, just use all weighted tips
+    const finalTips = availableTips.length > 0 ? availableTips : weightedTips;
     
-    // Simple random selection from available tips
-    const selectedTip = availableTips[Math.floor(Math.random() * availableTips.length)];
+    // Random selection
+    const selectedTip = finalTips[Math.floor(Math.random() * finalTips.length)];
+    
+    // Track shown tips (but cap at 15 to prevent infinite growth)
     tipsShown.current.add(selectedTip.id);
+    if (tipsShown.current.size > 15) {
+      const oldestTip = Array.from(tipsShown.current)[0];
+      tipsShown.current.delete(oldestTip);
+    }
     
     return selectedTip.text;
   };
@@ -679,11 +731,11 @@ function Game() {
   
   const getCrashMessage = () => {
     if (lives.current > 1) {
-      return "SYSTEM FAILURE - POD LOST";
+      return "SYSTEM FAILURE!\nPod Lost...";
     } else if (lives.current === 1) {
       return "CRITICAL CONDITION! Last life remaining!";
     } else {
-      return "MISSION FAILED. All pods lost.";
+      return "MISSION FAILED!\nAll Pods Lost...";
     }
   };
   const crashMessage = useRef("POD DESTROYED!"); // Will be updated by getCrashMessage()
@@ -723,7 +775,7 @@ function Game() {
   // Weapons & toggles
   const nukesLeft = useRef(1);
   const leftHandedMode = useRef(false); // Accessibility: left-handed player support
-  type Weapon = { kind: Exclude<PUKind,"R"|"B"|"E"|"T"|"D"> | "basic"; level: 1|2|3 };
+  type Weapon = { kind: Exclude<PUKind,"R"|"B"|"E"|"T"|"D"|"N"> | "basic"; level: 1|2|3 };
   const weapon = useRef<Weapon>({ kind: "basic", level: 1 });
   const rapidLevel = useRef<0|1|2|3>(0);
   const lastShotTime = useRef(-999);
@@ -999,8 +1051,19 @@ function Game() {
   };
 
   const seedPowerUp = (id: number, worldY: number): PowerUp => {
-    const bag: PUKind[] = ["S","M","L","F","H","R","B","E","T","D"];
-    const kind = bag[Math.floor(Math.random() * bag.length)];
+    // Base power-ups available at all levels
+    const baseBag: PUKind[] = ["S","M","L","F","H","R","B","E","T","D"];
+    
+    // Nuke availability: Only after Level 2 (skill mastery first)
+    const nukeChance = level.current >= 3 ? 0.08 : 0; // 8% chance after Level 2
+    
+    // Roll for nuke first (if available)
+    if (nukeChance > 0 && Math.random() < nukeChance) {
+      return { id, x: rand(22, width - 22), y: worldY, kind: "N", vy: 15 + Math.random() * 20 };
+    }
+    
+    // Regular power-up selection
+    const kind = baseBag[Math.floor(Math.random() * baseBag.length)];
     return { id, x: rand(22, width - 22), y: worldY, kind, vy: 15 + Math.random() * 20 };
   };
 
@@ -1202,7 +1265,7 @@ function Game() {
     podX.current = width * 0.5;
     podY.current = Math.round(height * 0.5);
 
-    nukesLeft.current = 1;
+    nukesLeft.current = 0; // Skill mastery first - no starting nukes
     rapidLevel.current = 0;
     weapon.current = { kind: "basic", level: 1 };
     lastShotTime.current = -999;
@@ -1626,8 +1689,30 @@ function Game() {
       console.log(`LEVEL ${level.current}: Need ${shipsRequiredForLevel.current} ships for next level`);
     }
     
-    // Give nuke on even levels
-    if (level.current % 2 === 0) nukesLeft.current += 1;
+    // Mothership Reinforcement System: Drone dispatch for level completion
+    if (level.current >= 2 && level.current <= 5) {
+      // Deploy 3 drone reinforcements for each level milestone
+      drones.current = [];
+      for (let i = 0; i < MAX_DRONES; i++) {
+        const newDrone: Drone = {
+          id: Date.now() + Math.random() + i,
+          angle: (i * 2 * Math.PI) / MAX_DRONES, // evenly spaced (0°, 120°, 240°)
+          orbitRadius: DRONE_ORBIT_RADIUS,
+          active: true,
+          mode: "orbit",
+          x: podX.current,
+          y: podY.current,
+          vx: 0,
+          vy: 0,
+          health: 1,
+        };
+        drones.current.push(newDrone);
+      }
+      
+      // Visual feedback for reinforcement arrival
+      hudFadeT.current = 5.0; // Extended HUD visibility for reinforcement message
+      console.log(`🤖 MOTHERSHIP DISPATCH: Drone reinforcements deployed to Level ${level.current}!`);
+    }
     
     // Level 5: Boss spawns immediately (no ship requirement)
     if (level.current === 5) {
@@ -1709,6 +1794,12 @@ function Game() {
       // Still have lives - enhanced respawn system
       setPhase("respawning");
       livesLostThisSession.current += 1;
+      
+      // Emergency nuke system: Give player a nuke if down to last life and has none
+      if (lives.current === 1 && nukesLeft.current === 0) {
+        nukesLeft.current = 1;
+        console.log('🚨 EMERGENCY NUKE: Last life safety net activated!');
+      }
       
       // Smart countdown based on user preferences
       const isFirstLoss = livesLostThisSession.current === 1;
@@ -2534,6 +2625,9 @@ function Game() {
           } else if (p.kind === "T") {
             // Time slow for 5 seconds
             timeSlowRemaining.current = Math.max(timeSlowRemaining.current, TIME_SLOW_DURATION);
+          } else if (p.kind === "N") {
+            // Nuke pickup: store for later use (max 3)
+            nukesLeft.current = Math.min(3, nukesLeft.current + 1);
           } else if (p.kind === "D") {
             // Spawn 3 drones evenly spaced around the pod (replace any existing)
             drones.current = [];
@@ -2983,23 +3077,18 @@ function Game() {
         </>
       )}
 
-      {/* Enhanced trackpad-style touch controls - STRICT boundary exclusion */}
+      {/* Enhanced trackpad-style touch controls - Full screen coverage */}
       <View
         style={{
           position: 'absolute',
           left: 0,
           right: 0, 
           top: 0,
-          bottom: insets.bottom + 120, // Strict cutoff for inventory space
+          bottom: 0, // Full screen touch control
         }} 
         pointerEvents="auto"
         onStartShouldSetResponder={(e) => {
           if (phase !== "playing") return false;
-          // Additional safety check - never capture inventory zone touches
-          const y = e.nativeEvent?.locationY || e.nativeEvent?.pageY || 0;
-          const inventoryBottom = height - insets.bottom - 20;
-          const inventoryTop = height - insets.bottom - 100;
-          if (y >= inventoryTop && y <= inventoryBottom) return false; // Never capture inventory touches
           return true;
         }}
         onMoveShouldSetResponder={() => false} // Don't steal moves from other components
@@ -3050,7 +3139,7 @@ function Game() {
       </View>
 
       {/* BOTTOM INVENTORY BAR - SEPARATE from game view hierarchy for proper multi-touch */}
-      {phase === "playing" && (
+      {phase === "playing" && (energyCells.current > 0 || nukesLeft.current > 0) && (
         <View style={{
           position: 'absolute',
           bottom: insets.bottom + 20, 
@@ -3169,6 +3258,25 @@ function Game() {
                   <Text style={styles.respawnTip}>{respawnMsg.tip}</Text>
                 )}
                 
+                {/* Compact handedness toggle */}
+                <Pressable 
+                  onPress={toggleHandedness}
+                  style={styles.respawnHandednessToggle}
+                >
+                  <Text style={styles.respawnHandednessLabel}>
+                    🎮 {leftHandedMode.current ? '👈' : '👉'}
+                  </Text>
+                  <View style={[
+                    styles.respawnToggleSwitch,
+                    !leftHandedMode.current && styles.respawnToggleSwitchActive
+                  ]}>
+                    <View style={[
+                      styles.respawnToggleKnob,
+                      !leftHandedMode.current && styles.respawnToggleKnobActive
+                    ]} />
+                  </View>
+                </Pressable>
+                
                 <View style={styles.livesDisplay}>
                   {Array.from({ length: maxLives }).map((_, i) => (
                     <Text key={i} style={[
@@ -3240,6 +3348,7 @@ const puBg = (k: PUKind) =>
   k === "E" ? "rgba(24, 40, 56, 0.92)" :     // Deep teal for energy
   k === "T" ? "rgba(40, 24, 56, 0.92)" :     // Deep violet for time
   k === "D" ? "rgba(32, 48, 32, 0.92)" :     // Deep sage for drones
+  k === "N" ? "rgba(64, 24, 24, 0.92)" :     // Deep crimson for nukes
               "rgba(48, 24, 40, 0.92)";      // Deep crimson for others
 
 const puBorder = (k: PUKind) =>
@@ -3252,6 +3361,7 @@ const puBorder = (k: PUKind) =>
   k === "E" ? "#6BC7E6" :    // Soft cyan for energy
   k === "T" ? "#A56BE6" :    // Soft violet for time
   k === "D" ? "#85E685" :    // Soft lime for drones
+  k === "N" ? "#FF6B6B" :    // Bright red for nukes
               "#E66B97";     // Soft pink for others
 
 /* ---------- App Wrapper ---------- */
@@ -3637,6 +3747,58 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   toggleKnobActive: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#CFFFD1',
+  },
+
+  // Compact respawn screen handedness toggle
+  respawnHandednessToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(20, 0, 0, 0.3)',
+    borderColor: 'rgba(255, 68, 68, 0.3)',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginTop: 15,
+    marginBottom: 5,
+    gap: 8,
+  },
+  respawnHandednessLabel: {
+    color: '#E6F3FF',
+    fontSize: 12,
+    fontWeight: '600',
+    opacity: 0.9,
+  },
+  respawnToggleSwitch: {
+    width: 32,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(62, 62, 122, 0.6)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    paddingHorizontal: 1,
+  },
+  respawnToggleSwitchActive: {
+    backgroundColor: 'rgba(75, 156, 105, 0.6)',
+    borderColor: 'rgba(207, 255, 209, 0.3)',
+  },
+  respawnToggleKnob: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#E6F3FF',
+    alignSelf: 'flex-start',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1,
+    elevation: 1,
+  },
+  respawnToggleKnobActive: {
     alignSelf: 'flex-end',
     backgroundColor: '#CFFFD1',
   },
