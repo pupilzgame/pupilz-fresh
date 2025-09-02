@@ -394,9 +394,11 @@ const AccordionItem: React.FC<AccordionItemProps> = ({ section, isOpen, onToggle
 
 type EnhancedMenuProps = {
   onStart: () => void;
+  leftHandedMode: boolean;
+  onToggleHandedness: () => void;
 };
 
-const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart }) => {
+const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness }) => {
   const [openId, setOpenId] = useState<string>("stackables");
   const [animPhase, setAnimPhase] = useState(0);
   const menuStarsRef = useRef<Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}>>([]);
@@ -502,6 +504,25 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart }) => {
             />
           ))}
         </View>
+        
+        {/* Handedness Toggle */}
+        <Pressable 
+          onPress={onToggleHandedness}
+          style={styles.handednessToggle}
+        >
+          <Text style={styles.handednessLabel}>
+            {leftHandedMode ? '👈 Left-Handed Mode' : '👉 Right-Handed Mode'}
+          </Text>
+          <View style={[
+            styles.toggleSwitch,
+            leftHandedMode && styles.toggleSwitchActive
+          ]}>
+            <View style={[
+              styles.toggleKnob,
+              leftHandedMode && styles.toggleKnobActive
+            ]} />
+          </View>
+        </Pressable>
         
         <Pressable 
           onPress={onStart} 
@@ -701,6 +722,7 @@ function Game() {
 
   // Weapons & toggles
   const nukesLeft = useRef(1);
+  const leftHandedMode = useRef(false); // Accessibility: left-handed player support
   type Weapon = { kind: Exclude<PUKind,"R"|"B"|"E"|"T"|"D"> | "basic"; level: 1|2|3 };
   const weapon = useRef<Weapon>({ kind: "basic", level: 1 });
   const rapidLevel = useRef<0|1|2|3>(0);
@@ -797,14 +819,14 @@ function Game() {
     return ringBaseR.current * shrink;
   };
 
-  // Check if EARTH ring has become too small to pass through - MISSION FAILURE
+  // Check if EARTH ring has fallen off top of screen - MISSION FAILURE
   const checkEarthRingFailure = () => {
     if (level.current === 5 && bossGateCleared.current && ringSpawnT.current > 0) {
-      const currentRadius = currentRingRadius();
-      const minPassableRadius = POD_RADIUS * 1.5; // Need at least 1.5x pod radius to pass through
+      const ringScreenY = yToScreen(ringCenterY.current);
+      const ringOffScreen = ringScreenY < -100; // Ring has fallen off top of screen
       
-      if (currentRadius <= minPassableRadius) {
-        console.log(`EARTH RING MISSED! Ring radius ${currentRadius.toFixed(1)} too small for pod (need ${minPassableRadius})`);
+      if (ringOffScreen) {
+        console.log(`EARTH RING MISSED! Ring fell off screen at Y=${ringScreenY.toFixed(1)}`);
         crashMessage.current = "MISSION FAILED - EARTH RING MISSED!";
         killPlayer('earth_ring_missed');
         return true;
@@ -1939,13 +1961,13 @@ function Game() {
             shakeT.current = 1.5; // Longer, more dramatic shake
             shakeMag.current = 25; // Stronger shake for epic boss defeat
             
-            // Delay EARTH ring spawn for dramatic pause
+            // Delay EARTH ring spawn for dramatic pause (longer for nuke to let player reposition)
             setTimeout(() => {
               if (level.current === 5 && bossGateCleared.current) {
-                console.log('DRAMATIC EARTH RING ENTRANCE BEGINS');
+                console.log('DRAMATIC EARTH RING ENTRANCE BEGINS (NUKE)');
                 startRingFloatAnimation();
               }
-            }, 2000); // 2-second dramatic pause
+            }, 4000); // 4-second dramatic pause for nuke boss defeat
           }
         }
       }
@@ -2546,14 +2568,15 @@ function Game() {
         }
       }
 
-      // --- RING EDGE COLLISION CHECK ---
-      const dxRing = podX.current - ringCenterX.current;
-      const dyRing = podWorldY - ringCenterY.current;
-      const rNow = currentRingRadius();
-      const distanceToCenter = Math.sqrt(dxRing*dxRing + dyRing*dyRing);
-      
-      // Check if pod is touching the ring edge (within pod radius of the ring border)
-      const ringEdgeHit = Math.abs(distanceToCenter - rNow) <= POD_RADIUS;
+      // --- RING EDGE COLLISION CHECK --- (only when ring is visible)
+      if (ringSpawnT.current > 0) {
+        const dxRing = podX.current - ringCenterX.current;
+        const dyRing = podWorldY - ringCenterY.current;
+        const rNow = currentRingRadius();
+        const distanceToCenter = Math.sqrt(dxRing*dxRing + dyRing*dyRing);
+        
+        // Check if pod is touching the ring edge (within pod radius of the ring border)
+        const ringEdgeHit = Math.abs(distanceToCenter - rNow) <= POD_RADIUS;
       
 
       // Boss-gated on level 5
@@ -2568,7 +2591,7 @@ function Game() {
         
         if (level.current === 5) {
           if (bossGateCleared.current) {
-            // EARTH reached → win
+            // EARTH reached → win (only when actually touching the ring!)
             console.log('VICTORY! EARTH ring touched with bossGateCleared = true');
             setPhase("win");
             return;
@@ -2589,13 +2612,14 @@ function Game() {
           return;
         }
       }
+    } // End of ring visibility check
     }
 
     // Update ring floating animation
     updateRingFloatAnimation(dt);
     
-    // Check for EARTH ring miss = game over
-    if (checkEarthRingFailure()) {
+    // Check for EARTH ring miss = game over (only if player hasn't already won)
+    if (phase === "playing" && checkEarthRingFailure()) {
       return; // Exit if EARTH ring was missed
     }
     
@@ -2627,6 +2651,10 @@ function Game() {
   /* ----- Start / Restart ----- */
   const startGame = () => { hardResetWorld(); setPhase("playing"); };
   const goMenu = () => { setPhase("menu"); hardResetWorld(); };
+  const toggleHandedness = () => {
+    leftHandedMode.current = !leftHandedMode.current;
+    console.log(`Handedness toggled to: ${leftHandedMode.current ? 'left' : 'right'}`);
+  };
 
   /* ----- Render ----- */
   const rNow = currentRingRadius();
@@ -3025,21 +3053,18 @@ function Game() {
       {phase === "playing" && (
         <View style={{
           position: 'absolute',
-          bottom: insets.bottom + 15, 
-          left: 20,
-          right: 20,
-          zIndex: 50, // High but not excessive
-          backgroundColor: 'rgba(0,0,0,0.4)', 
-          paddingVertical: 15,
-          paddingHorizontal: 20,
-          borderRadius: 20,
+          bottom: insets.bottom + 20, 
+          [leftHandedMode.current ? 'left' : 'right']: 20,
+          zIndex: 50,
+          backgroundColor: 'rgba(0,0,0,0.6)', 
+          paddingVertical: 12,
+          paddingHorizontal: 16,
+          borderRadius: 16,
           elevation: 10,
-          flexDirection: 'row',
-          justifyContent: 'center',
+          flexDirection: 'column', // Stack vertically for corner placement
           alignItems: 'center',
-          gap: 20,
-          alignSelf: 'center',
-          maxWidth: 280,
+          gap: 12,
+          minWidth: 80,
         }} pointerEvents="auto">
           {/* Energy Cell Inventory Slot */}
           {energyCells.current > 0 && (
@@ -3086,7 +3111,11 @@ function Game() {
             </Text>
           )}
 
-          {phase === "menu" && <EnhancedMenu onStart={startGame} />}
+          {phase === "menu" && <EnhancedMenu 
+            onStart={startGame} 
+            leftHandedMode={leftHandedMode.current} 
+            onToggleHandedness={toggleHandedness} 
+          />}
 
           {phase === "win" && (
             <>
@@ -3560,6 +3589,57 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   startBtnText: { color: "#E6F3FF", fontSize: 16, fontWeight: "900", letterSpacing: 1.2 },
+
+  // Handedness toggle styles
+  handednessToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(45, 45, 85, 0.4)',
+    borderColor: 'rgba(62, 62, 122, 0.6)',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  handednessLabel: {
+    color: '#CFFFD1',
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  toggleSwitch: {
+    width: 50,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(62, 62, 122, 0.8)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  toggleSwitchActive: {
+    backgroundColor: 'rgba(75, 156, 105, 0.8)',
+    borderColor: 'rgba(207, 255, 209, 0.4)',
+  },
+  toggleKnob: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#E6F3FF',
+    alignSelf: 'flex-start',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  toggleKnobActive: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#CFFFD1',
+  },
 
   // Lives system UI
   livesRemaining: {
