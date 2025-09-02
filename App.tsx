@@ -575,6 +575,12 @@ function Game() {
       { id: 'enemy_dodge', text: '👾 Enemy projectiles are slow - side-step while maintaining forward pressure', priority: 'high' },
       { id: 'enemy_homing', text: '🎯 Use homing missiles (H) against evasive enemy ships', priority: 'medium' },
     ],
+    
+    earth_ring_missed: [
+      { id: 'earth_ring_warning', text: '🌍 CRITICAL: EARTH rings shrink over time - fly to them immediately after boss defeat!', priority: 'critical' },
+      { id: 'earth_ring_timing', text: '⏰ You have limited time to reach the EARTH ring - defeat the boss and move fast!', priority: 'high' },
+      { id: 'earth_ring_positioning', text: '🎯 Stay close to the boss fight area to minimize travel time to EARTH ring', priority: 'medium' },
+    ],
   };
   
   const getContextualTip = (): string => {
@@ -676,6 +682,8 @@ function Game() {
   const ringSpawnT  = useRef(0);
   const bossGateCleared = useRef(false); // after boss dies for this ring
   const ringDisintegrated = useRef(false); // track if current ring has been disintegrated
+  const ringOriginalText = useRef(""); // store original ring text to prevent change during disintegration
+  const ringRespawnPending = useRef(false); // track if ring respawn is scheduled
 
   // HUD fade
   const hudFadeT = useRef(3.2); // seconds visible after notable event
@@ -739,8 +747,8 @@ function Game() {
   const canSkipCountdown = useRef(false);
   
   // Advanced tip system
-  const lastDeathCause = useRef<'asteroid' | 'barrier' | 'enemy' | 'boss' | 'ship' | null>(null);
-  const deathStats = useRef({ asteroid: 0, barrier: 0, enemy: 0, boss: 0, ship: 0 });
+  const lastDeathCause = useRef<'asteroid' | 'barrier' | 'enemy' | 'boss' | 'ship' | 'earth_ring_missed' | null>(null);
+  const deathStats = useRef({ asteroid: 0, barrier: 0, enemy: 0, boss: 0, ship: 0, earth_ring_missed: 0 });
   const tipsShown = useRef<Set<string>>(new Set());
   const currentDeathTip = useRef<string>(''); // Cache tip for current death
 
@@ -787,6 +795,52 @@ function Game() {
     const age = Math.max(0, timeSec - ringSpawnT.current);
     const shrink = Math.max(RING_MIN_FRACTION, 1 - RING_SHRINK_RATE * age);
     return ringBaseR.current * shrink;
+  };
+
+  // Check if EARTH ring has become too small to pass through - MISSION FAILURE
+  const checkEarthRingFailure = () => {
+    if (level.current === 5 && bossGateCleared.current && ringSpawnT.current > 0) {
+      const currentRadius = currentRingRadius();
+      const minPassableRadius = POD_RADIUS * 1.5; // Need at least 1.5x pod radius to pass through
+      
+      if (currentRadius <= minPassableRadius) {
+        console.log(`EARTH RING MISSED! Ring radius ${currentRadius.toFixed(1)} too small for pod (need ${minPassableRadius})`);
+        crashMessage.current = "MISSION FAILED - EARTH RING MISSED!";
+        killPlayer('earth_ring_missed');
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Check if level ring has fallen off top of screen and needs to respawn
+  const checkLevelRingMissed = () => {
+    if (ringSpawnT.current > 0 && level.current < 5 && !boss.current.active && !ringRespawnPending.current) {
+      const ringScreenY = yToScreen(ringCenterY.current);
+      const ringOffScreen = ringScreenY < -100; // Ring has fallen off top of screen
+      
+      if (ringOffScreen) {
+        console.log(`Level ring fell off screen! Respawning in 4 seconds...`);
+        ringSpawnT.current = 0; // Hide current ring
+        ringRespawnPending.current = true; // Mark respawn as pending
+        
+        // Schedule respawn after 4 seconds
+        setTimeout(() => {
+          console.log(`Attempting to respawn level ring - phase: ${phase}, level: ${level.current}`);
+          if (level.current < 5) {
+            console.log(`Respawning level ring for level ${level.current + 1} from bottom of screen`);
+            ringRespawnPending.current = false;
+            startRingFloatAnimation();
+          } else {
+            console.log(`Respawn blocked - level: ${level.current} >= 5`);
+            ringRespawnPending.current = false;
+          }
+        }, 4000);
+        
+        return true;
+      }
+    }
+    return false;
   };
 
   const seedStars = () => {
@@ -954,12 +1008,26 @@ function Game() {
     ringCenterY.current = worldY;
     ringBaseR.current = ringBaseRadiusForLevel();
     ringCenterX.current = rand(ringBaseR.current + 14, width - ringBaseR.current - 14);
-    ringSpawnT.current = timeSec;
-    // Only reset boss gate for NEW levels, not missed rings
-    if (isNewLevel) {
+    // Ensure ring always has a valid spawn time (use minimum of 0.1 seconds)
+    ringSpawnT.current = Math.max(0.1, timeSec);
+    console.log(`spawnRingAt: ringSpawnT set to ${ringSpawnT.current} (timeSec: ${timeSec})`);
+    // Only reset boss gate for NEW levels (except when spawning EARTH ring after boss defeat)
+    if (isNewLevel && level.current < 5) {
+      console.log('spawnRingAt: Resetting bossGateCleared for level', level.current);
       bossGateCleared.current = false;
+    } else if (isNewLevel && level.current === 5) {
+      console.log('spawnRingAt: NOT resetting bossGateCleared for level 5 (EARTH ring)');
     }
     ringDisintegrated.current = false; // reset disintegration flag for new ring
+    
+    // Set original ring text based on current state when ring spawns
+    if (boss.current.active) {
+      ringOriginalText.current = "DEFEAT BOSS";
+    } else if (level.current === 5 && bossGateCleared.current) {
+      ringOriginalText.current = "EARTH";
+    } else {
+      ringOriginalText.current = `LVL ${level.current + 1}`;
+    }
 
     // Boss spawning is now handled only in levelUp() function when reaching level 5
     // This prevents premature boss spawning when rings are created
@@ -1089,6 +1157,9 @@ function Game() {
     shipsKilledThisLevel.current = 0;
     shipsRequiredForLevel.current = getShipsRequiredForLevel(1);
     levelRingSpawned.current = false;
+    
+    // Reset ring respawn system
+    ringRespawnPending.current = false;
     quotaJustMet.current = false; // CRITICAL: Reset quota state
     levelUpProcessed.current = false; // Reset level up protection
     
@@ -1103,7 +1174,7 @@ function Game() {
     // Reset tip system
     tipsShown.current.clear();
     lastDeathCause.current = null;
-    deathStats.current = { asteroid: 0, barrier: 0, enemy: 0, boss: 0, ship: 0 };
+    deathStats.current = { asteroid: 0, barrier: 0, enemy: 0, boss: 0, ship: 0, earth_ring_missed: 0 };
 
     // Pod center-ish
     podX.current = width * 0.5;
@@ -1417,9 +1488,12 @@ function Game() {
   };
   
   const onShipKilled = () => {
-    shipsKilledThisLevel.current += 1;
+    // Only count ships toward level progression if quota hasn't been met yet
+    if (!quotaJustMet.current) {
+      shipsKilledThisLevel.current += 1;
+    }
     killsShip.current += 1;
-    console.log(`SHIP KILLED: ${shipsKilledThisLevel.current}/${shipsRequiredForLevel.current} at level ${level.current}`);
+    console.log(`SHIP KILLED: ${shipsKilledThisLevel.current}/${shipsRequiredForLevel.current} at level ${level.current} (QuotaMet: ${quotaJustMet.current})`);
     
     // Check if this kill triggers the celebration sequence
     checkShipQuota();
@@ -1521,14 +1595,6 @@ function Game() {
       return;
     }
     
-    // Reset progression tracking for new level (only for levels 1-4)
-    if (level.current < 5) {
-      shipsKilledThisLevel.current = 0;
-      shipsRequiredForLevel.current = getShipsRequiredForLevel(level.current);
-      levelRingSpawned.current = false;
-      console.log(`LEVEL ${level.current}: Need ${shipsRequiredForLevel.current} ships for next level`);
-    }
-
     // Reset ship progression for new level (only for levels 1-4)
     if (level.current < 5) {
       shipsKilledThisLevel.current = 0;
@@ -1544,7 +1610,23 @@ function Game() {
     // Level 5: Boss spawns immediately (no ship requirement)
     if (level.current === 5) {
       console.log('LEVEL 5: Boss fight begins');
-      // Boss spawning logic will be added separately
+      
+      // Initialize boss properties
+      boss.current.active = true;
+      boss.current.hp = 30; // Boss HP - balanced for level 5 difficulty
+      boss.current.hpMax = 30;
+      
+      // Spawn boss at bottom of screen, centered horizontally
+      boss.current.x = width / 2;
+      boss.current.y = scrollY.current + height - 100; // Start near bottom of screen
+      
+      // Set boss movement velocities (Pong-style bounce pattern)
+      boss.current.vx = 85;
+      boss.current.vy = 70;
+      boss.current.fireT = 1.0; // Reset fire timer
+      boss.current.pattern = 0; // Reset attack pattern
+      
+      console.log(`Boss spawned at (${boss.current.x}, ${boss.current.y}) with ${boss.current.hp} HP`);
     }
     
     // Note: Ring spawning for levels 1-4 is handled by checkLevelProgression() when quota is met
@@ -1561,7 +1643,7 @@ function Game() {
     return false; // No drones left
   };
 
-  const killPlayer = (cause: 'asteroid' | 'barrier' | 'enemy' | 'boss' | 'ship' = 'enemy') => {
+  const killPlayer = (cause: 'asteroid' | 'barrier' | 'enemy' | 'boss' | 'ship' | 'earth_ring_missed' = 'enemy') => {
     // Track death cause for contextual tips
     lastDeathCause.current = cause;
     deathStats.current[cause] += 1;
@@ -1849,17 +1931,21 @@ function Game() {
           if (boss.current.hp <= 0) {
             boss.current.active = false;
             bossGateCleared.current = true;
+            console.log('BOSS DEFEATED - bossGateCleared set to TRUE');
             boom(boss.current.x, boss.current.y, 1.8, "#FFE486");
             
-            // Spawn EARTH ring after boss defeat
-            const earthRingY = scrollY.current + height * 0.4;
-            spawnRingAt(earthRingY, true);
+            // Dramatic EARTH ring entrance effects (no distracting white flash)
+            hudFadeT.current = 8.0; // Longer HUD visibility for dramatic effect
+            shakeT.current = 1.5; // Longer, more dramatic shake
+            shakeMag.current = 25; // Stronger shake for epic boss defeat
             
-            // Victory celebration effects
-            hudFadeT.current = 5.0;
-            flashTime.current = 1.0;
-            shakeT.current = 1.0;
-            shakeMag.current = 15;
+            // Delay EARTH ring spawn for dramatic pause
+            setTimeout(() => {
+              if (level.current === 5 && bossGateCleared.current) {
+                console.log('DRAMATIC EARTH RING ENTRANCE BEGINS');
+                startRingFloatAnimation();
+              }
+            }, 2000); // 2-second dramatic pause
           }
         }
       }
@@ -2238,17 +2324,21 @@ function Game() {
             if (b.hp <= 0) {
               b.active = false;
               bossGateCleared.current = true;
+              console.log('BOSS DEFEATED (projectile) - bossGateCleared set to TRUE');
               boom(b.x, b.y, 1.6, "#FFE486");
               
-              // Spawn EARTH ring after boss defeat
-              const earthRingY = scrollY.current + height * 0.4;
-              spawnRingAt(earthRingY, true);
+              // Dramatic EARTH ring entrance effects (no distracting white flash)
+              hudFadeT.current = 8.0; // Longer HUD visibility for dramatic effect
+              shakeT.current = 1.5; // Longer, more dramatic shake
+              shakeMag.current = 25; // Stronger shake for epic boss defeat
               
-              // Victory celebration effects
-              hudFadeT.current = 5.0;
-              flashTime.current = 1.0;
-              shakeT.current = 1.0;
-              shakeMag.current = 15;
+              // Delay EARTH ring spawn for dramatic pause
+              setTimeout(() => {
+                if (level.current === 5 && bossGateCleared.current) {
+                  console.log('DRAMATIC EARTH RING ENTRANCE BEGINS (projectile)');
+                  startRingFloatAnimation();
+                }
+              }, 2000); // 2-second dramatic pause
             }
             if (p.kind === "laser" && (p.pierce ?? 0) > 1) { p.pierce!--; hit = false; } else { hit = true; }
           }
@@ -2464,6 +2554,7 @@ function Game() {
       
       // Check if pod is touching the ring edge (within pod radius of the ring border)
       const ringEdgeHit = Math.abs(distanceToCenter - rNow) <= POD_RADIUS;
+      
 
       // Boss-gated on level 5
       if (ringEdgeHit) {
@@ -2471,12 +2562,22 @@ function Game() {
         if (!ringDisintegrated.current) {
           ringDisintegrate(ringCenterX.current, ringCenterY.current, rNow);
           ringDisintegrated.current = true;
+          // Hide the ring immediately after disintegration starts
+          ringSpawnT.current = 0;
         }
         
         if (level.current === 5) {
           if (bossGateCleared.current) {
             // EARTH reached → win
+            console.log('VICTORY! EARTH ring touched with bossGateCleared = true');
             setPhase("win");
+            return;
+          } else {
+            // Boss not cleared yet - trigger boss fight
+            if (!levelUpProcessed.current) {
+              levelUpProcessed.current = true;
+              levelUp();
+            }
             return;
           }
         } else {
@@ -2492,6 +2593,14 @@ function Game() {
 
     // Update ring floating animation
     updateRingFloatAnimation(dt);
+    
+    // Check for EARTH ring miss = game over
+    if (checkEarthRingFailure()) {
+      return; // Exit if EARTH ring was missed
+    }
+    
+    // Check for level ring miss and respawn after 4 seconds
+    checkLevelRingMissed();
     
     // Update level notification timer
     if (levelNotificationTimer.current > 0) {
@@ -2533,7 +2642,7 @@ function Game() {
   const shakeY = shakeT.current > 0 ? (Math.random() * 2 - 1) * shakeMag.current : 0;
 
   // Ring label (consistent) - show next level since user starts at level 1
-  const ringText = boss.current.active ? "DEFEAT BOSS" : (level.current === 5 && bossGateCleared.current ? "EARTH" : `LVL ${level.current + 1}`);
+  const ringText = ringOriginalText.current || (boss.current.active ? "DEFEAT BOSS" : (level.current === 5 && bossGateCleared.current ? "EARTH" : `LVL ${level.current + 1}`));
 
   return (
     <View style={styles.container}>
