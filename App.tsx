@@ -811,6 +811,11 @@ function Game() {
   const levelNotificationTimer = useRef(0);
   const levelNotificationText = useRef('');
   
+  // Subtle acquisition notifications (when flying through rings)
+  const acquisitionMessageTimer = useRef(0);
+  const acquisitionMessageText = useRef('');
+  const acquisitionMessageOpacity = useRef(0);
+  
   // Ring animation for floating from bottom
   const ringFloatStartY = useRef(0);
   const ringFloatProgress = useRef(0); // 0-1 animation progress
@@ -1526,9 +1531,9 @@ function Game() {
       shakeT.current = 0.3;
       shakeMag.current = 6; // Gentler shake
       
-      // DOPAMINE HIT 2: Level notification  
-      levelNotificationTimer.current = 4.0; // Show for 4 seconds
-      levelNotificationText.current = `🎯 RING SPAWNED FOR LEVEL ${level.current + 1} 🎯`;
+      // Subtle level notification  
+      levelNotificationTimer.current = 2.5; // Show for 2.5 seconds (shorter)
+      levelNotificationText.current = `Level ${level.current + 1} available`;
       
       // DOPAMINE HIT 3: Ring starts floating from bottom (0.5s delay)
       setTimeout(() => {
@@ -1619,6 +1624,13 @@ function Game() {
     // smack (short & decaying)
     shakeMag.current = Math.max(shakeMag.current, 6 + power * 7);
     shakeT.current = Math.max(shakeT.current, 0.10 + power * 0.05);
+  };
+
+  const showAcquisitionMessage = (message: string) => {
+    acquisitionMessageText.current = message;
+    acquisitionMessageTimer.current = 3.0; // Show for 3 seconds
+    acquisitionMessageOpacity.current = 1.0; // Start fully visible
+    console.log(`🎉 ACQUISITION: ${message}`);
   };
 
   const ringDisintegrate = (centerX: number, centerY: number, radius: number) => {
@@ -2058,7 +2070,7 @@ function Game() {
                 console.log('DRAMATIC EARTH RING ENTRANCE BEGINS (NUKE)');
                 startRingFloatAnimation();
               }
-            }, 4000); // 4-second dramatic pause for nuke boss defeat
+            }, 6000); // 6-second dramatic pause for nuke boss defeat
           }
         }
       }
@@ -2451,7 +2463,7 @@ function Game() {
                   console.log('DRAMATIC EARTH RING ENTRANCE BEGINS (projectile)');
                   startRingFloatAnimation();
                 }
-              }, 2000); // 2-second dramatic pause
+              }, 4000); // 4-second dramatic pause
             }
             if (p.kind === "laser" && (p.pierce ?? 0) > 1) { p.pierce!--; hit = false; } else { hit = true; }
           }
@@ -2701,6 +2713,19 @@ function Game() {
           // Prevent multiple levelUp calls per ring collision
           if (!levelUpProcessed.current) {
             levelUpProcessed.current = true;
+            
+            // Show acquisition message based on current level
+            const currentLevel = level.current;
+            if (currentLevel === 1) {
+              showAcquisitionMessage("MOTHERSHIP REINFORCEMENT • 3 DRONES DEPLOYED");
+            } else if (currentLevel === 2) {
+              showAcquisitionMessage("TACTICAL UPGRADE • ENHANCED MANEUVERABILITY");
+            } else if (currentLevel === 3) {
+              showAcquisitionMessage("WEAPONS SYSTEMS • IMPROVED TARGETING");
+            } else if (currentLevel === 4) {
+              showAcquisitionMessage("FINAL APPROACH • BOSS ENCOUNTER IMMINENT");
+            }
+            
             levelUp();
           }
           return;
@@ -2725,6 +2750,19 @@ function Game() {
       levelNotificationTimer.current -= dt;
       if (levelNotificationTimer.current <= 0) {
         levelNotificationText.current = '';
+      }
+    }
+    
+    // Update acquisition message timer with fade out
+    if (acquisitionMessageTimer.current > 0) {
+      acquisitionMessageTimer.current -= dt;
+      // Fade out during last 0.5 seconds
+      if (acquisitionMessageTimer.current <= 0.5) {
+        acquisitionMessageOpacity.current = Math.max(0, acquisitionMessageTimer.current / 0.5);
+      }
+      if (acquisitionMessageTimer.current <= 0) {
+        acquisitionMessageText.current = '';
+        acquisitionMessageOpacity.current = 0;
       }
     }
 
@@ -2794,9 +2832,21 @@ function Game() {
       
       {/* Level Advancement Notification */}
       {levelNotificationTimer.current > 0 && (
-        <View style={[styles.levelNotification, { top: 60 + insets.top }]} pointerEvents="none">
+        <View style={[styles.levelNotification, { top: height * 0.25 }]} pointerEvents="none">
           <Text style={styles.levelNotificationText}>
             {levelNotificationText.current}
+          </Text>
+        </View>
+      )}
+      
+      {/* Subtle Acquisition Message */}
+      {acquisitionMessageTimer.current > 0 && (
+        <View style={[styles.acquisitionMessage, { 
+          top: height * 0.75, 
+          opacity: acquisitionMessageOpacity.current 
+        }]} pointerEvents="none">
+          <Text style={styles.acquisitionMessageText}>
+            {acquisitionMessageText.current}
           </Text>
         </View>
       )}
@@ -4181,18 +4231,43 @@ const styles = StyleSheet.create({
   },
   
   levelNotificationText: {
-    color: "#FFD700",
-    fontSize: 24,
-    fontWeight: "900" as const,
+    color: "#B8E6C1",
+    fontSize: 18,
+    fontWeight: "600" as const,
     textAlign: "center" as const,
-    textShadowColor: "rgba(0,0,0,0.8)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "rgba(255,215,0,0.5)",
+    textShadowColor: "rgba(0,0,0,0.4)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+    backgroundColor: "rgba(0,0,0,0.25)",
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(184,230,193,0.2)",
+  },
+  
+  acquisitionMessage: {
+    position: "absolute" as const,
+    left: 20,
+    right: 20,
+    alignItems: "center" as const,
+    zIndex: 25,
+    pointerEvents: "none" as const,
+  },
+  
+  acquisitionMessageText: {
+    color: "#5AD66F",
+    fontSize: 16,
+    fontWeight: "600" as const,
+    textAlign: "center" as const,
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(90,214,111,0.3)",
   },
 });
