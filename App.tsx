@@ -399,9 +399,11 @@ type EnhancedMenuProps = {
   onToggleHandedness: () => void;
   musicEnabled: boolean;
   onToggleMusic: () => void;
+  sfxEnabled: boolean;
+  onToggleSfx: () => void;
 };
 
-const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic }) => {
+const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic, sfxEnabled, onToggleSfx }) => {
   const [openId, setOpenId] = useState<string>("stackables");
   const [animPhase, setAnimPhase] = useState(0);
   const menuStarsRef = useRef<Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}>>([]);
@@ -542,6 +544,25 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
             <View style={[
               styles.toggleKnob,
               musicEnabled && styles.toggleKnobActive
+            ]} />
+          </View>
+        </Pressable>
+        
+        {/* Sound Effects Toggle */}
+        <Pressable 
+          onPress={onToggleSfx}
+          style={styles.handednessToggle}
+        >
+          <Text style={styles.handednessLabel}>
+            {sfxEnabled ? '🔊 Sound FX On' : '🔇 Sound FX Off'}
+          </Text>
+          <View style={[
+            styles.toggleSwitch,
+            sfxEnabled && styles.toggleSwitchActive
+          ]}>
+            <View style={[
+              styles.toggleKnob,
+              sfxEnabled && styles.toggleKnobActive
             ]} />
           </View>
         </Pressable>
@@ -769,6 +790,11 @@ function Game() {
   const titleMusic = useRef<Audio.Sound | null>(null);
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [musicVolume, setMusicVolume] = useState(0.7);
+  
+  // Sound effects system
+  const soundEffects = useRef<{[key: string]: Audio.Sound}>({});
+  const [sfxEnabled, setSfxEnabled] = useState(true);
+  const [sfxVolume, setSfxVolume] = useState(0.8);
 
   // Camera/world
   const scrollY = useRef(0);
@@ -953,6 +979,56 @@ function Game() {
       }
     } catch (error) {
       console.log('❌ Failed to set music volume:', error);
+    }
+  };
+
+  // Sound Effects System - AAA Quality Auto-Loading
+  const loadSoundEffects = async () => {
+    const soundFiles = {
+      'weapon-fire': require('./assets/audio/weapon-fire.wav'),
+      'explosion': require('./assets/audio/explosion.wav'),
+      'level-up': require('./assets/audio/level-up.wav'),
+      'game-over': require('./assets/audio/game-over.wav'),
+    };
+
+    try {
+      for (const [name, file] of Object.entries(soundFiles)) {
+        if (soundEffects.current[name]) {
+          await soundEffects.current[name].unloadAsync();
+        }
+        
+        const { sound } = await Audio.Sound.createAsync(file, {
+          volume: sfxVolume,
+          isLooping: false,
+        });
+        
+        soundEffects.current[name] = sound;
+        console.log(`🔊 Loaded sound effect: ${name}`);
+      }
+      console.log('🎮 All sound effects loaded successfully!');
+    } catch (error) {
+      console.log('❌ Failed to load sound effects:', error);
+    }
+  };
+
+  const playSound = async (soundName: string, volume?: number) => {
+    try {
+      if (!sfxEnabled) return;
+      
+      const sound = soundEffects.current[soundName];
+      if (!sound) {
+        console.log(`❌ Sound not found: ${soundName}`);
+        return;
+      }
+
+      // Reset to beginning and set volume
+      await sound.setPositionAsync(0);
+      await sound.setVolumeAsync(volume || sfxVolume);
+      await sound.playAsync();
+      
+      console.log(`🔊 Playing: ${soundName}`);
+    } catch (error) {
+      console.log(`❌ Failed to play sound ${soundName}:`, error);
     }
   };
 
@@ -1444,6 +1520,9 @@ function Game() {
     const now = timeSecRef.current;
     if (now - lastShotTime.current < currentCooldown()) return;
     lastShotTime.current = now;
+    
+    // Play weapon fire sound
+    playSound('weapon-fire', 0.6);
 
     const wz = scrollY.current + podY.current;
     const wX = podX.current;
@@ -1686,6 +1765,9 @@ function Game() {
   };
 
   const boom = (x: number, y: number, power: number, color: string) => {
+    // Play explosion sound with volume based on power
+    playSound('explosion', Math.min(0.8, 0.3 + power * 0.3));
+    
     const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
     const count = Math.floor(8 + power * 6);
     for (let i = 0; i < count; i++) {
@@ -1764,6 +1846,10 @@ function Game() {
     const oldLevel = level.current;
     level.current += 1;
     console.log(`LEVEL UP: ${oldLevel} → ${level.current}`);
+    
+    // Play level up sound
+    playSound('level-up', 0.7);
+    
     hudFadeT.current = 3.0;
 
     if (level.current > 5) {
@@ -1912,6 +1998,7 @@ function Game() {
       (window as any).currentRespawnInterval = countdownInterval;
     } else {
       // No lives left - true game over
+      playSound('game-over', 0.8);
       setPhase("dead");
     }
   };
@@ -2890,6 +2977,11 @@ function Game() {
       console.log('❌ Failed to toggle music volume:', error);
     }
   };
+  
+  const toggleSfx = () => {
+    setSfxEnabled(!sfxEnabled);
+    console.log(`Sound FX toggled to: ${!sfxEnabled ? 'on' : 'off'}`);
+  };
 
   // Audio system initialization
   useEffect(() => {
@@ -2905,6 +2997,9 @@ function Game() {
         
         // Load title music
         await loadTitleMusic();
+        
+        // Load sound effects
+        await loadSoundEffects();
         
         // Play title music if on menu
         if (phase === "menu") {
@@ -3425,6 +3520,8 @@ function Game() {
             onToggleHandedness={toggleHandedness}
             musicEnabled={musicEnabled}
             onToggleMusic={toggleMusic}
+            sfxEnabled={sfxEnabled}
+            onToggleSfx={toggleSfx}
           />}
 
           {phase === "win" && (
