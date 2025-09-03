@@ -23,6 +23,7 @@ import {
     View,
 } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Audio } from 'expo-av';
 /* ---------- CSS Hexagon Component ---------- */
 function HexagonAsteroid({ 
   size, 
@@ -396,9 +397,11 @@ type EnhancedMenuProps = {
   onStart: () => void;
   leftHandedMode: boolean;
   onToggleHandedness: () => void;
+  musicEnabled: boolean;
+  onToggleMusic: () => void;
 };
 
-const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness }) => {
+const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic }) => {
   const [openId, setOpenId] = useState<string>("stackables");
   const [animPhase, setAnimPhase] = useState(0);
   const menuStarsRef = useRef<Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}>>([]);
@@ -520,6 +523,25 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
             <View style={[
               styles.toggleKnob,
               !leftHandedMode && styles.toggleKnobActive
+            ]} />
+          </View>
+        </Pressable>
+        
+        {/* Music Toggle */}
+        <Pressable 
+          onPress={onToggleMusic}
+          style={styles.handednessToggle}
+        >
+          <Text style={styles.handednessLabel}>
+            {musicEnabled ? '🎵 Music On' : '🔇 Music Off'}
+          </Text>
+          <View style={[
+            styles.toggleSwitch,
+            musicEnabled && styles.toggleSwitchActive
+          ]}>
+            <View style={[
+              styles.toggleKnob,
+              musicEnabled && styles.toggleKnobActive
             ]} />
           </View>
         </Pressable>
@@ -742,6 +764,11 @@ function Game() {
 
   const [timeSec, setTimeSec] = useState(0);
   const [, setTick] = useState(0);
+  
+  // Audio system
+  const titleMusic = useRef<Audio.Sound | null>(null);
+  const [musicEnabled, setMusicEnabled] = useState(true);
+  const [musicVolume, setMusicVolume] = useState(0.7);
 
   // Camera/world
   const scrollY = useRef(0);
@@ -874,6 +901,59 @@ function Game() {
     const age = Math.max(0, timeSec - ringSpawnT.current);
     const shrink = Math.max(RING_MIN_FRACTION, 1 - RING_SHRINK_RATE * age);
     return ringBaseR.current * shrink;
+  };
+
+  // Audio system functions
+  const loadTitleMusic = async () => {
+    try {
+      if (titleMusic.current) {
+        await titleMusic.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Title-Track.wav'),
+        {
+          isLooping: true,
+          volume: musicVolume,
+        }
+      );
+      titleMusic.current = sound;
+      console.log('🎵 Title music loaded');
+    } catch (error) {
+      console.log('❌ Failed to load title music:', error);
+    }
+  };
+
+  const playTitleMusic = async () => {
+    try {
+      if (titleMusic.current && musicEnabled) {
+        await titleMusic.current.setVolumeAsync(musicVolume);
+        await titleMusic.current.playAsync();
+        console.log('🎵 Title music playing');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play title music:', error);
+    }
+  };
+
+  const stopTitleMusic = async () => {
+    try {
+      if (titleMusic.current) {
+        await titleMusic.current.pauseAsync();
+        console.log('🎵 Title music stopped');
+      }
+    } catch (error) {
+      console.log('❌ Failed to stop title music:', error);
+    }
+  };
+
+  const updateMusicVolume = async (volume: number) => {
+    try {
+      if (titleMusic.current) {
+        await titleMusic.current.setVolumeAsync(musicEnabled ? volume : 0);
+      }
+    } catch (error) {
+      console.log('❌ Failed to set music volume:', error);
+    }
   };
 
   // Check if EARTH ring has fallen off top of screen - MISSION FAILURE
@@ -2781,12 +2861,101 @@ function Game() {
   };
 
   /* ----- Start / Restart ----- */
-  const startGame = () => { hardResetWorld(); setPhase("playing"); };
-  const goMenu = () => { setPhase("menu"); hardResetWorld(); };
+  const startGame = () => { 
+    hardResetWorld(); 
+    setPhase("playing"); 
+    // Audio handled by phase useEffect
+  };
+  const goMenu = () => { 
+    setPhase("menu"); 
+    hardResetWorld(); 
+    // Audio handled by phase useEffect
+  };
   const toggleHandedness = () => {
     leftHandedMode.current = !leftHandedMode.current;
     console.log(`Handedness toggled to: ${leftHandedMode.current ? 'left' : 'right'}`);
   };
+  
+  const toggleMusic = async () => {
+    const newMusicEnabled = !musicEnabled;
+    setMusicEnabled(newMusicEnabled);
+    console.log(`Music toggled to: ${newMusicEnabled ? 'on' : 'off'}`);
+    
+    // Immediately apply volume change
+    try {
+      if (titleMusic.current) {
+        await titleMusic.current.setVolumeAsync(newMusicEnabled ? musicVolume : 0);
+      }
+    } catch (error) {
+      console.log('❌ Failed to toggle music volume:', error);
+    }
+  };
+
+  // Audio system initialization
+  useEffect(() => {
+    const initAudio = async () => {
+      try {
+        // Set up audio mode for iOS
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: false,
+        });
+        
+        // Load title music
+        await loadTitleMusic();
+        
+        // Play title music if on menu
+        if (phase === "menu") {
+          await playTitleMusic();
+        }
+      } catch (error) {
+        console.log('❌ Audio initialization error:', error);
+      }
+    };
+
+    initAudio();
+    
+    // Cleanup on unmount
+    return () => {
+      if (titleMusic.current) {
+        titleMusic.current.unloadAsync();
+      }
+    };
+  }, []);
+
+  // Handle phase changes for audio
+  useEffect(() => {
+    const handlePhaseAudio = async () => {
+      if (!titleMusic.current) return;
+      
+      if (phase === "menu") {
+        // On menu: play music if enabled
+        if (musicEnabled) {
+          try {
+            await titleMusic.current.setVolumeAsync(musicVolume);
+            await titleMusic.current.playAsync();
+            console.log('🎵 Menu music started');
+          } catch (error) {
+            console.log('❌ Failed to start menu music:', error);
+          }
+        } else {
+          await titleMusic.current.setVolumeAsync(0);
+        }
+      } else {
+        // Not on menu: mute music but keep playing for smooth transitions
+        try {
+          await titleMusic.current.setVolumeAsync(0);
+          console.log('🎵 Music muted for gameplay');
+        } catch (error) {
+          console.log('❌ Failed to mute music:', error);
+        }
+      }
+    };
+    
+    handlePhaseAudio();
+  }, [phase, musicEnabled]);
 
   /* ----- Render ----- */
   const rNow = currentRingRadius();
@@ -3253,7 +3422,9 @@ function Game() {
           {phase === "menu" && <EnhancedMenu 
             onStart={startGame} 
             leftHandedMode={leftHandedMode.current} 
-            onToggleHandedness={toggleHandedness} 
+            onToggleHandedness={toggleHandedness}
+            musicEnabled={musicEnabled}
+            onToggleMusic={toggleMusic}
           />}
 
           {phase === "win" && (
