@@ -23,7 +23,8 @@ import {
     View,
 } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Audio } from 'expo-av';
+// Web compatibility: Disable audio for now
+// import { Audio } from 'expo-av';
 /* ---------- CSS Hexagon Component ---------- */
 function HexagonAsteroid({ 
   size, 
@@ -811,7 +812,7 @@ function Game() {
   const [, setTick] = useState(0);
   
   // Audio system
-  const titleMusic = useRef<Audio.Sound | null>(null);
+  const titleMusic = useRef<any>(null);
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [musicVolume, setMusicVolume] = useState(0.7);
   
@@ -966,7 +967,12 @@ function Game() {
       if (titleMusic.current) {
         await titleMusic.current.unloadAsync();
       }
-      const { sound } = await Audio.Sound.createAsync(
+      // Web: Skip audio loading
+      if (Platform.OS === 'web') {
+        console.log('🌐 Web platform detected - audio disabled');
+        return;
+      }
+      /*const { sound } = await Audio.Sound.createAsync(
         require('./assets/audio/Title-Track.wav'),
         {
           isLooping: true,
@@ -974,13 +980,17 @@ function Game() {
         }
       );
       titleMusic.current = sound;
-      console.log('🎵 Title music loaded');
+      console.log('🎵 Title music loaded');*/
     } catch (error) {
       console.log('❌ Failed to load title music:', error);
     }
   };
 
   const playTitleMusic = async () => {
+    if (Platform.OS === 'web') {
+      console.log('🌐 Web: Audio playback disabled');
+      return;
+    }
     try {
       if (titleMusic.current && musicEnabled) {
         await titleMusic.current.setVolumeAsync(musicVolume);
@@ -993,6 +1003,10 @@ function Game() {
   };
 
   const stopTitleMusic = async () => {
+    if (Platform.OS === 'web') {
+      console.log('🌐 Web: Audio stop disabled');
+      return;
+    }
     try {
       if (titleMusic.current) {
         await titleMusic.current.pauseAsync();
@@ -3031,12 +3045,14 @@ function Game() {
     const initAudio = async () => {
       try {
         // Set up audio mode for iOS
-        await Audio.setAudioModeAsync({
+        // Web: Skip audio mode setup
+        if (Platform.OS === 'web') return;
+        /*await Audio.setAudioModeAsync({
           allowsRecordingIOS: false,
           playsInSilentModeIOS: true,
           staysActiveInBackground: false,
           shouldDuckAndroid: false,
-        });
+        });*/
         
         // Load title music
         await loadTitleMusic();
