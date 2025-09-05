@@ -287,53 +287,35 @@ type MenuSection = {
 
 const MENU_SECTIONS: MenuSection[] = [
   {
-    id: "controls",
-    icon: "🕹",
-    title: "BASIC CONTROLS",
+    id: "gameplay",
+    icon: "🎮",
+    title: "HOW TO PLAY",
     bullets: [
-      "Drag anywhere on screen to control your combat pod",
-      "You start with a basic single blaster - hunt for upgrades!",
-      "Fly through glowing rings to advance toward Earth",
-      "Collect items by flying into them",
-      "Tap inventory slots at bottom while flying to use items",
+      "Drag anywhere to move pod",
+      "Auto-fire weapons continuously", 
+      "Kill required ships each level",
+      "Fly through rings to advance levels",
+      "Defeat boss at Level 5 → fly through EARTH ring to win",
     ],
   },
   {
-    id: "defense",
-    icon: "🛡",
-    title: "DEFENSIVE ABILITIES",
+    id: "items",
+    icon: "📦",
+    title: "ITEMS & WEAPONS",
     bullets: [
-      "[B] Bubble Shield — automatic +1 Shield (stacks up to +6)",
-      "[D] Drones — spawns 3 orbital defenders that sacrifice for you",
-      "[D] Drones absorb damage before shields (3 extra lives)",
-      "[E] Emergency Shield — collectable inventory (max 2)",
-      "[E] Use E: gives +3 bubble shield rings + 3s invincibility",
-      "[T] Time Slow — slows all enemies and projectiles for 5 seconds",
-      "[N] Nuke — rare pickup, expanding sweep clears threats, spares power-ups",
+      "🔫 Multi/Spread/Laser/Flame/Homing — collect to upgrade firepower",
+      "⚡ Shield/Drone/Rapid/Time-slow — instant effects",
+      "🎒 Energy/Nuke — tap bottom icons to use stored items",
     ],
   },
   {
-    id: "weapons",
-    icon: "🔫",
-    title: "STACKABLE WEAPONS",
+    id: "settings",
+    icon: "⚙️", 
+    title: "SETTINGS",
     bullets: [
-      "[M] Multi — starts with 2 lanes, upgrades to 4 (crowd control)",
-      "[S] Spread — starts with 3 pellets, upgrades to 5 (burst damage)", 
-      "[L] Laser — pierces through multiple targets, scales damage",
-      "[F] Flame — starts with 1 lane, upgrades to 3 (area coverage)",
-      "[H] Homing — starts with 1 missile, upgrades to 3 (smart targeting)",
-      "Collect the same weapon type to upgrade and dominate!",
-    ],
-  },
-  {
-    id: "powerups",
-    icon: "⚡",
-    title: "INSTANT POWERUPS",
-    bullets: [
-      "[R] Rapid Fire — increases weapon fire rate",
-      "Temporary boost that stacks up to level 3",
-      "Works with all weapon types for devastating combos",
-      "Essential for surviving higher levels and boss fights",
+      "Toggle handedness for comfortable controls",
+      "Adjust music and sound effects volume",
+      "All changes apply immediately",
     ],
   },
 ];
@@ -393,18 +375,104 @@ const AccordionItem: React.FC<AccordionItemProps> = ({ section, isOpen, onToggle
   );
 };
 
+type SettingsAccordionProps = {
+  section: MenuSection;
+  isOpen: boolean;
+  onToggle: () => void;
+  leftHandedMode: boolean;
+  onToggleHandedness: () => void;
+  musicEnabled: boolean;
+  onToggleMusic: () => void;
+};
+
+const SettingsAccordion: React.FC<SettingsAccordionProps> = ({ 
+  section, isOpen, onToggle, leftHandedMode, onToggleHandedness, 
+  musicEnabled, onToggleMusic 
+}) => {
+  const contentAnim = useRef(new Animated.Value(isOpen ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(contentAnim, {
+      toValue: isOpen ? 1 : 0,
+      duration: 220,
+      easing: Easing.inOut(Easing.quad),
+      useNativeDriver: false,
+    }).start();
+  }, [isOpen]);
+
+  const maxHeight = 200; // Fixed height for settings toggles
+  const height = contentAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, maxHeight],
+  });
+  const opacity = contentAnim.interpolate({
+    inputRange: [0, 0.3, 1],
+    outputRange: [0, 0, 1],
+  });
+
+  return (
+    <View style={styles.accordionItem}>
+      <Pressable onPress={onToggle} style={styles.accordionHeader}>
+        <Text style={styles.accordionIcon}>{section.icon}</Text>
+        <Text style={styles.accordionTitle}>{section.title}</Text>
+        <Text style={[styles.accordionChevron, { transform: [{ rotate: isOpen ? '90deg' : '0deg' }] }]}>
+          ▶
+        </Text>
+      </Pressable>
+      <Animated.View style={[styles.accordionContent, { height, opacity }]}>
+        {/* Handedness Toggle */}
+        <Pressable 
+          onPress={onToggleHandedness}
+          style={styles.handednessToggle}
+        >
+          <Text style={styles.handednessLabel}>
+            {leftHandedMode ? '👈 Left-Handed Mode' : '👉 Right-Handed Mode'}
+          </Text>
+          <View style={[
+            styles.toggleSwitch,
+            !leftHandedMode && styles.toggleSwitchActive
+          ]}>
+            <View style={[
+              styles.toggleKnob,
+              !leftHandedMode && styles.toggleKnobActive
+            ]} />
+          </View>
+        </Pressable>
+        
+        {/* Music Toggle */}
+        <Pressable 
+          onPress={onToggleMusic}
+          style={styles.handednessToggle}
+        >
+          <Text style={styles.handednessLabel}>
+            {musicEnabled ? '🎵 Music On' : '🔇 Music Off'}
+          </Text>
+          <View style={[
+            styles.toggleSwitch,
+            musicEnabled && styles.toggleSwitchActive
+          ]}>
+            <View style={[
+              styles.toggleKnob,
+              musicEnabled && styles.toggleKnobActive
+            ]} />
+          </View>
+        </Pressable>
+        
+      </Animated.View>
+    </View>
+  );
+};
+
 type EnhancedMenuProps = {
   onStart: () => void;
   leftHandedMode: boolean;
   onToggleHandedness: () => void;
   musicEnabled: boolean;
   onToggleMusic: () => void;
-  sfxEnabled: boolean;
-  onToggleSfx: () => void;
 };
 
-const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic, sfxEnabled, onToggleSfx }) => {
-  const [openId, setOpenId] = useState<string>("stackables");
+const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic }) => {
+  const [openId, setOpenId] = useState<string>("");
   const [animPhase, setAnimPhase] = useState(0);
   const menuStarsRef = useRef<Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}>>([]);
   const { width, height } = useWindowDimensions();
@@ -501,71 +569,27 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
         
         <View style={styles.menuSections}>
           {MENU_SECTIONS.map((section) => (
-            <AccordionItem
-              key={section.id}
-              section={section}
-              isOpen={openId === section.id}
-              onToggle={() => handleToggle(section.id)}
-            />
+            section.id === "settings" ? (
+              <SettingsAccordion
+                key={section.id}
+                section={section}
+                isOpen={openId === section.id}
+                onToggle={() => handleToggle(section.id)}
+                leftHandedMode={leftHandedMode}
+                onToggleHandedness={onToggleHandedness}
+                musicEnabled={musicEnabled}
+                onToggleMusic={onToggleMusic}
+              />
+            ) : (
+              <AccordionItem
+                key={section.id}
+                section={section}
+                isOpen={openId === section.id}
+                onToggle={() => handleToggle(section.id)}
+              />
+            )
           ))}
         </View>
-        
-        {/* Handedness Toggle */}
-        <Pressable 
-          onPress={onToggleHandedness}
-          style={styles.handednessToggle}
-        >
-          <Text style={styles.handednessLabel}>
-            {leftHandedMode ? '👈 Left-Handed Mode' : '👉 Right-Handed Mode'}
-          </Text>
-          <View style={[
-            styles.toggleSwitch,
-            !leftHandedMode && styles.toggleSwitchActive
-          ]}>
-            <View style={[
-              styles.toggleKnob,
-              !leftHandedMode && styles.toggleKnobActive
-            ]} />
-          </View>
-        </Pressable>
-        
-        {/* Music Toggle */}
-        <Pressable 
-          onPress={onToggleMusic}
-          style={styles.handednessToggle}
-        >
-          <Text style={styles.handednessLabel}>
-            {musicEnabled ? '🎵 Music On' : '🔇 Music Off'}
-          </Text>
-          <View style={[
-            styles.toggleSwitch,
-            musicEnabled && styles.toggleSwitchActive
-          ]}>
-            <View style={[
-              styles.toggleKnob,
-              musicEnabled && styles.toggleKnobActive
-            ]} />
-          </View>
-        </Pressable>
-        
-        {/* Sound Effects Toggle */}
-        <Pressable 
-          onPress={onToggleSfx}
-          style={styles.handednessToggle}
-        >
-          <Text style={styles.handednessLabel}>
-            {sfxEnabled ? '🔊 Sound FX On' : '🔇 Sound FX Off'}
-          </Text>
-          <View style={[
-            styles.toggleSwitch,
-            sfxEnabled && styles.toggleSwitchActive
-          ]}>
-            <View style={[
-              styles.toggleKnob,
-              sfxEnabled && styles.toggleKnobActive
-            ]} />
-          </View>
-        </Pressable>
         
         <Pressable 
           onPress={onStart} 
@@ -630,7 +654,7 @@ function Game() {
     
     // Weapon mastery
     weapons: [
-      { id: 'upgrade_hunt', text: '⚡ Hunt for weapon upgrades: M=Multi, S=Spread, L=Laser, F=Flame, H=Homing', priority: 'high' },
+      { id: 'upgrade_hunt', text: '⚡ Hunt for weapon upgrades: Multi/Spread/Laser/Flame/Homing', priority: 'high' },
       { id: 'laser_power', text: '🔥 Laser (L) weapons pierce through multiple enemies - great for crowds!', priority: 'medium' },
       { id: 'homing_ships', text: '🎯 Homing missiles (H) prioritize enemy ships - perfect for evasive targets', priority: 'medium' },
       { id: 'multi_lanes', text: '🔫 Multi (M) weapons fire in multiple lanes - excellent for wide coverage', priority: 'medium' },
@@ -791,10 +815,6 @@ function Game() {
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [musicVolume, setMusicVolume] = useState(0.7);
   
-  // Sound effects system
-  const soundEffects = useRef<{[key: string]: Audio.Sound}>({});
-  const [sfxEnabled, setSfxEnabled] = useState(true);
-  const [sfxVolume, setSfxVolume] = useState(0.8);
 
   // Camera/world
   const scrollY = useRef(0);
@@ -816,7 +836,7 @@ function Game() {
 
   // Pod free-move (screen space) - direct position control
   const podX = useRef(width * 0.5);
-  const podY = useRef(Math.round(height * 0.5)); // center-ish
+  const podY = useRef(Math.round(height * 0.5)); // mid-screen starting position
 
   // Touch control state - trackpad style
   const touching = useRef(false);
@@ -902,6 +922,17 @@ function Game() {
   const shakeMag = useRef(0);
   const flashTime = useRef(0);
   const crashFlashTime = useRef(0); // Separate flash timer for crashes
+  
+  // Victory beam-up sequence
+  const victoryBeamActive = useRef(false);
+  const victoryBeamProgress = useRef(0); // 0 to 1 over 2 seconds
+  const podVictoryY = useRef(0); // Pod Y during beam-up
+  const podVictoryScale = useRef(1); // Pod scale during beam-up
+  
+  // Simple game start messaging
+  const gameStartMessageTimer = useRef(0);
+  const gameStartMessageText = useRef("");
+  
 
   // Nuke sweep
   const sweepActive = useRef(false);
@@ -982,55 +1013,6 @@ function Game() {
     }
   };
 
-  // Sound Effects System - AAA Quality Auto-Loading
-  const loadSoundEffects = async () => {
-    const soundFiles = {
-      'weapon-fire': require('./assets/audio/weapon-fire.wav'),
-      'explosion': require('./assets/audio/explosion.wav'),
-      'level-up': require('./assets/audio/level-up.wav'),
-      'game-over': require('./assets/audio/game-over.wav'),
-    };
-
-    try {
-      for (const [name, file] of Object.entries(soundFiles)) {
-        if (soundEffects.current[name]) {
-          await soundEffects.current[name].unloadAsync();
-        }
-        
-        const { sound } = await Audio.Sound.createAsync(file, {
-          volume: sfxVolume,
-          isLooping: false,
-        });
-        
-        soundEffects.current[name] = sound;
-        console.log(`🔊 Loaded sound effect: ${name}`);
-      }
-      console.log('🎮 All sound effects loaded successfully!');
-    } catch (error) {
-      console.log('❌ Failed to load sound effects:', error);
-    }
-  };
-
-  const playSound = async (soundName: string, volume?: number) => {
-    try {
-      if (!sfxEnabled) return;
-      
-      const sound = soundEffects.current[soundName];
-      if (!sound) {
-        console.log(`❌ Sound not found: ${soundName}`);
-        return;
-      }
-
-      // Reset to beginning and set volume
-      await sound.setPositionAsync(0);
-      await sound.setVolumeAsync(volume || sfxVolume);
-      await sound.playAsync();
-      
-      console.log(`🔊 Playing: ${soundName}`);
-    } catch (error) {
-      console.log(`❌ Failed to play sound ${soundName}:`, error);
-    }
-  };
 
   // Check if EARTH ring has fallen off top of screen - MISSION FAILURE
   const checkEarthRingFailure = () => {
@@ -1298,6 +1280,7 @@ function Game() {
   };
 
   const spawnAhead = () => {
+    
     const viewBottom = scrollY.current + height;
     const bufferBelow = 1200;
 
@@ -1371,7 +1354,7 @@ function Game() {
   /* ----- Reset world ----- */
   const respawnPlayer = () => {
     // Reset pod position to safe area - top of screen below HUD
-    podY.current = Math.round(height * 0.15); // Top area, safe from threats
+    podY.current = Math.round(height * 0.5); // Mid-screen, balanced position
     invulnTime.current = 2.5; // Generous invulnerability
     hudFadeT.current = 4.0; // Extended HUD visibility
     canSkipCountdown.current = false;
@@ -1465,6 +1448,17 @@ function Game() {
 
     shakeT.current = 0; shakeMag.current = 0; flashTime.current = 0; crashFlashTime.current = 0;
     sweepActive.current = false; sweepR.current = 0;
+    
+    // Reset victory beam sequence
+    victoryBeamActive.current = false;
+    victoryBeamProgress.current = 0;
+    podVictoryY.current = 0;
+    podVictoryScale.current = 1;
+    
+    // Reset game start messaging
+    gameStartMessageTimer.current = 0;
+    gameStartMessageText.current = "";
+    
 
 
     hudFadeT.current = 4.0;
@@ -1517,12 +1511,14 @@ function Game() {
   useEffect(() => { timeSecRef.current = timeSec; }, [timeSec]);
 
   const tryShoot = () => {
+    // Don't shoot during victory beam-up sequence
+    if (victoryBeamActive.current) return;
+    
     const now = timeSecRef.current;
     if (now - lastShotTime.current < currentCooldown()) return;
     lastShotTime.current = now;
     
     // Play weapon fire sound
-    playSound('weapon-fire', 0.6);
 
     const wz = scrollY.current + podY.current;
     const wX = podX.current;
@@ -1766,7 +1762,6 @@ function Game() {
 
   const boom = (x: number, y: number, power: number, color: string) => {
     // Play explosion sound with volume based on power
-    playSound('explosion', Math.min(0.8, 0.3 + power * 0.3));
     
     const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
     const count = Math.floor(8 + power * 6);
@@ -1848,7 +1843,6 @@ function Game() {
     console.log(`LEVEL UP: ${oldLevel} → ${level.current}`);
     
     // Play level up sound
-    playSound('level-up', 0.7);
     
     hudFadeT.current = 3.0;
 
@@ -1998,7 +1992,6 @@ function Game() {
       (window as any).currentRespawnInterval = countdownInterval;
     } else {
       // No lives left - true game over
-      playSound('game-over', 0.8);
       setPhase("dead");
     }
   };
@@ -2026,6 +2019,34 @@ function Game() {
     if (hudFadeT.current > 0)  hudFadeT.current = Math.max(0, hudFadeT.current - dt);
     if (timeSlowRemaining.current > 0) timeSlowRemaining.current = Math.max(0, timeSlowRemaining.current - dt);
     if (droneDeployCD.current > 0) droneDeployCD.current = Math.max(0, droneDeployCD.current - dt);
+    
+    // Victory beam-up animation (2-second duration)
+    if (victoryBeamActive.current) {
+      victoryBeamProgress.current = Math.min(1, victoryBeamProgress.current + dt / 2.0); // 2-second duration
+      
+      // Pod ascends smoothly off screen
+      const ascensionDistance = height * 1.5; // Travel 1.5 screen heights upward
+      podVictoryY.current = podY.current - (victoryBeamProgress.current * ascensionDistance);
+      
+      // Pod shrinks as it gets "pulled up to mothership"
+      podVictoryScale.current = 1.0 - (victoryBeamProgress.current * 0.4); // Shrink to 60% size
+      
+      console.log(`🛸 Beam-up progress: ${(victoryBeamProgress.current * 100).toFixed(1)}%`);
+    }
+    
+    // Simple game start message timer - reuse acquisition message system
+    if (gameStartMessageTimer.current > 0) {
+      gameStartMessageTimer.current = Math.max(0, gameStartMessageTimer.current - dt);
+      
+      // Show game start message using acquisition message system
+      if (gameStartMessageText.current && acquisitionMessageTimer.current <= 0) {
+        acquisitionMessageText.current = gameStartMessageText.current;
+        acquisitionMessageTimer.current = gameStartMessageTimer.current;
+        acquisitionMessageOpacity.current = 1.0;
+        gameStartMessageText.current = ""; // Clear to prevent re-triggering
+      }
+    }
+    
 
     // Drone system updates
     // First, check if any enemies are too close to the pod and deploy drones
@@ -2864,9 +2885,22 @@ function Game() {
         
         if (level.current === 5) {
           if (bossGateCleared.current) {
-            // EARTH reached → win (only when actually touching the ring!)
+            // EARTH reached → win (with dramatic pause after ring disintegration)
             console.log('VICTORY! EARTH ring touched with bossGateCleared = true');
-            setPhase("win");
+            console.log('EARTH RING DISINTEGRATION - Victory pause initiated');
+            
+            // Start dramatic pod beam-up sequence
+            victoryBeamActive.current = true;
+            victoryBeamProgress.current = 0;
+            podVictoryY.current = podY.current; // Save starting position
+            podVictoryScale.current = 1;
+            console.log('🛸 MOTHERSHIP BEAM-UP SEQUENCE INITIATED');
+            
+            // 2-second delay for dramatic effect after ring disintegrates
+            setTimeout(() => {
+              console.log('VICTORY SEQUENCE - Showing EARTH REACHED message');
+              setPhase("win");
+            }, 2000);
             return;
           } else {
             // Boss not cleared yet - trigger boss fight
@@ -2949,7 +2983,20 @@ function Game() {
 
   /* ----- Start / Restart ----- */
   const startGame = () => { 
-    hardResetWorld(); 
+    console.log('🚀 GAME START: Simple dispatch message');
+    
+    hardResetWorld();
+    
+    // Show simple dispatch message
+    gameStartMessageText.current = "🚁 MOTHERSHIP DISPATCH: Pod deployed - Begin descent!";
+    gameStartMessageTimer.current = 2.5; // Show for 2.5 seconds
+    
+    // Position pod in standard starting location
+    podY.current = height * 0.5;
+    podX.current = width / 2;
+    
+    console.log('🛸 MOTHERSHIP ARRIVAL: Drop-off sequence initiated');
+    
     setPhase("playing"); 
     // Audio handled by phase useEffect
   };
@@ -2978,10 +3025,6 @@ function Game() {
     }
   };
   
-  const toggleSfx = () => {
-    setSfxEnabled(!sfxEnabled);
-    console.log(`Sound FX toggled to: ${!sfxEnabled ? 'on' : 'off'}`);
-  };
 
   // Audio system initialization
   useEffect(() => {
@@ -2998,8 +3041,6 @@ function Game() {
         // Load title music
         await loadTitleMusic();
         
-        // Load sound effects
-        await loadSoundEffects();
         
         // Play title music if on menu
         if (phase === "menu") {
@@ -3322,14 +3363,21 @@ function Game() {
         <View key={`PT-${pa.id}`} style={[styles.particle, { backgroundColor: pa.color, width: pa.r * 2, height: pa.r * 2, borderRadius: pa.r, transform: [{ translateX: pa.x - pa.r }, { translateY: yToScreen(pa.y - pa.r) }] }]} />
       ))}
 
-      {/* Pod (hide when dead/menu) */}
-      {phase === "playing" && (
+      {/* Pod (show during gameplay) */}
+      {phase === "playing" && podY.current > -500 && (
         <>
           <View
             style={[
               styles.pod,
               invulnBlink ? { opacity: 0.4 } : null,
-              { transform: [{ translateX: podX.current - POD_RADIUS }, { translateY: podY.current - POD_RADIUS }] },
+              { 
+                transform: [
+                  { translateX: podX.current - POD_RADIUS }, 
+                  { translateY: (victoryBeamActive.current ? podVictoryY.current : podY.current) - POD_RADIUS },
+                  { scaleX: victoryBeamActive.current ? podVictoryScale.current : 1 },
+                  { scaleY: victoryBeamActive.current ? podVictoryScale.current : 1 }
+                ] 
+              },
             ]}
           />
           {/* Shield rings */}
@@ -3343,7 +3391,12 @@ function Game() {
                   invulnBlink ? { opacity: 0.35 } : null,
                   {
                     width: r * 2, height: r * 2, borderRadius: r,
-                    transform: [{ translateX: podX.current - r }, { translateY: podY.current - r }],
+                    transform: [
+                      { translateX: podX.current - r }, 
+                      { translateY: (victoryBeamActive.current ? podVictoryY.current : podY.current) - r },
+                      { scaleX: victoryBeamActive.current ? podVictoryScale.current : 1 },
+                      { scaleY: victoryBeamActive.current ? podVictoryScale.current : 1 }
+                    ],
                     borderColor: 
                       i === 0 ? "#FF0080" : // Hot Pink
                       i === 1 ? "#8000FF" : // Violet  
@@ -3356,6 +3409,52 @@ function Game() {
               />
             );
           })}
+          
+          
+          {/* Victory Beam-Up Effect */}
+          {victoryBeamActive.current && (
+            <View
+              style={{
+                position: 'absolute',
+                left: podX.current - 30,
+                top: 0,
+                width: 60,
+                height: height,
+                backgroundColor: `rgba(0, 200, 255, ${0.6 * (1 - victoryBeamProgress.current * 0.5)})`, // Cyan beam that fades
+                shadowColor: '#00C8FF',
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0.8,
+                shadowRadius: 20,
+                borderRadius: 30,
+              }}
+            />
+          )}
+          
+          {/* Victory Beam Particles */}
+          {victoryBeamActive.current && (
+            <>
+              {[...Array(8)].map((_, i) => (
+                <View
+                  key={`victory-particle-${i}`}
+                  style={{
+                    position: 'absolute',
+                    left: podX.current - 5 + (i % 4 - 2) * 15,
+                    top: (victoryBeamActive.current ? podVictoryY.current : podY.current) - 40 - (i * 60),
+                    width: 10,
+                    height: 10,
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: 5,
+                    opacity: Math.max(0, 1 - victoryBeamProgress.current - (i * 0.1)),
+                    shadowColor: '#00C8FF',
+                    shadowOffset: { width: 0, height: 0 },
+                    shadowOpacity: 1,
+                    shadowRadius: 8,
+                  }}
+                />
+              ))}
+            </>
+          )}
+          
           
           {/* Drones */}
           {drones.current.map((drone) => {
@@ -3520,8 +3619,6 @@ function Game() {
             onToggleHandedness={toggleHandedness}
             musicEnabled={musicEnabled}
             onToggleMusic={toggleMusic}
-            sfxEnabled={sfxEnabled}
-            onToggleSfx={toggleSfx}
           />}
 
           {phase === "win" && (
