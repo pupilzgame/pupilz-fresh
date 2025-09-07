@@ -1521,7 +1521,7 @@ function Game() {
     if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
       const tg = (window as any).Telegram.WebApp;
       
-      // Expand the WebApp to full height
+      // Expand the WebApp to full height and keep it expanded
       tg.expand();
       
       // Enable closing confirmation to prevent accidental exits
@@ -1532,9 +1532,36 @@ function Game() {
         tg.disableVerticalSwipes();
       }
       
+      // Lock the WebApp in fullscreen mode
+      if (tg.lockOrientation) {
+        tg.lockOrientation();
+      }
+      
+      // Prevent back button from minimizing
+      if (tg.disableVerticalSwipes) {
+        tg.disableVerticalSwipes();
+      }
+      
       // Set theme colors for better integration
       tg.setHeaderColor('#060913');
       tg.setBackgroundColor('#060913');
+      
+      // Additional prevention methods
+      const preventMinimization = () => {
+        tg.expand();
+        return false;
+      };
+      
+      // Re-expand if somehow minimized
+      setInterval(() => {
+        if (tg.isExpanded === false) {
+          tg.expand();
+        }
+      }, 1000);
+      
+      // Prevent viewport changes that could trigger minimize
+      tg.onEvent('viewportChanged', preventMinimization);
+      tg.onEvent('themeChanged', preventMinimization);
     }
     
     // Create an invisible overlay to completely block text selection
@@ -1623,6 +1650,28 @@ function Game() {
     document.addEventListener('mousedown', preventSelection, true);
     document.addEventListener('touchstart', preventSelection, true);
     document.addEventListener('touchmove', preventSelection, true);
+    
+    // Additional Telegram-specific minimization prevention
+    document.addEventListener('scroll', (e) => {
+      // Prevent pull-to-refresh and overscroll that could trigger minimize
+      if (e.target === document || e.target === document.body || e.target === document.documentElement) {
+        e.preventDefault();
+      }
+    }, true);
+    
+    // Prevent window blur that could indicate minimization
+    window.addEventListener('blur', (e) => {
+      e.preventDefault();
+      // Try to re-focus immediately
+      setTimeout(() => window.focus(), 10);
+    });
+    
+    // Prevent visibility change that could trigger minimize
+    document.addEventListener('visibilitychange', (e) => {
+      if (document.hidden && (window as any).Telegram?.WebApp) {
+        (window as any).Telegram.WebApp.expand();
+      }
+    });
     
     // Apply CSS styles for touch prevention
     const style = document.createElement('style');
