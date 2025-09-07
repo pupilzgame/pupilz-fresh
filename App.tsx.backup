@@ -23,10 +23,7 @@ import {
     View,
 } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFullScreenPWA } from './useFullScreenPWA';
-import './global.css';
-// Web compatibility: Disable audio for now
-// import { Audio } from 'expo-av';
+import { Audio } from 'expo-av';
 /* ---------- CSS Hexagon Component ---------- */
 function HexagonAsteroid({ 
   size, 
@@ -306,9 +303,9 @@ const MENU_SECTIONS: MenuSection[] = [
     icon: "📦",
     title: "ITEMS & WEAPONS",
     bullets: [
-      "🔫 Multi/Spread/Laser/Flame/Homing — collect to upgrade firepower",
-      "⚡ Shield/Drone/Rapid/Time-slow — instant effects",
-      "🎒 Energy/Nuke — tap bottom icons to use stored items",
+      "🔫 [M,S,L,F,H] Weapons — collect to upgrade firepower",
+      "⚡ [B,D,R,T] Instant — shield/drones/rapid-fire/time-slow",
+      "🎒 [E,N] Inventory — tap bottom icons to use stored items",
     ],
   },
   {
@@ -475,7 +472,7 @@ type EnhancedMenuProps = {
 };
 
 const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic }) => {
-  const [openId, setOpenId] = useState<string>("");
+  const [openId, setOpenId] = useState<string>("gameplay");
   const [animPhase, setAnimPhase] = useState(0);
   const menuStarsRef = useRef<Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}>>([]);
   const { width, height } = useWindowDimensions();
@@ -611,9 +608,6 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
 };
 
 function Game() {
-  // PWA and Telegram WebApp integration
-  useFullScreenPWA();
-  
   const { width, height } = useWindowDimensions();
   const rawInsets = useSafeAreaInsets();
   // Safety fallback for insets to prevent undefined errors
@@ -660,7 +654,7 @@ function Game() {
     
     // Weapon mastery
     weapons: [
-      { id: 'upgrade_hunt', text: '⚡ Hunt for weapon upgrades: Multi/Spread/Laser/Flame/Homing', priority: 'high' },
+      { id: 'upgrade_hunt', text: '⚡ Hunt for weapon upgrades: M=Multi, S=Spread, L=Laser, F=Flame, H=Homing', priority: 'high' },
       { id: 'laser_power', text: '🔥 Laser (L) weapons pierce through multiple enemies - great for crowds!', priority: 'medium' },
       { id: 'homing_ships', text: '🎯 Homing missiles (H) prioritize enemy ships - perfect for evasive targets', priority: 'medium' },
       { id: 'multi_lanes', text: '🔫 Multi (M) weapons fire in multiple lanes - excellent for wide coverage', priority: 'medium' },
@@ -817,7 +811,7 @@ function Game() {
   const [, setTick] = useState(0);
   
   // Audio system
-  const titleMusic = useRef<any>(null);
+  const titleMusic = useRef<Audio.Sound | null>(null);
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [musicVolume, setMusicVolume] = useState(0.7);
   
@@ -842,7 +836,7 @@ function Game() {
 
   // Pod free-move (screen space) - direct position control
   const podX = useRef(width * 0.5);
-  const podY = useRef(Math.round(height * 0.5)); // mid-screen starting position
+  const podY = useRef(Math.round(height * 0.5)); // center-ish
 
   // Touch control state - trackpad style
   const touching = useRef(false);
@@ -972,12 +966,7 @@ function Game() {
       if (titleMusic.current) {
         await titleMusic.current.unloadAsync();
       }
-      // Web: Skip audio loading
-      if (Platform.OS === 'web') {
-        console.log('🌐 Web platform detected - audio disabled');
-        return;
-      }
-      /*const { sound } = await Audio.Sound.createAsync(
+      const { sound } = await Audio.Sound.createAsync(
         require('./assets/audio/Title-Track.wav'),
         {
           isLooping: true,
@@ -985,17 +974,13 @@ function Game() {
         }
       );
       titleMusic.current = sound;
-      console.log('🎵 Title music loaded');*/
+      console.log('🎵 Title music loaded');
     } catch (error) {
       console.log('❌ Failed to load title music:', error);
     }
   };
 
   const playTitleMusic = async () => {
-    if (Platform.OS === 'web') {
-      console.log('🌐 Web: Audio playback disabled');
-      return;
-    }
     try {
       if (titleMusic.current && musicEnabled) {
         await titleMusic.current.setVolumeAsync(musicVolume);
@@ -1008,10 +993,6 @@ function Game() {
   };
 
   const stopTitleMusic = async () => {
-    if (Platform.OS === 'web') {
-      console.log('🌐 Web: Audio stop disabled');
-      return;
-    }
     try {
       if (titleMusic.current) {
         await titleMusic.current.pauseAsync();
@@ -1373,7 +1354,7 @@ function Game() {
   /* ----- Reset world ----- */
   const respawnPlayer = () => {
     // Reset pod position to safe area - top of screen below HUD
-    podY.current = Math.round(height * 0.5); // Mid-screen, balanced position
+    podY.current = Math.round(height * 0.15); // Top area, safe from threats
     invulnTime.current = 2.5; // Generous invulnerability
     hudFadeT.current = 4.0; // Extended HUD visibility
     canSkipCountdown.current = false;
@@ -1516,251 +1497,6 @@ function Game() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => { window.removeEventListener("keydown", handleKeyDown); };
-  }, []);
-
-  /* ----- Web Touch & Telegram WebApp Prevention ----- */
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    
-    // Telegram WebApp specific fixes
-    if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
-      const tg = (window as any).Telegram.WebApp;
-      
-      // Expand the WebApp to full height and keep it expanded
-      tg.expand();
-      
-      // Enable closing confirmation to prevent accidental exits
-      tg.enableClosingConfirmation();
-      
-      // Disable vertical swipes that could trigger minimization
-      if (tg.disableVerticalSwipes) {
-        tg.disableVerticalSwipes();
-      }
-      
-      // Lock the WebApp in fullscreen mode
-      if (tg.lockOrientation) {
-        tg.lockOrientation();
-      }
-      
-      // Prevent back button from minimizing
-      if (tg.disableVerticalSwipes) {
-        tg.disableVerticalSwipes();
-      }
-      
-      // Set theme colors for better integration
-      tg.setHeaderColor('#060913');
-      tg.setBackgroundColor('#060913');
-      
-      // Additional prevention methods
-      const preventMinimization = () => {
-        tg.expand();
-        return false;
-      };
-      
-      // Re-expand if somehow minimized
-      setInterval(() => {
-        if (tg.isExpanded === false) {
-          tg.expand();
-        }
-      }, 1000);
-      
-      // Prevent viewport changes that could trigger minimize
-      tg.onEvent('viewportChanged', preventMinimization);
-      tg.onEvent('themeChanged', preventMinimization);
-    }
-    
-    // Create an invisible overlay to completely block text selection
-    const overlay = document.createElement('div');
-    overlay.id = 'touch-blocker-overlay';
-    overlay.style.cssText = `
-      position: fixed !important;
-      top: 0 !important;
-      left: 0 !important;
-      width: 100% !important;
-      height: 100% !important;
-      z-index: -1 !important;
-      pointer-events: none !important;
-      user-select: none !important;
-      -webkit-user-select: none !important;
-      -moz-user-select: none !important;
-      -ms-user-select: none !important;
-      touch-action: manipulation !important;
-      -webkit-touch-callout: none !important;
-      background: transparent !important;
-    `;
-    
-    // Add the overlay to body
-    document.body.appendChild(overlay);
-    
-    // Also force body and html to be unselectable
-    document.body.style.cssText = `
-      user-select: none !important;
-      -webkit-user-select: none !important;
-      -moz-user-select: none !important;
-      -ms-user-select: none !important;
-      -webkit-touch-callout: none !important;
-      touch-action: manipulation !important;
-    `;
-    
-    document.documentElement.style.cssText = `
-      user-select: none !important;
-      -webkit-user-select: none !important;
-      -moz-user-select: none !important;
-      -ms-user-select: none !important;
-      -webkit-touch-callout: none !important;
-      touch-action: manipulation !important;
-    `;
-    
-    // Add a meta tag to disable selection at browser level
-    const metaTag = document.createElement('meta');
-    metaTag.name = 'format-detection';
-    metaTag.content = 'telephone=no, address=no, email=no';
-    document.head.appendChild(metaTag);
-    
-    // Set document.onselectstart to completely block selection
-    document.onselectstart = () => false;
-    document.ondragstart = () => false;
-    (document as any).oncontextmenu = () => false;
-    
-    // Prevent iOS magnification and double-tap zoom
-    const preventDoubleZoom = (event: TouchEvent) => {
-      const now = Date.now();
-      const lastTouch = (preventDoubleZoom as any).lastTouch || 0;
-      if (now - lastTouch <= 300) {
-        event.preventDefault();
-      }
-      (preventDoubleZoom as any).lastTouch = now;
-    };
-    
-    // Prevent context menu and selection
-    const preventContext = (e: Event) => e.preventDefault();
-    
-    // Prevent pinch zoom gestures
-    const preventGesture = (e: Event) => e.preventDefault();
-    
-    // Prevent text selection and drag events
-    const preventSelection = (e: Event) => {
-      e.preventDefault();
-      return false;
-    };
-    
-    // Add all touch prevention listeners with capture=true for more aggressive prevention
-    document.addEventListener('touchend', preventDoubleZoom, true);
-    document.addEventListener('contextmenu', preventContext, true);
-    document.addEventListener('gesturestart', preventGesture, true);
-    document.addEventListener('gesturechange', preventGesture, true);
-    document.addEventListener('gestureend', preventGesture, true);
-    document.addEventListener('selectstart', preventSelection, true);
-    document.addEventListener('dragstart', preventSelection, true);
-    document.addEventListener('mousedown', preventSelection, true);
-    document.addEventListener('touchstart', preventSelection, true);
-    document.addEventListener('touchmove', preventSelection, true);
-    
-    // Additional Telegram-specific minimization prevention
-    document.addEventListener('scroll', (e) => {
-      // Prevent pull-to-refresh and overscroll that could trigger minimize
-      if (e.target === document || e.target === document.body || e.target === document.documentElement) {
-        e.preventDefault();
-      }
-    }, true);
-    
-    // Prevent window blur that could indicate minimization
-    window.addEventListener('blur', (e) => {
-      e.preventDefault();
-      // Try to re-focus immediately
-      setTimeout(() => window.focus(), 10);
-    });
-    
-    // Prevent visibility change that could trigger minimize
-    document.addEventListener('visibilitychange', (e) => {
-      if (document.hidden && (window as any).Telegram?.WebApp) {
-        (window as any).Telegram.WebApp.expand();
-      }
-    });
-    
-    // Apply CSS styles for touch prevention
-    const style = document.createElement('style');
-    style.textContent = `
-      *, *::before, *::after {
-        touch-action: manipulation !important;
-        -webkit-touch-callout: none !important;
-        -webkit-user-select: none !important;
-        -moz-user-select: none !important;
-        -ms-user-select: none !important;
-        user-select: none !important;
-        -webkit-tap-highlight-color: transparent !important;
-        -webkit-tap-highlight-color: rgba(0,0,0,0) !important;
-        -webkit-focus-ring-color: transparent !important;
-        outline: none !important;
-      }
-      
-      body, html {
-        overscroll-behavior: none !important;
-        -webkit-overscroll-behavior: none !important;
-        -webkit-user-select: none !important;
-        -moz-user-select: none !important;
-        user-select: none !important;
-      }
-      
-      #root, #root * {
-        -webkit-user-select: none !important;
-        -moz-user-select: none !important;
-        -ms-user-select: none !important;
-        user-select: none !important;
-        -webkit-touch-callout: none !important;
-        -webkit-tap-highlight-color: transparent !important;
-      }
-      
-      /* Prevent any text selection highlighting */
-      ::selection {
-        background: transparent !important;
-        color: transparent !important;
-      }
-      
-      ::-moz-selection {
-        background: transparent !important;
-        color: transparent !important;
-      }
-      
-      /* React Native Web specific classes */
-      [class*="css-"] {
-        -webkit-user-select: none !important;
-        -moz-user-select: none !important;
-        user-select: none !important;
-        -webkit-touch-callout: none !important;
-      }
-      
-      /* Additional aggressive selection prevention */
-      div, span, p, text, view {
-        -webkit-user-select: none !important;
-        -moz-user-select: none !important;
-        user-select: none !important;
-        -webkit-touch-callout: none !important;
-        -webkit-tap-highlight-color: transparent !important;
-      }
-    `;
-    document.head.appendChild(style);
-    
-    // Cleanup function
-    return () => {
-      document.removeEventListener('touchend', preventDoubleZoom, true);
-      document.removeEventListener('contextmenu', preventContext, true);
-      document.removeEventListener('gesturestart', preventGesture, true);
-      document.removeEventListener('gesturechange', preventGesture, true);
-      document.removeEventListener('gestureend', preventGesture, true);
-      document.removeEventListener('selectstart', preventSelection, true);
-      document.removeEventListener('dragstart', preventSelection, true);
-      document.removeEventListener('mousedown', preventSelection, true);
-      document.removeEventListener('touchstart', preventSelection, true);
-      document.removeEventListener('touchmove', preventSelection, true);
-      if (style.parentNode) {
-        style.parentNode.removeChild(style);
-      }
-      const overlayElement = document.getElementById('touch-blocker-overlay');
-      if (overlayElement && overlayElement.parentNode) {
-        overlayElement.parentNode.removeChild(overlayElement);
-      }
-    };
   }, []);
 
   /* ----- Weapons & Actions ----- */
@@ -3256,7 +2992,7 @@ function Game() {
     gameStartMessageTimer.current = 2.5; // Show for 2.5 seconds
     
     // Position pod in standard starting location
-    podY.current = height * 0.5;
+    podY.current = height * 0.75;
     podX.current = width / 2;
     
     console.log('🛸 MOTHERSHIP ARRIVAL: Drop-off sequence initiated');
@@ -3295,14 +3031,12 @@ function Game() {
     const initAudio = async () => {
       try {
         // Set up audio mode for iOS
-        // Web: Skip audio mode setup
-        if (Platform.OS === 'web') return;
-        /*await Audio.setAudioModeAsync({
+        await Audio.setAudioModeAsync({
           allowsRecordingIOS: false,
           playsInSilentModeIOS: true,
           staysActiveInBackground: false,
           shouldDuckAndroid: false,
-        });*/
+        });
         
         // Load title music
         await loadTitleMusic();
@@ -3376,7 +3110,7 @@ function Game() {
   const ringText = ringOriginalText.current || (boss.current.active ? "DEFEAT BOSS" : (level.current === 5 && bossGateCleared.current ? "EARTH" : `LVL ${level.current + 1}`));
 
   return (
-    <View id="game" style={styles.container}>
+    <View style={styles.container}>
       {/* Game content with shake effect */}
       <View style={[styles.gameContent, { transform: [{ translateX: shakeX }, { translateY: shakeY }] }]}>
         {/* Stars */}
@@ -4056,17 +3790,7 @@ export default function App() {
 
 /* ---------- Styles ---------- */
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: "#060913", 
-    overflow: "hidden",
-    // @ts-ignore - Web-specific CSS properties
-    userSelect: "none",
-    WebkitUserSelect: "none",
-    WebkitTouchCallout: "none",
-    WebkitTapHighlightColor: "transparent",
-    touchAction: "manipulation",
-  },
+  container: { flex: 1, backgroundColor: "#060913", overflow: "hidden" },
   gameContent: { flex: 1 },
 
   hud: {
