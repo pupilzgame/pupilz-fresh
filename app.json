@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#060913"
     },
     "ios": {
       "supportsTablet": true
@@ -18,12 +18,25 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#060913"
       },
       "edgeToEdgeEnabled": true
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "name": "Pupilz Pod Descent",
+      "shortName": "Pupilz",
+      "description": "Epic space shooter game - defend Earth from alien invasion!",
+      "startUrl": "/",
+      "display": "fullscreen",
+      "orientation": "portrait",
+      "themeColor": "#060913",
+      "backgroundColor": "#060913",
+      "bundler": "metro",
+      "preferRelatedApplications": false,
+      "scope": "/",
+      "crossOrigin": "anonymous",
+      "lang": "en"
     }
   }
 }
