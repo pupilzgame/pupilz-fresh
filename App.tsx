@@ -1513,6 +1513,84 @@ function Game() {
     return () => { window.removeEventListener("keydown", handleKeyDown); };
   }, []);
 
+  /* ----- Web Touch & Telegram WebApp Prevention ----- */
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    
+    // Telegram WebApp specific fixes
+    if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
+      const tg = (window as any).Telegram.WebApp;
+      
+      // Expand the WebApp to full height
+      tg.expand();
+      
+      // Enable closing confirmation to prevent accidental exits
+      tg.enableClosingConfirmation();
+      
+      // Disable vertical swipes that could trigger minimization
+      if (tg.disableVerticalSwipes) {
+        tg.disableVerticalSwipes();
+      }
+      
+      // Set theme colors for better integration
+      tg.setHeaderColor('#060913');
+      tg.setBackgroundColor('#060913');
+    }
+    
+    // Prevent iOS magnification and double-tap zoom
+    const preventDoubleZoom = (event: TouchEvent) => {
+      const now = Date.now();
+      const lastTouch = (preventDoubleZoom as any).lastTouch || 0;
+      if (now - lastTouch <= 300) {
+        event.preventDefault();
+      }
+      (preventDoubleZoom as any).lastTouch = now;
+    };
+    
+    // Prevent context menu and selection
+    const preventContext = (e: Event) => e.preventDefault();
+    
+    // Prevent pinch zoom gestures
+    const preventGesture = (e: Event) => e.preventDefault();
+    
+    // Add all touch prevention listeners
+    document.addEventListener('touchend', preventDoubleZoom, false);
+    document.addEventListener('contextmenu', preventContext);
+    document.addEventListener('gesturestart', preventGesture);
+    document.addEventListener('gesturechange', preventGesture);
+    document.addEventListener('gestureend', preventGesture);
+    
+    // Apply CSS styles for touch prevention
+    const style = document.createElement('style');
+    style.textContent = `
+      * {
+        touch-action: manipulation !important;
+        -webkit-touch-callout: none !important;
+        -webkit-user-select: none !important;
+        -webkit-tap-highlight-color: transparent !important;
+        user-select: none !important;
+      }
+      
+      body, html {
+        overscroll-behavior: none !important;
+        -webkit-overscroll-behavior: none !important;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    // Cleanup function
+    return () => {
+      document.removeEventListener('touchend', preventDoubleZoom);
+      document.removeEventListener('contextmenu', preventContext);
+      document.removeEventListener('gesturestart', preventGesture);
+      document.removeEventListener('gesturechange', preventGesture);
+      document.removeEventListener('gestureend', preventGesture);
+      if (style.parentNode) {
+        style.parentNode.removeChild(style);
+      }
+    };
+  }, []);
+
   /* ----- Weapons & Actions ----- */
   const currentCooldown = () => {
     const base = CD[weapon.current.kind];
