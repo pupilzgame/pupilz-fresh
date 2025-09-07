@@ -1559,15 +1559,17 @@ function Game() {
       return false;
     };
     
-    // Add all touch prevention listeners
-    document.addEventListener('touchend', preventDoubleZoom, false);
-    document.addEventListener('contextmenu', preventContext);
-    document.addEventListener('gesturestart', preventGesture);
-    document.addEventListener('gesturechange', preventGesture);
-    document.addEventListener('gestureend', preventGesture);
-    document.addEventListener('selectstart', preventSelection, false);
-    document.addEventListener('dragstart', preventSelection, false);
-    document.addEventListener('mousedown', preventSelection, false);
+    // Add all touch prevention listeners with capture=true for more aggressive prevention
+    document.addEventListener('touchend', preventDoubleZoom, true);
+    document.addEventListener('contextmenu', preventContext, true);
+    document.addEventListener('gesturestart', preventGesture, true);
+    document.addEventListener('gesturechange', preventGesture, true);
+    document.addEventListener('gestureend', preventGesture, true);
+    document.addEventListener('selectstart', preventSelection, true);
+    document.addEventListener('dragstart', preventSelection, true);
+    document.addEventListener('mousedown', preventSelection, true);
+    document.addEventListener('touchstart', preventSelection, true);
+    document.addEventListener('touchmove', preventSelection, true);
     
     // Apply CSS styles for touch prevention
     const style = document.createElement('style');
@@ -1605,24 +1607,45 @@ function Game() {
       /* Prevent any text selection highlighting */
       ::selection {
         background: transparent !important;
+        color: transparent !important;
       }
       
       ::-moz-selection {
         background: transparent !important;
+        color: transparent !important;
+      }
+      
+      /* React Native Web specific classes */
+      [class*="css-"] {
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        user-select: none !important;
+        -webkit-touch-callout: none !important;
+      }
+      
+      /* Additional aggressive selection prevention */
+      div, span, p, text, view {
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        user-select: none !important;
+        -webkit-touch-callout: none !important;
+        -webkit-tap-highlight-color: transparent !important;
       }
     `;
     document.head.appendChild(style);
     
     // Cleanup function
     return () => {
-      document.removeEventListener('touchend', preventDoubleZoom);
-      document.removeEventListener('contextmenu', preventContext);
-      document.removeEventListener('gesturestart', preventGesture);
-      document.removeEventListener('gesturechange', preventGesture);
-      document.removeEventListener('gestureend', preventGesture);
-      document.removeEventListener('selectstart', preventSelection);
-      document.removeEventListener('dragstart', preventSelection);
-      document.removeEventListener('mousedown', preventSelection);
+      document.removeEventListener('touchend', preventDoubleZoom, true);
+      document.removeEventListener('contextmenu', preventContext, true);
+      document.removeEventListener('gesturestart', preventGesture, true);
+      document.removeEventListener('gesturechange', preventGesture, true);
+      document.removeEventListener('gestureend', preventGesture, true);
+      document.removeEventListener('selectstart', preventSelection, true);
+      document.removeEventListener('dragstart', preventSelection, true);
+      document.removeEventListener('mousedown', preventSelection, true);
+      document.removeEventListener('touchstart', preventSelection, true);
+      document.removeEventListener('touchmove', preventSelection, true);
       if (style.parentNode) {
         style.parentNode.removeChild(style);
       }
@@ -3922,7 +3945,17 @@ export default function App() {
 
 /* ---------- Styles ---------- */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#060913", overflow: "hidden" },
+  container: { 
+    flex: 1, 
+    backgroundColor: "#060913", 
+    overflow: "hidden",
+    // @ts-ignore - Web-specific CSS properties
+    userSelect: "none",
+    WebkitUserSelect: "none",
+    WebkitTouchCallout: "none",
+    WebkitTapHighlightColor: "transparent",
+    touchAction: "manipulation",
+  },
   gameContent: { flex: 1 },
 
   hud: {
