@@ -1553,27 +1553,62 @@ function Game() {
     // Prevent pinch zoom gestures
     const preventGesture = (e: Event) => e.preventDefault();
     
+    // Prevent text selection and drag events
+    const preventSelection = (e: Event) => {
+      e.preventDefault();
+      return false;
+    };
+    
     // Add all touch prevention listeners
     document.addEventListener('touchend', preventDoubleZoom, false);
     document.addEventListener('contextmenu', preventContext);
     document.addEventListener('gesturestart', preventGesture);
     document.addEventListener('gesturechange', preventGesture);
     document.addEventListener('gestureend', preventGesture);
+    document.addEventListener('selectstart', preventSelection, false);
+    document.addEventListener('dragstart', preventSelection, false);
+    document.addEventListener('mousedown', preventSelection, false);
     
     // Apply CSS styles for touch prevention
     const style = document.createElement('style');
     style.textContent = `
-      * {
+      *, *::before, *::after {
         touch-action: manipulation !important;
         -webkit-touch-callout: none !important;
         -webkit-user-select: none !important;
-        -webkit-tap-highlight-color: transparent !important;
+        -moz-user-select: none !important;
+        -ms-user-select: none !important;
         user-select: none !important;
+        -webkit-tap-highlight-color: transparent !important;
+        -webkit-tap-highlight-color: rgba(0,0,0,0) !important;
+        -webkit-focus-ring-color: transparent !important;
+        outline: none !important;
       }
       
       body, html {
         overscroll-behavior: none !important;
         -webkit-overscroll-behavior: none !important;
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        user-select: none !important;
+      }
+      
+      #root, #root * {
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        -ms-user-select: none !important;
+        user-select: none !important;
+        -webkit-touch-callout: none !important;
+        -webkit-tap-highlight-color: transparent !important;
+      }
+      
+      /* Prevent any text selection highlighting */
+      ::selection {
+        background: transparent !important;
+      }
+      
+      ::-moz-selection {
+        background: transparent !important;
       }
     `;
     document.head.appendChild(style);
@@ -1585,6 +1620,9 @@ function Game() {
       document.removeEventListener('gesturestart', preventGesture);
       document.removeEventListener('gesturechange', preventGesture);
       document.removeEventListener('gestureend', preventGesture);
+      document.removeEventListener('selectstart', preventSelection);
+      document.removeEventListener('dragstart', preventSelection);
+      document.removeEventListener('mousedown', preventSelection);
       if (style.parentNode) {
         style.parentNode.removeChild(style);
       }
