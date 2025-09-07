@@ -1537,6 +1537,59 @@ function Game() {
       tg.setBackgroundColor('#060913');
     }
     
+    // Create an invisible overlay to completely block text selection
+    const overlay = document.createElement('div');
+    overlay.id = 'touch-blocker-overlay';
+    overlay.style.cssText = `
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      z-index: -1 !important;
+      pointer-events: none !important;
+      user-select: none !important;
+      -webkit-user-select: none !important;
+      -moz-user-select: none !important;
+      -ms-user-select: none !important;
+      touch-action: manipulation !important;
+      -webkit-touch-callout: none !important;
+      background: transparent !important;
+    `;
+    
+    // Add the overlay to body
+    document.body.appendChild(overlay);
+    
+    // Also force body and html to be unselectable
+    document.body.style.cssText = `
+      user-select: none !important;
+      -webkit-user-select: none !important;
+      -moz-user-select: none !important;
+      -ms-user-select: none !important;
+      -webkit-touch-callout: none !important;
+      touch-action: manipulation !important;
+    `;
+    
+    document.documentElement.style.cssText = `
+      user-select: none !important;
+      -webkit-user-select: none !important;
+      -moz-user-select: none !important;
+      -ms-user-select: none !important;
+      -webkit-touch-callout: none !important;
+      touch-action: manipulation !important;
+    `;
+    
+    // Add a meta tag to disable selection at browser level
+    const metaTag = document.createElement('meta');
+    metaTag.name = 'format-detection';
+    metaTag.content = 'telephone=no, address=no, email=no';
+    document.head.appendChild(metaTag);
+    
+    // Set document.onselectstart to completely block selection
+    document.onselectstart = () => false;
+    document.ondragstart = () => false;
+    (document as any).oncontextmenu = () => false;
+    
     // Prevent iOS magnification and double-tap zoom
     const preventDoubleZoom = (event: TouchEvent) => {
       const now = Date.now();
@@ -1648,6 +1701,10 @@ function Game() {
       document.removeEventListener('touchmove', preventSelection, true);
       if (style.parentNode) {
         style.parentNode.removeChild(style);
+      }
+      const overlayElement = document.getElementById('touch-blocker-overlay');
+      if (overlayElement && overlayElement.parentNode) {
+        overlayElement.parentNode.removeChild(overlayElement);
       }
     };
   }, []);
