@@ -54,11 +54,10 @@ export const useFullScreenPWA = () => {
       window.addEventListener('pagehide', preventMinimize, true);
       window.addEventListener('beforeunload', preventMinimize, true);
       
-      // Prevent any scrolling that could trigger minimize
-      document.addEventListener('scroll', preventMinimize, true);
-      document.addEventListener('touchmove', (e) => {
-        // Only prevent if it's a vertical scroll that could minimize
-        if (Math.abs(e.touches[0].clientY - (e.touches[0] as any).startY) > 10) {
+      // Only prevent scrolls that could trigger minimize (edge swipes)
+      document.addEventListener('scroll', (e) => {
+        // Only prevent scroll if it's outside the game area
+        if (e.target === document || e.target === document.body || e.target === document.documentElement) {
           preventMinimize(e);
         }
       }, true);
@@ -130,39 +129,69 @@ export const useFullScreenPWA = () => {
       return false;
     };
 
-    // Prevent any drag gestures that could trigger minimize
-    const preventDrag = (e: TouchEvent | DragEvent) => {
-      // If it's a vertical drag, prevent it completely
-      if (e.type === 'touchmove' && (e as TouchEvent).touches.length === 1) {
-        const touch = (e as TouchEvent).touches[0];
-        const startY = (touch as any).startY || touch.clientY;
-        const deltaY = touch.clientY - startY;
+    // Smart drag prevention - only block minimize gestures, allow gameplay
+    const smartTouchHandler = (e: TouchEvent) => {
+      // Allow touches inside the game area
+      const gameElement = document.getElementById('game');
+      if (gameElement && e.target && gameElement.contains(e.target as Node)) {
+        // This is a gameplay touch - allow it
+        return true;
+      }
+      
+      // If it's outside game area or a swipe from edge, prevent it
+      if (e.type === 'touchmove' && e.touches.length === 1) {
+        const touch = e.touches[0];
         
-        // Prevent any significant vertical movement
-        if (Math.abs(deltaY) > 5) {
+        // Block edge swipes (within 50px of screen edge)
+        if (touch.clientX < 50 || touch.clientX > window.innerWidth - 50 ||
+            touch.clientY < 50 || touch.clientY > window.innerHeight - 50) {
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
+          return false;
+        }
+        
+        // Block large vertical movements that could be swipe-to-minimize
+        const startY = (touch as any).startY || touch.clientY;
+        const deltaY = touch.clientY - startY;
+        
+        if (Math.abs(deltaY) > 100) {  // Increased threshold to allow gameplay
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          return false;
         }
         (touch as any).startY = touch.clientY;
-      } else {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
       }
-      return false;
+      return true;
     };
 
-    // Add EXTREME event listeners for Telegram
-    document.addEventListener('touchstart', preventZoom, { passive: false, capture: true });
-    document.addEventListener('touchend', preventDoubleTap, { passive: false, capture: true });
-    document.addEventListener('touchmove', preventDrag, { passive: false, capture: true });
+    // Add SMART event listeners for Telegram - allow gameplay, block minimize
+    document.addEventListener('touchstart', preventZoom, { passive: false });
+    document.addEventListener('touchend', preventDoubleTap, { passive: false });
+    document.addEventListener('touchmove', smartTouchHandler, { passive: false });
     document.addEventListener('gesturestart', preventGesture, { passive: false, capture: true });
     document.addEventListener('gesturechange', preventGesture, { passive: false, capture: true });
     document.addEventListener('gestureend', preventGesture, { passive: false, capture: true });
-    document.addEventListener('dragstart', preventGesture, { passive: false, capture: true });
-    document.addEventListener('drag', preventGesture, { passive: false, capture: true });
-    document.addEventListener('dragend', preventGesture, { passive: false, capture: true });
+    
+    // Only block non-gameplay drags
+    document.addEventListener('dragstart', (e) => {
+      if (!document.getElementById('game')?.contains(e.target as Node)) {
+        preventGesture(e);
+      }
+    }, { passive: false });
+    
+    document.addEventListener('drag', (e) => {
+      if (!document.getElementById('game')?.contains(e.target as Node)) {
+        preventGesture(e);
+      }
+    }, { passive: false });
+    
+    document.addEventListener('dragend', (e) => {
+      if (!document.getElementById('game')?.contains(e.target as Node)) {
+        preventGesture(e);
+      }
+    }, { passive: false });
 
     // Handle window resize for game canvas
     const handleResize = () => {
@@ -186,15 +215,12 @@ export const useFullScreenPWA = () => {
         (window as any).__telegramCleanup();
       }
       
-      document.removeEventListener('touchstart', preventZoom, true);
-      document.removeEventListener('touchend', preventDoubleTap, true);
-      document.removeEventListener('touchmove', preventDrag, true);
+      document.removeEventListener('touchstart', preventZoom);
+      document.removeEventListener('touchend', preventDoubleTap);
+      document.removeEventListener('touchmove', smartTouchHandler);
       document.removeEventListener('gesturestart', preventGesture, true);
       document.removeEventListener('gesturechange', preventGesture, true);
       document.removeEventListener('gestureend', preventGesture, true);
-      document.removeEventListener('dragstart', preventGesture, true);
-      document.removeEventListener('drag', preventGesture, true);
-      document.removeEventListener('dragend', preventGesture, true);
       window.removeEventListener('resize', handleResize);
     };
   }, []);
