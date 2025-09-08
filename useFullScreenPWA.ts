@@ -5,17 +5,62 @@ export const useFullScreenPWA = () => {
   useEffect(() => {
     if (Platform.OS !== 'web') return;
 
-    // NUCLEAR-LEVEL Telegram WebApp anti-minimization
+    // OFFICIAL Telegram WebApp API - The Real Solution
     if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
       const tg = (window as any).Telegram.WebApp;
       
-      // Initial expansion
-      tg.expand();
-      tg.enableClosingConfirmation();
+      console.log('Telegram WebApp version:', tg.version);
       
-      // Disable ALL swipe gestures that could minimize
-      if (tg.disableVerticalSwipes) {
-        tg.disableVerticalSwipes();
+      // Method 1: Direct property assignment (newer versions)
+      try {
+        tg.disableVerticalSwipes = true;
+        console.log('✅ Set disableVerticalSwipes = true');
+      } catch (e) {
+        console.log('Property assignment failed:', e);
+      }
+      
+      // Method 2: Function call (Bot API 7.7+)
+      try {
+        if (typeof tg.disableVerticalSwipes === 'function') {
+          tg.disableVerticalSwipes();
+          console.log('✅ Called disableVerticalSwipes()');
+        }
+      } catch (e) {
+        console.log('Function call failed:', e);
+      }
+      
+      // Method 3: Closing confirmation (additional protection)
+      try {
+        tg.isClosingConfirmationEnabled = true;
+        console.log('✅ Set isClosingConfirmationEnabled = true');
+      } catch (e) {
+        console.log('Closing confirmation failed:', e);
+      }
+      
+      // Method 4: Traditional expand and enable closing confirmation
+      try {
+        tg.expand();
+        if (typeof tg.enableClosingConfirmation === 'function') {
+          tg.enableClosingConfirmation();
+        }
+        console.log('✅ Expanded and enabled closing confirmation');
+      } catch (e) {
+        console.log('Traditional methods failed:', e);
+      }
+      
+      // Method 5: Check status
+      console.log('isExpanded:', tg.isExpanded);
+      console.log('isVerticalSwipesEnabled:', tg.isVerticalSwipesEnabled);
+      
+      // Method 6: Fallback CSS solution for older versions (pre-7.7)
+      if (!tg.isVerticalSwipesEnabled === undefined) {
+        console.log('Applying CSS fallback for older Telegram versions');
+        const overflow = 100;
+        document.body.style.overflowY = 'hidden';
+        document.body.style.marginTop = `${overflow}px`;
+        document.body.style.height = window.innerHeight + overflow + "px";
+        document.body.style.paddingBottom = `${overflow}px`;
+        window.scrollTo(0, overflow);
       }
       
       // Lock the WebApp in expanded state with aggressive monitoring
@@ -36,8 +81,13 @@ export const useFullScreenPWA = () => {
         return false;
       });
       
-      // ULTRA-AGGRESSIVE re-expansion every 100ms 
-      const expandInterval = setInterval(keepExpanded, 100);
+      // Gentle re-expansion every 5 seconds (now that we use proper API)
+      const expandInterval = setInterval(() => {
+        if (!tg.isExpanded) {
+          console.log('Re-expanding WebApp');
+          keepExpanded();
+        }
+      }, 5000);
       
       // Prevent window events that could trigger minimize
       const preventMinimize = (e: Event) => {
@@ -54,33 +104,11 @@ export const useFullScreenPWA = () => {
       window.addEventListener('pagehide', preventMinimize, true);
       window.addEventListener('beforeunload', preventMinimize, true);
       
-      // HAMSTER KOMBAT STYLE: Allow minimize only from top 30px border
-      document.addEventListener('scroll', preventMinimize, true);
-      document.addEventListener('touchmove', (e) => {
-        if (e.touches.length === 1) {
-          const touch = e.touches[0];
-          const startY = (touch as any).startY || touch.clientY;
-          const currentY = touch.clientY;
-          const deltaY = currentY - startY;
-          
-          // Allow minimize only if:
-          // 1. Touch started in top 30px of screen AND
-          // 2. Swiping down (positive deltaY) AND  
-          // 3. Significant downward movement (>50px)
-          const isInMinimizeZone = startY <= 30;
-          const isSwipingDown = deltaY > 50;
-          
-          if (isInMinimizeZone && isSwipingDown) {
-            // Allow this swipe - it's intentional minimize from top border
-            console.log('Allowing minimize from top border');
-            return;
-          } else {
-            // Block all other vertical movements
-            if (Math.abs(deltaY) > 10) {
-              preventMinimize(e);
-            }
-          }
-          (touch as any).startY = startY || touch.clientY;
+      // Since we're using proper API, only prevent document-level scrolls as backup
+      document.addEventListener('scroll', (e) => {
+        if (e.target === document || e.target === document.body) {
+          console.log('Preventing document scroll as backup');
+          e.preventDefault();
         }
       }, true);
       
@@ -110,7 +138,7 @@ export const useFullScreenPWA = () => {
         keepExpanded();
       };
       
-      setInterval(maintainFocus, 200);
+      setInterval(maintainFocus, 10000); // Every 10 seconds is enough with proper API
       
       // Don't override minimize methods - allow intentional minimize from top border
       // Just ensure we start expanded and stay focused
