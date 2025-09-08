@@ -36,8 +36,8 @@ export const useFullScreenPWA = () => {
         return false;
       });
       
-      // Aggressive re-expansion every 500ms
-      const expandInterval = setInterval(keepExpanded, 500);
+      // ULTRA-AGGRESSIVE re-expansion every 100ms 
+      const expandInterval = setInterval(keepExpanded, 100);
       
       // Prevent window events that could trigger minimize
       const preventMinimize = (e: Event) => {
@@ -54,11 +54,25 @@ export const useFullScreenPWA = () => {
       window.addEventListener('pagehide', preventMinimize, true);
       window.addEventListener('beforeunload', preventMinimize, true);
       
-      // Only prevent scrolls that could trigger minimize (edge swipes)
-      document.addEventListener('scroll', (e) => {
-        // Only prevent scroll if it's outside the game area
-        if (e.target === document || e.target === document.body || e.target === document.documentElement) {
-          preventMinimize(e);
+      // Block ALL scrolling that could trigger minimize
+      document.addEventListener('scroll', preventMinimize, true);
+      document.addEventListener('touchmove', (e) => {
+        // Block any vertical movement that could trigger minimize
+        if (e.touches.length === 1) {
+          const touch = e.touches[0];
+          const deltaY = Math.abs(touch.clientY - ((touch as any).startY || touch.clientY));
+          if (deltaY > 20) {
+            preventMinimize(e);
+          }
+          (touch as any).startY = touch.clientY;
+        }
+      }, true);
+      
+      // Block overscroll and pull-to-refresh
+      document.addEventListener('overscroll', preventMinimize, true);
+      document.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          (e.touches[0] as any).startY = e.touches[0].clientY;
         }
       }, true);
       
@@ -80,7 +94,29 @@ export const useFullScreenPWA = () => {
         keepExpanded();
       };
       
-      setInterval(maintainFocus, 1000);
+      setInterval(maintainFocus, 200);
+      
+      // EXTREME: Override any Telegram minimize methods
+      if ((window as any).Telegram?.WebApp?.minimize) {
+        (window as any).Telegram.WebApp.minimize = () => {
+          console.log('Minimize blocked!');
+          keepExpanded();
+        };
+      }
+      
+      // Block history navigation that could minimize
+      window.addEventListener('popstate', (e) => {
+        e.preventDefault();
+        keepExpanded();
+        return false;
+      });
+      
+      // Block any hash changes that could minimize 
+      window.addEventListener('hashchange', (e) => {
+        e.preventDefault();
+        keepExpanded();
+        return false;
+      });
       
       // Store cleanup function
       (window as any).__telegramCleanup = () => {
