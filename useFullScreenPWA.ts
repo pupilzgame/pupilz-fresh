@@ -5,176 +5,97 @@ export const useFullScreenPWA = () => {
   useEffect(() => {
     if (Platform.OS !== 'web') return;
 
-    // OFFICIAL Telegram WebApp API - The Real Solution
+    // HAMSTER COMBAT STYLE - Telegram WebApp API Implementation
     if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
       const tg = (window as any).Telegram.WebApp;
       
+      console.log('🎮 Initializing Telegram Mini App like Hamster Combat');
       console.log('Telegram WebApp version:', tg.version);
       
-      // Method 1: Direct property assignment (newer versions)
-      try {
-        tg.disableVerticalSwipes = true;
-        console.log('✅ Set disableVerticalSwipes = true');
-      } catch (e) {
-        console.log('Property assignment failed:', e);
-      }
+      // STEP 1: Call ready() - This is CRITICAL and was missing!
+      tg.ready();
+      console.log('✅ Called Telegram.WebApp.ready()');
       
-      // Method 2: Function call (Bot API 7.7+)
+      // STEP 2: Expand to full height immediately
+      tg.expand();
+      console.log('✅ Expanded to full height');
+      
+      // STEP 3: Disable vertical swipes (the key method for preventing minimize)
       try {
         if (typeof tg.disableVerticalSwipes === 'function') {
           tg.disableVerticalSwipes();
-          console.log('✅ Called disableVerticalSwipes()');
+          console.log('✅ Called disableVerticalSwipes() function');
+        } else {
+          // Fallback for older versions
+          tg.disableVerticalSwipes = true;
+          console.log('✅ Set disableVerticalSwipes property');
         }
       } catch (e) {
-        console.log('Function call failed:', e);
+        console.log('❌ disableVerticalSwipes failed:', e);
       }
       
-      // Method 3: Closing confirmation (additional protection)
+      // STEP 4: Enable closing confirmation for extra protection
       try {
-        tg.isClosingConfirmationEnabled = true;
-        console.log('✅ Set isClosingConfirmationEnabled = true');
-      } catch (e) {
-        console.log('Closing confirmation failed:', e);
-      }
-      
-      // Method 4: Traditional expand and enable closing confirmation
-      try {
-        tg.expand();
         if (typeof tg.enableClosingConfirmation === 'function') {
           tg.enableClosingConfirmation();
+          console.log('✅ Enabled closing confirmation');
         }
-        console.log('✅ Expanded and enabled closing confirmation');
       } catch (e) {
-        console.log('Traditional methods failed:', e);
+        console.log('❌ enableClosingConfirmation failed:', e);
       }
       
-      // Method 5: Check status
-      console.log('isExpanded:', tg.isExpanded);
-      console.log('isVerticalSwipesEnabled:', tg.isVerticalSwipesEnabled);
+      // STEP 5: Set theme colors to match your game
+      tg.setHeaderColor('#060913');
+      tg.setBackgroundColor('#060913');
+      console.log('✅ Set theme colors');
       
-      // Method 6: Fallback CSS solution for older versions (pre-7.7)
-      if (!tg.isVerticalSwipesEnabled === undefined) {
-        console.log('Applying CSS fallback for older Telegram versions');
-        const overflow = 100;
-        document.body.style.overflowY = 'hidden';
-        document.body.style.marginTop = `${overflow}px`;
-        document.body.style.height = window.innerHeight + overflow + "px";
-        document.body.style.paddingBottom = `${overflow}px`;
-        window.scrollTo(0, overflow);
-      }
-      
-      // Lock the WebApp in expanded state with aggressive monitoring
-      const keepExpanded = () => {
-        tg.expand();
-        tg.enableClosingConfirmation();
-        if (tg.disableVerticalSwipes) {
-          tg.disableVerticalSwipes();
-        }
-      };
-      
-      // Multiple event listeners to prevent minimize
-      tg.onEvent('viewportChanged', keepExpanded);
-      tg.onEvent('themeChanged', keepExpanded);
-      tg.onEvent('backButtonClicked', (e: any) => {
-        e.preventDefault();
-        keepExpanded();
-        return false;
-      });
-      
-      // Gentle re-expansion every 5 seconds (now that we use proper API)
-      const expandInterval = setInterval(() => {
-        if (!tg.isExpanded) {
-          console.log('Re-expanding WebApp');
-          keepExpanded();
-        }
-      }, 5000);
-      
-      // Prevent window events that could trigger minimize
-      const preventMinimize = (e: Event) => {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        keepExpanded();
-        return false;
-      };
-      
-      // Block events that could cause minimization
-      window.addEventListener('blur', preventMinimize, true);
-      window.addEventListener('focusout', preventMinimize, true);
-      window.addEventListener('pagehide', preventMinimize, true);
-      window.addEventListener('beforeunload', preventMinimize, true);
-      
-      // Since we're using proper API, only prevent document-level scrolls as backup
-      document.addEventListener('scroll', (e) => {
-        if (e.target === document || e.target === document.body) {
-          console.log('Preventing document scroll as backup');
-          e.preventDefault();
-        }
-      }, true);
-      
-      // Block overscroll and pull-to-refresh
-      document.addEventListener('overscroll', preventMinimize, true);
-      document.addEventListener('touchstart', (e) => {
-        if (e.touches.length === 1) {
-          (e.touches[0] as any).startY = e.touches[0].clientY;
-        }
-      }, true);
-      
-      // Override Telegram's internal minimize triggers
+      // STEP 6: Hide Telegram UI buttons that could interfere
       if (tg.MainButton) {
         tg.MainButton.hide();
+        console.log('✅ Hidden MainButton');
       }
       if (tg.BackButton) {
         tg.BackButton.hide();
+        console.log('✅ Hidden BackButton');
       }
       
-      // Set theme colors and maintain focus
-      tg.setHeaderColor('#060913');
-      tg.setBackgroundColor('#060913');
+      // STEP 7: Status logging for debugging
+      console.log('📊 Final status:');
+      console.log('  - isExpanded:', tg.isExpanded);
+      console.log('  - isVerticalSwipesEnabled:', tg.isVerticalSwipesEnabled);
+      console.log('  - viewportHeight:', tg.viewportHeight);
+      console.log('  - viewportStableHeight:', tg.viewportStableHeight);
       
-      // Keep window focused
-      const maintainFocus = () => {
-        window.focus();
-        keepExpanded();
+      // STEP 8: Optional - Light monitoring (not aggressive like before)
+      const lightMonitoring = setInterval(() => {
+        // Only re-expand if we've been collapsed (shouldn't happen with proper API)
+        if (!tg.isExpanded) {
+          console.log('🔄 Re-expanding (this should rarely happen now)');
+          tg.expand();
+          if (typeof tg.disableVerticalSwipes === 'function') {
+            tg.disableVerticalSwipes();
+          }
+        }
+      }, 10000); // Check every 10 seconds
+      
+      // STEP 9: Clean event handling - only prevent document-level scrolling
+      const preventDocumentScroll = (e: Event) => {
+        if (e.target === document || e.target === document.body || 
+            e.target === document.documentElement) {
+          e.preventDefault();
+          console.log('🚫 Prevented document-level scroll');
+        }
       };
       
-      setInterval(maintainFocus, 10000); // Every 10 seconds is enough with proper API
-      
-      // Don't override minimize methods - allow intentional minimize from top border
-      // Just ensure we start expanded and stay focused
-      if ((window as any).Telegram?.WebApp) {
-        const tgApp = (window as any).Telegram.WebApp;
-        console.log('Telegram WebApp detected - allowing controlled minimize');
-      }
-      
-      // Block ALL navigation events that could minimize
-      window.addEventListener('popstate', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        keepExpanded();
-        return false;
-      });
-      
-      window.addEventListener('hashchange', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        keepExpanded();
-        return false;
-      });
-      
-      // Allow normal minimize functionality - only block accidental ones
-      console.log('Hamster Kombat style minimize control enabled - top 30px swipe zone active');
+      document.addEventListener('scroll', preventDocumentScroll, { passive: false });
+      document.addEventListener('touchmove', preventDocumentScroll, { passive: false });
       
       // Store cleanup function
       (window as any).__telegramCleanup = () => {
-        clearInterval(expandInterval);
-        window.removeEventListener('blur', preventMinimize, true);
-        window.removeEventListener('focusout', preventMinimize, true);
-        window.removeEventListener('pagehide', preventMinimize, true);
-        window.removeEventListener('beforeunload', preventMinimize, true);
-        document.removeEventListener('scroll', preventMinimize, true);
+        clearInterval(lightMonitoring);
+        document.removeEventListener('scroll', preventDocumentScroll);
+        document.removeEventListener('touchmove', preventDocumentScroll);
+        console.log('🧹 Telegram Mini App cleanup completed');
       };
     }
 
@@ -187,96 +108,29 @@ export const useFullScreenPWA = () => {
       }
     };
 
-    // EXTREME touch event prevention for Telegram
-    const preventZoom = (e: TouchEvent) => {
+    // SIMPLIFIED touch prevention - Trust Telegram API, minimal backup
+    const preventMultiTouch = (e: TouchEvent) => {
+      // Only prevent pinch-to-zoom (multi-touch)
       if (e.touches.length > 1) {
         e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
+        console.log('🚫 Prevented multi-touch zoom');
       }
     };
 
-    const preventDoubleTap = (e: TouchEvent) => {
-      const now = Date.now();
-      const lastTouch = (preventDoubleTap as any).lastTouch || 0;
-      if (now - lastTouch <= 300) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-      }
-      (preventDoubleTap as any).lastTouch = now;
-    };
-
-    const preventGesture = (e: Event) => {
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      return false;
-    };
-
-    // Smart drag prevention - only block minimize gestures, allow gameplay
-    const smartTouchHandler = (e: TouchEvent) => {
-      // Allow touches inside the game area
-      const gameElement = document.getElementById('game');
-      if (gameElement && e.target && gameElement.contains(e.target as Node)) {
-        // This is a gameplay touch - allow it
-        return true;
-      }
-      
-      // If it's outside game area or a swipe from edge, prevent it
-      if (e.type === 'touchmove' && e.touches.length === 1) {
+    const preventPullToRefresh = (e: TouchEvent) => {
+      // Only prevent pull-to-refresh at the very top of the document
+      if (e.target === document.body || e.target === document.documentElement) {
         const touch = e.touches[0];
-        
-        // Block edge swipes (within 50px of screen edge)
-        if (touch.clientX < 50 || touch.clientX > window.innerWidth - 50 ||
-            touch.clientY < 50 || touch.clientY > window.innerHeight - 50) {
+        if (touch.clientY < 50 && window.scrollY === 0) {
           e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          return false;
+          console.log('🚫 Prevented pull-to-refresh');
         }
-        
-        // Block large vertical movements that could be swipe-to-minimize
-        const startY = (touch as any).startY || touch.clientY;
-        const deltaY = touch.clientY - startY;
-        
-        if (Math.abs(deltaY) > 100) {  // Increased threshold to allow gameplay
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          return false;
-        }
-        (touch as any).startY = touch.clientY;
       }
-      return true;
     };
 
-    // Add SMART event listeners for Telegram - allow gameplay, block minimize
-    document.addEventListener('touchstart', preventZoom, { passive: false });
-    document.addEventListener('touchend', preventDoubleTap, { passive: false });
-    document.addEventListener('touchmove', smartTouchHandler, { passive: false });
-    document.addEventListener('gesturestart', preventGesture, { passive: false, capture: true });
-    document.addEventListener('gesturechange', preventGesture, { passive: false, capture: true });
-    document.addEventListener('gestureend', preventGesture, { passive: false, capture: true });
-    
-    // Only block non-gameplay drags
-    document.addEventListener('dragstart', (e) => {
-      if (!document.getElementById('game')?.contains(e.target as Node)) {
-        preventGesture(e);
-      }
-    }, { passive: false });
-    
-    document.addEventListener('drag', (e) => {
-      if (!document.getElementById('game')?.contains(e.target as Node)) {
-        preventGesture(e);
-      }
-    }, { passive: false });
-    
-    document.addEventListener('dragend', (e) => {
-      if (!document.getElementById('game')?.contains(e.target as Node)) {
-        preventGesture(e);
-      }
-    }, { passive: false });
+    // Minimal touch prevention - let Telegram API do the heavy lifting
+    document.addEventListener('touchstart', preventMultiTouch, { passive: false });
+    document.addEventListener('touchmove', preventPullToRefresh, { passive: false });
 
     // Handle window resize for game canvas
     const handleResize = () => {
@@ -300,13 +154,11 @@ export const useFullScreenPWA = () => {
         (window as any).__telegramCleanup();
       }
       
-      document.removeEventListener('touchstart', preventZoom);
-      document.removeEventListener('touchend', preventDoubleTap);
-      document.removeEventListener('touchmove', smartTouchHandler);
-      document.removeEventListener('gesturestart', preventGesture, true);
-      document.removeEventListener('gesturechange', preventGesture, true);
-      document.removeEventListener('gestureend', preventGesture, true);
+      document.removeEventListener('touchstart', preventMultiTouch);
+      document.removeEventListener('touchmove', preventPullToRefresh);
       window.removeEventListener('resize', handleResize);
+      
+      console.log('🧹 useFullScreenPWA cleanup completed');
     };
   }, []);
 };
