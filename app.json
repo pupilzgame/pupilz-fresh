@@ -28,7 +28,7 @@
       "shortName": "Pupilz",
       "description": "Epic space shooter game - defend Earth from alien invasion!",
       "startUrl": "/",
-      "display": "fullscreen",
+      "display": "standalone",
       "orientation": "portrait",
       "themeColor": "#060913",
       "backgroundColor": "#060913",
@@ -36,7 +36,21 @@
       "preferRelatedApplications": false,
       "scope": "/",
       "crossOrigin": "anonymous",
-      "lang": "en"
+      "lang": "en",
+      "icons": [
+        {
+          "src": "./assets/icon.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "any maskable"
+        },
+        {
+          "src": "./assets/icon.png",
+          "sizes": "512x512", 
+          "type": "image/png",
+          "purpose": "any maskable"
+        }
+      ]
     }
   }
 }
