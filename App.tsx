@@ -593,6 +593,44 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
             )
           ))}
         </View>
+
+        {/* RETENTION SYSTEM UI - Quick Status */}
+        <View style={{
+          backgroundColor: 'rgba(20, 20, 40, 0.8)',
+          borderColor: '#4A90E2',
+          borderWidth: 1,
+          borderRadius: 8,
+          padding: 12,
+          marginVertical: 12,
+          marginHorizontal: 20,
+        }}>
+          <Text style={{
+            color: '#4A90E2',
+            fontSize: 14,
+            fontWeight: 'bold',
+            textAlign: 'center',
+            marginBottom: 6,
+          }}>
+            🎯 PILOT STATUS
+          </Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text style={{ color: '#8FB7FF', fontSize: 12 }}>
+              🔥 Streak: {streakData.current.current} days
+            </Text>
+            <Text style={{ color: '#8FB7FF', fontSize: 12 }}>
+              ❄️ Freezes: {streakData.current.freezesAvailable}
+            </Text>
+          </View>
+          <Text style={{
+            color: '#9CA3AF',
+            fontSize: 11,
+            textAlign: 'center',
+            marginTop: 4,
+          }}>
+            Missions: {dailyMissions.current.filter(m => m.completed).length}/{dailyMissions.current.length} • 
+            Achievements: {achievements.current.filter(a => a.completed).length}/{achievements.current.length}
+          </Text>
+        </View>
         
         <Pressable 
           onPress={onStart} 
@@ -910,6 +948,99 @@ function Game() {
   const tipsShown = useRef<Set<string>>(new Set());
   const currentDeathTip = useRef<string>(''); // Cache tip for current death
 
+  // RETENTION SYSTEM - Daily Missions, Streaks, Achievements
+  // Daily Missions Types
+  type DailyMission = {
+    id: string;
+    type: 'kill_ships' | 'reach_level' | 'survive_time' | 'boss_defeat' | 'no_death' | 'collect_powerups';
+    title: string;
+    description: string;
+    target: number;
+    progress: number;
+    completed: boolean;
+    reward: {
+      type: 'streak_freeze' | 'cosmetic' | 'achievement_progress';
+      value: string;
+    };
+    difficulty: 'easy' | 'medium' | 'hard';
+  };
+
+  // Achievement System
+  type Achievement = {
+    id: string;
+    title: string;
+    description: string;
+    category: 'combat' | 'survival' | 'collection' | 'social' | 'progression';
+    progress: number;
+    target: number;
+    completed: boolean;
+    completedDate?: string;
+    reward?: string;
+    hidden?: boolean; // Easter egg achievements
+  };
+
+  // Streak System
+  type StreakData = {
+    current: number;
+    longest: number;
+    lastPlayDate: string;
+    freezesAvailable: number;
+    freezeUsedToday: boolean;
+  };
+
+  // Player Statistics for Missions & Achievements
+  type GameStats = {
+    totalShipsKilled: number;
+    totalGamesPlayed: number;
+    totalTimePlayed: number; // in seconds
+    highestLevel: number;
+    bossDefeats: number;
+    perfectRuns: number; // No deaths
+    powerupsCollected: number;
+    streakFreezesSaved: number;
+    dailyMissionsCompleted: number;
+    achievementsUnlocked: number;
+  };
+
+  // Retention State
+  const dailyMissions = useRef<DailyMission[]>([]);
+  const achievements = useRef<Achievement[]>([]);
+  const streakData = useRef<StreakData>({
+    current: 0,
+    longest: 0,
+    lastPlayDate: '',
+    freezesAvailable: 0,
+    freezeUsedToday: false
+  });
+  const gameStats = useRef<GameStats>({
+    totalShipsKilled: 0,
+    totalGamesPlayed: 0,
+    totalTimePlayed: 0,
+    highestLevel: 1,
+    bossDefeats: 0,
+    perfectRuns: 0,
+    powerupsCollected: 0,
+    streakFreezesSaved: 0,
+    dailyMissionsCompleted: 0,
+    achievementsUnlocked: 0
+  });
+
+  // Session tracking for achievements
+  const sessionStats = useRef({
+    shipsKilled: 0,
+    startTime: Date.now(),
+    powerupsCollected: 0,
+    deathCount: 0,
+    bossDefeated: false,
+    levelReached: 1
+  });
+
+  // UI State for Retention Features
+  const [showDailyMissions, setShowDailyMissions] = useState(false);
+  const [showAchievements, setShowAchievements] = useState(false);
+  const [missionCompletedAnim, setMissionCompletedAnim] = useState<string | null>(null);
+  const [achievementUnlockedAnim, setAchievementUnlockedAnim] = useState<string | null>(null);
+
   // Entities
   const asteroids = useRef<Asteroid[]>([]);
   const barriers  = useRef<Barrier[]>([]);
@@ -1077,6 +1208,230 @@ function Game() {
       }
     }
     return false;
+  };
+
+  // RETENTION SYSTEM FUNCTIONS
+  
+  // Local Storage Functions
+  const saveRetentionData = () => {
+    try {
+      const data = {
+        dailyMissions: dailyMissions.current,
+        achievements: achievements.current,
+        streakData: streakData.current,
+        gameStats: gameStats.current,
+        lastSaveDate: new Date().toISOString()
+      };
+      localStorage.setItem('pupilz_retention_data', JSON.stringify(data));
+      console.log('💾 Retention data saved');
+    } catch (error) {
+      console.log('❌ Failed to save retention data:', error);
+    }
+  };
+
+  const loadRetentionData = () => {
+    try {
+      const saved = localStorage.getItem('pupilz_retention_data');
+      if (saved) {
+        const data = JSON.parse(saved);
+        dailyMissions.current = data.dailyMissions || [];
+        achievements.current = data.achievements || [];
+        streakData.current = data.streakData || { current: 0, longest: 0, lastPlayDate: '', freezesAvailable: 0, freezeUsedToday: false };
+        gameStats.current = data.gameStats || { totalShipsKilled: 0, totalGamesPlayed: 0, totalTimePlayed: 0, highestLevel: 1, bossDefeats: 0, perfectRuns: 0, powerupsCollected: 0, streakFreezesSaved: 0, dailyMissionsCompleted: 0, achievementsUnlocked: 0 };
+        console.log('📱 Retention data loaded');
+        return data.lastSaveDate;
+      }
+    } catch (error) {
+      console.log('❌ Failed to load retention data:', error);
+    }
+    return null;
+  };
+
+  // Daily Missions System
+  const generateDailyMissions = (): DailyMission[] => {
+    const today = new Date().toDateString();
+    const missionPool = [
+      // Easy missions (40% chance)
+      { type: 'kill_ships' as const, title: 'Ship Hunter', description: 'Destroy 10 enemy ships', target: 10, difficulty: 'easy' as const, reward: { type: 'achievement_progress' as const, value: 'combat_experience' } },
+      { type: 'reach_level' as const, title: 'Level Explorer', description: 'Reach Level 3', target: 3, difficulty: 'easy' as const, reward: { type: 'achievement_progress' as const, value: 'progression_tracker' } },
+      { type: 'survive_time' as const, title: 'Endurance Test', description: 'Survive for 2 minutes', target: 120, difficulty: 'easy' as const, reward: { type: 'achievement_progress' as const, value: 'survival_instinct' } },
+      
+      // Medium missions (40% chance)
+      { type: 'kill_ships' as const, title: 'Ace Pilot', description: 'Destroy 25 enemy ships', target: 25, difficulty: 'medium' as const, reward: { type: 'achievement_progress' as const, value: 'ship_destroyer' } },
+      { type: 'reach_level' as const, title: 'Deep Space', description: 'Reach Level 5', target: 5, difficulty: 'medium' as const, reward: { type: 'streak_freeze' as const, value: '1' } },
+      { type: 'collect_powerups' as const, title: 'Power Collector', description: 'Collect 8 power-ups', target: 8, difficulty: 'medium' as const, reward: { type: 'achievement_progress' as const, value: 'collector' } },
+      
+      // Hard missions (20% chance)
+      { type: 'boss_defeat' as const, title: 'Boss Slayer', description: 'Defeat the Level 5 Boss', target: 1, difficulty: 'hard' as const, reward: { type: 'streak_freeze' as const, value: '2' } },
+      { type: 'no_death' as const, title: 'Perfect Run', description: 'Complete a game without dying', target: 1, difficulty: 'hard' as const, reward: { type: 'streak_freeze' as const, value: '1' } },
+      { type: 'kill_ships' as const, title: 'Exterminator', description: 'Destroy 50 enemy ships', target: 50, difficulty: 'hard' as const, reward: { type: 'cosmetic' as const, value: 'golden_pod' } }
+    ];
+
+    // Select 3 missions with weighted difficulty
+    const selected: DailyMission[] = [];
+    for (let i = 0; i < 3; i++) {
+      const rand = Math.random();
+      let pool: typeof missionPool;
+      if (rand < 0.4) {
+        pool = missionPool.filter(m => m.difficulty === 'easy');
+      } else if (rand < 0.8) {
+        pool = missionPool.filter(m => m.difficulty === 'medium');
+      } else {
+        pool = missionPool.filter(m => m.difficulty === 'hard');
+      }
+      
+      const mission = pool[Math.floor(Math.random() * pool.length)];
+      selected.push({
+        id: `${today}_${i}`,
+        ...mission,
+        progress: 0,
+        completed: false
+      });
+    }
+
+    return selected;
+  };
+
+  const checkDailyMissions = () => {
+    const today = new Date().toDateString();
+    
+    // Check if we need new missions
+    if (dailyMissions.current.length === 0 || !dailyMissions.current[0].id.startsWith(today)) {
+      dailyMissions.current = generateDailyMissions();
+      saveRetentionData();
+      console.log('🎯 New daily missions generated');
+    }
+  };
+
+  const updateMissionProgress = (type: DailyMission['type'], value: number = 1) => {
+    let missionCompleted = false;
+    
+    dailyMissions.current.forEach(mission => {
+      if (mission.type === type && !mission.completed) {
+        mission.progress += value;
+        if (mission.progress >= mission.target) {
+          mission.completed = true;
+          mission.progress = mission.target;
+          missionCompleted = true;
+          
+          // Award mission rewards
+          if (mission.reward.type === 'streak_freeze') {
+            streakData.current.freezesAvailable += parseInt(mission.reward.value);
+            gameStats.current.streakFreezesSaved += parseInt(mission.reward.value);
+          }
+          
+          gameStats.current.dailyMissionsCompleted++;
+          setMissionCompletedAnim(mission.id);
+          setTimeout(() => setMissionCompletedAnim(null), 3000);
+          console.log(`🎉 Mission completed: ${mission.title}`);
+        }
+      }
+    });
+
+    if (missionCompleted) {
+      saveRetentionData();
+    }
+  };
+
+  // Streak System Functions
+  const updateStreak = () => {
+    const today = new Date().toDateString();
+    const lastPlay = streakData.current.lastPlayDate;
+    
+    if (lastPlay === today) {
+      // Already played today
+      return;
+    }
+    
+    if (lastPlay) {
+      const lastDate = new Date(lastPlay);
+      const todayDate = new Date(today);
+      const diffDays = Math.floor((todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 1) {
+        // Consecutive day
+        streakData.current.current++;
+        streakData.current.longest = Math.max(streakData.current.longest, streakData.current.current);
+      } else if (diffDays > 1) {
+        // Streak broken - check for freeze
+        if (streakData.current.freezesAvailable > 0 && !streakData.current.freezeUsedToday) {
+          // Auto-use freeze
+          streakData.current.freezesAvailable--;
+          streakData.current.freezeUsedToday = true;
+          console.log('❄️ Streak freeze used automatically!');
+        } else {
+          // Reset streak
+          streakData.current.current = 1;
+          console.log('💔 Streak broken - starting fresh');
+        }
+      }
+    } else {
+      // First time playing
+      streakData.current.current = 1;
+    }
+    
+    streakData.current.lastPlayDate = today;
+    streakData.current.freezeUsedToday = false; // Reset daily freeze flag
+    saveRetentionData();
+    console.log(`🔥 Current streak: ${streakData.current.current} days`);
+  };
+
+  // Achievement System Functions
+  const initializeAchievements = () => {
+    if (achievements.current.length > 0) return; // Already initialized
+
+    const achievementDefinitions: Omit<Achievement, 'progress' | 'completed'>[] = [
+      // Combat Achievements
+      { id: 'first_kill', title: 'First Blood', description: 'Destroy your first enemy ship', category: 'combat', target: 1 },
+      { id: 'ship_destroyer', title: 'Ship Destroyer', description: 'Destroy 100 enemy ships', category: 'combat', target: 100 },
+      { id: 'ace_pilot', title: 'Ace Pilot', description: 'Destroy 500 enemy ships', category: 'combat', target: 500 },
+      { id: 'exterminator', title: 'Exterminator', description: 'Destroy 1000 enemy ships', category: 'combat', target: 1000 },
+      
+      // Survival Achievements  
+      { id: 'survivor', title: 'Survivor', description: 'Survive for 5 minutes in a single game', category: 'survival', target: 300 },
+      { id: 'untouchable', title: 'Untouchable', description: 'Complete a perfect run without taking damage', category: 'survival', target: 1 },
+      { id: 'last_stand', title: 'Last Stand', description: 'Win a game with only 1 life remaining', category: 'survival', target: 1 },
+      
+      // Progression Achievements
+      { id: 'level_up', title: 'Level Up', description: 'Reach Level 2', category: 'progression', target: 2 },
+      { id: 'deep_space', title: 'Deep Space', description: 'Reach Level 5', category: 'progression', target: 5 },
+      { id: 'boss_slayer', title: 'Boss Slayer', description: 'Defeat 10 bosses', category: 'progression', target: 10 },
+      
+      // Collection Achievements
+      { id: 'collector', title: 'Collector', description: 'Collect 50 power-ups', category: 'collection', target: 50 },
+      { id: 'hoarder', title: 'Hoarder', description: 'Collect 200 power-ups', category: 'collection', target: 200 },
+      
+      // Social/Meta Achievements
+      { id: 'streak_master', title: 'Streak Master', description: 'Maintain a 7-day play streak', category: 'social', target: 7 },
+      { id: 'daily_grinder', title: 'Daily Grinder', description: 'Complete 30 daily missions', category: 'social', target: 30 }
+    ];
+
+    achievements.current = achievementDefinitions.map(def => ({
+      ...def,
+      progress: 0,
+      completed: false
+    }));
+
+    saveRetentionData();
+    console.log('🏆 Achievements initialized');
+  };
+
+  const updateAchievementProgress = (id: string, value: number) => {
+    const achievement = achievements.current.find(a => a.id === id);
+    if (achievement && !achievement.completed) {
+      achievement.progress = Math.min(achievement.progress + value, achievement.target);
+      
+      if (achievement.progress >= achievement.target) {
+        achievement.completed = true;
+        achievement.completedDate = new Date().toISOString();
+        gameStats.current.achievementsUnlocked++;
+        setAchievementUnlockedAnim(achievement.id);
+        setTimeout(() => setAchievementUnlockedAnim(null), 4000);
+        console.log(`🏆 Achievement unlocked: ${achievement.title}`);
+      }
+      
+      saveRetentionData();
+    }
   };
 
   const seedStars = () => {
@@ -1516,6 +1871,21 @@ function Game() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => { window.removeEventListener("keydown", handleKeyDown); };
+  }, []);
+
+  // RETENTION SYSTEM INITIALIZATION
+  useEffect(() => {
+    // Load saved retention data
+    loadRetentionData();
+    
+    // Initialize achievements if first time
+    initializeAchievements();
+    
+    // Check and generate daily missions
+    checkDailyMissions();
+    
+    console.log('🎯 Retention system initialized');
+    console.log(`📊 Streak: ${streakData.current.current} days, Freezes: ${streakData.current.freezesAvailable}`);
   }, []);
 
   /* ----- Web Touch & Telegram WebApp Prevention ----- */
@@ -2004,6 +2374,15 @@ function Game() {
     killsShip.current += 1;
     console.log(`SHIP KILLED: ${shipsKilledThisLevel.current}/${shipsRequiredForLevel.current} at level ${level.current} (QuotaMet: ${quotaJustMet.current})`);
     
+    // RETENTION TRACKING: Ship killed
+    gameStats.current.totalShipsKilled++;
+    sessionStats.current.shipsKilled++;
+    updateMissionProgress('kill_ships', 1);
+    updateAchievementProgress('first_kill', 1);
+    updateAchievementProgress('ship_destroyer', 1);
+    updateAchievementProgress('ace_pilot', 1);
+    updateAchievementProgress('exterminator', 1);
+    
     // Check if this kill triggers the celebration sequence
     checkShipQuota();
   };
@@ -2105,6 +2484,13 @@ function Game() {
     const oldLevel = level.current;
     level.current += 1;
     console.log(`LEVEL UP: ${oldLevel} → ${level.current}`);
+    
+    // RETENTION TRACKING: Level progression
+    sessionStats.current.levelReached = level.current;
+    gameStats.current.highestLevel = Math.max(gameStats.current.highestLevel, level.current);
+    updateMissionProgress('reach_level', level.current);
+    updateAchievementProgress('level_up', level.current);
+    updateAchievementProgress('deep_space', level.current);
     
     // Play level up sound
     
@@ -2226,6 +2612,9 @@ function Game() {
     lives.current = Math.max(0, lives.current - 1);
     crashMessage.current = getCrashMessage();
     
+    // RETENTION TRACKING: Death occurred
+    sessionStats.current.deathCount++;
+    
     if (lives.current > 0) {
       // Still have lives - enhanced respawn system
       setPhase("respawning");
@@ -2256,6 +2645,21 @@ function Game() {
       (window as any).currentRespawnInterval = countdownInterval;
     } else {
       // No lives left - true game over
+      
+      // RETENTION TRACKING: Game over
+      const sessionTime = (Date.now() - sessionStats.current.startTime) / 1000;
+      gameStats.current.totalTimePlayed += sessionTime;
+      
+      // Update survival time mission and achievements
+      updateMissionProgress('survive_time', Math.floor(sessionTime));
+      updateAchievementProgress('survivor', Math.floor(sessionTime));
+      
+      // Update streak achievement
+      updateAchievementProgress('streak_master', streakData.current.current);
+      
+      // Save progress
+      saveRetentionData();
+      
       setPhase("dead");
     }
   };
@@ -2509,6 +2913,13 @@ function Game() {
             boss.current.active = false;
             bossGateCleared.current = true;
             console.log('BOSS DEFEATED - bossGateCleared set to TRUE');
+            
+            // RETENTION TRACKING: Boss defeated
+            sessionStats.current.bossDefeated = true;
+            gameStats.current.bossDefeats++;
+            updateMissionProgress('boss_defeat', 1);
+            updateAchievementProgress('boss_slayer', 1);
+            
             boom(boss.current.x, boss.current.y, 1.8, "#FFE486");
             
             // Dramatic EARTH ring entrance effects (no distracting white flash)
@@ -3119,6 +3530,13 @@ function Game() {
             }
           }
 
+          // RETENTION TRACKING: Powerup collected
+          gameStats.current.powerupsCollected++;
+          sessionStats.current.powerupsCollected++;
+          updateMissionProgress('collect_powerups', 1);
+          updateAchievementProgress('collector', 1);
+          updateAchievementProgress('hoarder', 1);
+
           // pickup feedback
           boom(p.x, p.y, 0.6, "#CFFFD1");
           powerups.current.splice(i, 1);
@@ -3163,6 +3581,29 @@ function Game() {
             // 2-second delay for dramatic effect after ring disintegrates
             setTimeout(() => {
               console.log('VICTORY SEQUENCE - Showing EARTH REACHED message');
+              
+              // RETENTION TRACKING: Victory achieved
+              const sessionTime = (Date.now() - sessionStats.current.startTime) / 1000;
+              gameStats.current.totalTimePlayed += sessionTime;
+              
+              // Check for perfect run achievement (no deaths)
+              if (sessionStats.current.deathCount === 0) {
+                gameStats.current.perfectRuns++;
+                updateMissionProgress('no_death', 1);
+                updateAchievementProgress('untouchable', 1);
+              }
+              
+              // Check for last stand achievement (1 life remaining)
+              if (lives.current === 1) {
+                updateAchievementProgress('last_stand', 1);
+              }
+              
+              // Update survival time achievement
+              updateAchievementProgress('survivor', Math.floor(sessionTime));
+              
+              // Save all progress
+              saveRetentionData();
+              
               setPhase("win");
             }, 2000);
             return;
@@ -3250,6 +3691,20 @@ function Game() {
     console.log('🚀 GAME START: Simple dispatch message');
     
     hardResetWorld();
+    
+    // RETENTION TRACKING: Game started
+    gameStats.current.totalGamesPlayed++;
+    sessionStats.current = {
+      shipsKilled: 0,
+      startTime: Date.now(),
+      powerupsCollected: 0,
+      deathCount: 0,
+      bossDefeated: false,
+      levelReached: 1
+    };
+    
+    // Update streak on game start
+    updateStreak();
     
     // Show simple dispatch message
     gameStartMessageText.current = "🚁 MOTHERSHIP DISPATCH: Pod deployed - Begin descent!";
