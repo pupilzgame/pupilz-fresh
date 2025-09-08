@@ -96,27 +96,87 @@ export const useFullScreenPWA = () => {
       
       setInterval(maintainFocus, 200);
       
-      // EXTREME: Override any Telegram minimize methods
-      if ((window as any).Telegram?.WebApp?.minimize) {
-        (window as any).Telegram.WebApp.minimize = () => {
-          console.log('Minimize blocked!');
-          keepExpanded();
-        };
+      // EXTREME: Override ALL Telegram minimize methods
+      if ((window as any).Telegram?.WebApp) {
+        const tgApp = (window as any).Telegram.WebApp;
+        
+        // Override minimize method
+        if (tgApp.minimize) {
+          tgApp.minimize = () => {
+            console.log('WebApp.minimize() blocked!');
+            keepExpanded();
+            return false;
+          };
+        }
+        
+        // Override close method
+        if (tgApp.close) {
+          tgApp.close = () => {
+            console.log('WebApp.close() blocked!');
+            keepExpanded();
+            return false;
+          };
+        }
+        
+        // Override any sendData that might trigger minimize
+        const originalSendData = tgApp.sendData;
+        if (originalSendData) {
+          tgApp.sendData = (data: any) => {
+            console.log('WebApp.sendData() intercepted:', data);
+            keepExpanded();
+            // Still allow sending data, just ensure we stay expanded
+            return originalSendData.call(tgApp, data);
+          };
+        }
+        
+        // Block ready event from triggering minimize
+        const originalReady = tgApp.ready;
+        if (originalReady) {
+          tgApp.ready = () => {
+            keepExpanded();
+            return originalReady.call(tgApp);
+          };
+        }
       }
       
-      // Block history navigation that could minimize
+      // Block ALL navigation events that could minimize
       window.addEventListener('popstate', (e) => {
         e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
         keepExpanded();
         return false;
       });
       
-      // Block any hash changes that could minimize 
       window.addEventListener('hashchange', (e) => {
         e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
         keepExpanded();
         return false;
       });
+      
+      // Block Telegram-specific events that might minimize
+      window.addEventListener('message', (e) => {
+        if (e.data && typeof e.data === 'string') {
+          // Block any messages that might be minimize commands
+          if (e.data.includes('minimize') || e.data.includes('close') || e.data.includes('hide')) {
+            console.log('Blocked minimize message:', e.data);
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            keepExpanded();
+            return false;
+          }
+        }
+      });
+      
+      // Override window.close
+      window.close = () => {
+        console.log('window.close() blocked!');
+        keepExpanded();
+        return false;
+      };
       
       // Store cleanup function
       (window as any).__telegramCleanup = () => {
