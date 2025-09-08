@@ -54,17 +54,33 @@ export const useFullScreenPWA = () => {
       window.addEventListener('pagehide', preventMinimize, true);
       window.addEventListener('beforeunload', preventMinimize, true);
       
-      // Block ALL scrolling that could trigger minimize
+      // HAMSTER KOMBAT STYLE: Allow minimize only from top 30px border
       document.addEventListener('scroll', preventMinimize, true);
       document.addEventListener('touchmove', (e) => {
-        // Block any vertical movement that could trigger minimize
         if (e.touches.length === 1) {
           const touch = e.touches[0];
-          const deltaY = Math.abs(touch.clientY - ((touch as any).startY || touch.clientY));
-          if (deltaY > 20) {
-            preventMinimize(e);
+          const startY = (touch as any).startY || touch.clientY;
+          const currentY = touch.clientY;
+          const deltaY = currentY - startY;
+          
+          // Allow minimize only if:
+          // 1. Touch started in top 30px of screen AND
+          // 2. Swiping down (positive deltaY) AND  
+          // 3. Significant downward movement (>50px)
+          const isInMinimizeZone = startY <= 30;
+          const isSwipingDown = deltaY > 50;
+          
+          if (isInMinimizeZone && isSwipingDown) {
+            // Allow this swipe - it's intentional minimize from top border
+            console.log('Allowing minimize from top border');
+            return;
+          } else {
+            // Block all other vertical movements
+            if (Math.abs(deltaY) > 10) {
+              preventMinimize(e);
+            }
           }
-          (touch as any).startY = touch.clientY;
+          (touch as any).startY = startY || touch.clientY;
         }
       }, true);
       
@@ -96,47 +112,11 @@ export const useFullScreenPWA = () => {
       
       setInterval(maintainFocus, 200);
       
-      // EXTREME: Override ALL Telegram minimize methods
+      // Don't override minimize methods - allow intentional minimize from top border
+      // Just ensure we start expanded and stay focused
       if ((window as any).Telegram?.WebApp) {
         const tgApp = (window as any).Telegram.WebApp;
-        
-        // Override minimize method
-        if (tgApp.minimize) {
-          tgApp.minimize = () => {
-            console.log('WebApp.minimize() blocked!');
-            keepExpanded();
-            return false;
-          };
-        }
-        
-        // Override close method
-        if (tgApp.close) {
-          tgApp.close = () => {
-            console.log('WebApp.close() blocked!');
-            keepExpanded();
-            return false;
-          };
-        }
-        
-        // Override any sendData that might trigger minimize
-        const originalSendData = tgApp.sendData;
-        if (originalSendData) {
-          tgApp.sendData = (data: any) => {
-            console.log('WebApp.sendData() intercepted:', data);
-            keepExpanded();
-            // Still allow sending data, just ensure we stay expanded
-            return originalSendData.call(tgApp, data);
-          };
-        }
-        
-        // Block ready event from triggering minimize
-        const originalReady = tgApp.ready;
-        if (originalReady) {
-          tgApp.ready = () => {
-            keepExpanded();
-            return originalReady.call(tgApp);
-          };
-        }
+        console.log('Telegram WebApp detected - allowing controlled minimize');
       }
       
       // Block ALL navigation events that could minimize
@@ -156,27 +136,8 @@ export const useFullScreenPWA = () => {
         return false;
       });
       
-      // Block Telegram-specific events that might minimize
-      window.addEventListener('message', (e) => {
-        if (e.data && typeof e.data === 'string') {
-          // Block any messages that might be minimize commands
-          if (e.data.includes('minimize') || e.data.includes('close') || e.data.includes('hide')) {
-            console.log('Blocked minimize message:', e.data);
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            keepExpanded();
-            return false;
-          }
-        }
-      });
-      
-      // Override window.close
-      window.close = () => {
-        console.log('window.close() blocked!');
-        keepExpanded();
-        return false;
-      };
+      // Allow normal minimize functionality - only block accidental ones
+      console.log('Hamster Kombat style minimize control enabled - top 30px swipe zone active');
       
       // Store cleanup function
       (window as any).__telegramCleanup = () => {
