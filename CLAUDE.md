@@ -127,5 +127,41 @@ Pupilz Pod Descent - A React Native Expo space shooter game with TypeScript supp
 - More sound effects and gameplay music
 - Performance optimization for older devices
 
+## Latest Build Notes (December 2024)
+
+### 🌐 Web & PWA Implementation
+- **PWA Configuration**: Complete standalone app with no browser UI
+  - `app.json` configured with `display: "standalone"`
+  - `public/manifest.json` with proper icons (192px, 512px)
+  - `public/sw.js` service worker for offline capability
+  - `public/index.html` with PWA meta tags and safe-area-insets
+
+### 📱 Telegram Mini App Integration
+- **Anti-Minimization System**: Official Telegram WebApp API implementation
+  - `useFullScreenPWA.ts` hook with multiple compatibility methods
+  - `tg.disableVerticalSwipes = true` (Bot API 7.7+)
+  - `tg.disableVerticalSwipes()` function call method
+  - CSS fallback for older Telegram versions (pre-7.7)
+  - Console logging for debugging version compatibility
+
+### 🎮 Touch & Gesture Control  
+- **iOS Touch Prevention**: Complete blue highlight and magnification blocking
+  - CSS `user-select: none` and `touch-action: manipulation`
+  - JavaScript double-tap zoom prevention
+  - Text selection blocking with `::selection { background: transparent }`
+  - Game controls fully preserved while blocking unwanted gestures
+
+### 🏗️ Project Structure Updates
+- `global.css` - PWA full-bleed styles with safe-area support
+- `useFullScreenPWA.ts` - Telegram & PWA integration hook
+- `public/` - PWA manifest, service worker, icons
+- All touch fixes integrated into main App.tsx
+
+### 🚀 Deployment Status
+- **Vercel**: Auto-deployment on `git push origin master`
+- **PWA**: Works on iOS/Android home screen without browser UI
+- **Telegram Mini App**: Minimize control via official API
+- **Browser**: Touch fixes prevent iOS magnification issues
+
 ## Notes
-The game is currently in a production-ready state with all major systems working reliably. Historical bug fixes and detailed implementation notes are archived in CLAUDE_ARCHIVE.md to reduce context size while preserving development knowledge.
+The game is currently in a production-ready state with all major systems working reliably. Latest updates include complete PWA support and professional Telegram Mini App integration. Historical bug fixes and detailed implementation notes are archived in CLAUDE_ARCHIVE.md to reduce context size while preserving development knowledge.
