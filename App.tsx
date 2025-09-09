@@ -334,6 +334,12 @@ const MENU_SECTIONS: MenuSection[] = [
     ],
   },
   {
+    id: "progress",
+    icon: "🏆",
+    title: "DAILY MISSIONS & ACHIEVEMENTS",
+    bullets: [], // Will be populated dynamically
+  },
+  {
     id: "items",
     icon: "📦",
     title: "ITEMS & WEAPONS",
@@ -498,6 +504,90 @@ const SettingsAccordion: React.FC<SettingsAccordionProps> = ({
   );
 };
 
+type ProgressAccordionProps = {
+  section: MenuSection;
+  isOpen: boolean;
+  onToggle: () => void;
+  dailyMissions: DailyMission[];
+  streakCount: number;
+};
+
+const ProgressAccordion: React.FC<ProgressAccordionProps> = ({ 
+  section, isOpen, onToggle, dailyMissions, streakCount 
+}) => {
+  const contentAnim = useRef(new Animated.Value(isOpen ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(contentAnim, {
+      toValue: isOpen ? 1 : 0,
+      duration: 220,
+      easing: Easing.inOut(Easing.quad),
+      useNativeDriver: false,
+    }).start();
+  }, [isOpen]);
+
+  const maxHeight = 300; // Expandable height for missions and achievements
+  const height = contentAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, maxHeight],
+  });
+
+  return (
+    <View style={styles.menuSection}>
+      <Pressable onPress={onToggle} style={styles.menuSectionHeader}>
+        <Text style={styles.menuSectionIcon}>{section.icon}</Text>
+        <Text style={styles.menuSectionTitle}>{section.title}</Text>
+        <Text style={[styles.menuSectionArrow, isOpen && styles.menuSectionArrowOpen]}>
+          ›
+        </Text>
+      </Pressable>
+      
+      <Animated.View style={[styles.menuSectionContent, { height }]}>
+        <View style={styles.progressContainer}>
+          {/* Streak Information */}
+          <View style={styles.streakInfo}>
+            <Text style={styles.streakTitle}>🔥 Current Streak</Text>
+            <Text style={styles.streakValue}>{streakCount} days</Text>
+          </View>
+          
+          {/* Daily Missions */}
+          <Text style={styles.progressSectionTitle}>📋 Daily Missions</Text>
+          {dailyMissions.length > 0 ? (
+            dailyMissions.map((mission, index) => (
+              <View key={mission.id} style={styles.progressItem}>
+                <View style={styles.progressItemHeader}>
+                  <Text style={styles.progressItemTitle}>
+                    {mission.completed ? '✅' : '⏳'} {mission.description}
+                  </Text>
+                  <Text style={styles.progressItemProgress}>
+                    {mission.progress}/{mission.target}
+                  </Text>
+                </View>
+                <View style={styles.progressBar}>
+                  <View 
+                    style={[
+                      styles.progressBarFill, 
+                      { width: `${Math.min((mission.progress / mission.target) * 100, 100)}%` }
+                    ]} 
+                  />
+                </View>
+                <Text style={styles.progressItemReward}>
+                  Reward: {mission.reward.nukes ? `${mission.reward.nukes} Nukes` : ''}
+                  {mission.reward.energyCells ? `${mission.reward.energyCells} Energy Cells` : ''}
+                </Text>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.noProgressText}>Loading missions...</Text>
+          )}
+          
+          {/* Future: Achievements section can go here */}
+        </View>
+      </Animated.View>
+    </View>
+  );
+};
+
 type EnhancedMenuProps = {
   onStart: () => void;
   leftHandedMode: boolean;
@@ -616,6 +706,15 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
                 onToggleHandedness={onToggleHandedness}
                 musicEnabled={musicEnabled}
                 onToggleMusic={onToggleMusic}
+              />
+            ) : section.id === "progress" ? (
+              <ProgressAccordion
+                key={section.id}
+                section={section}
+                isOpen={openId === section.id}
+                onToggle={() => handleToggle(section.id)}
+                dailyMissions={dailyMissions}
+                streakCount={streakCount}
               />
             ) : (
               <AccordionItem
@@ -4973,6 +5072,89 @@ const styles = StyleSheet.create({
     color: "#888",
     fontSize: 12,
     fontStyle: "italic",
+  },
+
+  // Progress Accordion Styles
+  progressContainer: {
+    padding: 15,
+  },
+  streakInfo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 15,
+    backgroundColor: "rgba(255, 107, 53, 0.1)",
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#FF6B35",
+  },
+  streakTitle: {
+    color: "#FF6B35",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  streakValue: {
+    color: "#FFD700",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  progressSectionTitle: {
+    color: "#FFD700",
+    fontSize: 14,
+    fontWeight: "bold",
+    marginBottom: 10,
+    marginTop: 5,
+  },
+  progressItem: {
+    backgroundColor: "rgba(74, 144, 226, 0.1)",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#4A90E2",
+  },
+  progressItemHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  progressItemTitle: {
+    color: "#E8F4FF",
+    fontSize: 12,
+    flex: 1,
+    fontWeight: "500",
+  },
+  progressItemProgress: {
+    color: "#4A90E2",
+    fontSize: 12,
+    fontWeight: "bold",
+    marginLeft: 10,
+  },
+  progressBar: {
+    height: 6,
+    backgroundColor: "rgba(74, 144, 226, 0.2)",
+    borderRadius: 3,
+    marginBottom: 6,
+  },
+  progressBarFill: {
+    height: 6,
+    backgroundColor: "#4A90E2",
+    borderRadius: 3,
+  },
+  progressItemReward: {
+    color: "#FFD700",
+    fontSize: 10,
+    fontWeight: "600",
+    textAlign: "right",
+  },
+  noProgressText: {
+    color: "#888",
+    fontSize: 12,
+    fontStyle: "italic",
+    textAlign: "center",
+    marginTop: 10,
   },
 
   menuCTA: {
