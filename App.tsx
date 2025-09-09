@@ -27,6 +27,38 @@ import { useFullScreenPWA } from './useFullScreenPWA';
 import './global.css';
 // Web compatibility: Disable audio for now
 // import { Audio } from 'expo-av';
+
+// Retention System Types
+interface DailyMission {
+  id: string;
+  description: string;
+  type: 'kills' | 'levels' | 'bosses' | 'survival';
+  target: number;
+  progress: number;
+  tier: 'easy' | 'medium' | 'hard';
+  reward: { nukes?: number; energyCells?: number; };
+  completed: boolean;
+}
+
+interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  category: 'combat' | 'exploration' | 'survival' | 'mastery' | 'special';
+  target: number;
+  progress: number;
+  unlocked: boolean;
+  reward: { nukes?: number; energyCells?: number; };
+}
+
+interface RetentionData {
+  lastLoginDate: string;
+  streakCount: number;
+  streakFreezes: number;
+  totalPlaytime: number;
+  dailyMissions: DailyMission[];
+  achievements: Achievement[];
+}
 /* ---------- CSS Hexagon Component ---------- */
 function HexagonAsteroid({ 
   size, 
@@ -472,9 +504,11 @@ type EnhancedMenuProps = {
   onToggleHandedness: () => void;
   musicEnabled: boolean;
   onToggleMusic: () => void;
+  dailyMissions: DailyMission[];
+  streakCount: number;
 };
 
-const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic }) => {
+const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic, dailyMissions, streakCount }) => {
   const [openId, setOpenId] = useState<string>("");
   const [animPhase, setAnimPhase] = useState(0);
   const menuStarsRef = useRef<Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}>>([]);
@@ -594,6 +628,26 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
           ))}
         </View>
         
+        {/* Retention System Display */}
+        <View style={styles.retentionSection}>
+          <View style={styles.retentionHeader}>
+            <Text style={styles.retentionTitle}>🎯 DAILY MISSION</Text>
+            <Text style={styles.streakText}>🔥 {streakCount} day streak</Text>
+          </View>
+          {dailyMissions.length > 0 ? (
+            <View style={styles.missionCard}>
+              <Text style={styles.missionText}>
+                {dailyMissions[0].description}
+              </Text>
+              <Text style={styles.missionProgress}>
+                {dailyMissions[0].progress}/{dailyMissions[0].target}
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.noMissionText}>Loading mission...</Text>
+          )}
+        </View>
+        
         <Pressable 
           onPress={onStart} 
           style={({ pressed }) => [
@@ -628,6 +682,11 @@ function Game() {
   const [phase, _setPhase] = useState<Phase>("menu");
   const phaseRef = useRef<Phase>("menu");
   const setPhase = (p: Phase) => { phaseRef.current = p; _setPhase(p); };
+  
+  // Retention System State
+  const dailyMissions = useRef<DailyMission[]>([]);
+  const achievements = useRef<Achievement[]>([]);
+  const [streakCount, setStreakCount] = useState(0);
   
   // AAA-Quality Smart Tip System - Comprehensive & Contextual
   const gameplayTips = {
@@ -711,6 +770,61 @@ function Game() {
       { id: 'earth_ring_timing', text: '⏰ You have limited time to reach the EARTH ring - defeat the boss and move fast!', priority: 'high' },
       { id: 'earth_ring_positioning', text: '🎯 Stay close to the boss fight area to minimize travel time to EARTH ring', priority: 'medium' },
     ],
+  };
+  
+  // Retention System Functions
+  const saveRetentionData = (data: RetentionData) => {
+    try {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('pupilz_retention', JSON.stringify(data));
+      }
+    } catch (error) {
+      console.error('❌ Failed to save retention data:', error);
+    }
+  };
+
+  const loadRetentionData = (): RetentionData | null => {
+    try {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+        const stored = localStorage.getItem('pupilz_retention');
+        if (stored) {
+          return JSON.parse(stored);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Failed to load retention data:', error);
+    }
+    return null;
+  };
+
+  const initializeRetentionSystem = () => {
+    try {
+      const existingData = loadRetentionData();
+      
+      if (existingData) {
+        dailyMissions.current = existingData.dailyMissions || [];
+        setStreakCount(existingData.streakCount || 0);
+      } else {
+        // Create fresh daily missions
+        const missions: DailyMission[] = [
+          {
+            id: 'daily_kills_easy',
+            description: 'Destroy 10 enemy ships',
+            type: 'kills',
+            target: 10,
+            progress: 0,
+            tier: 'easy',
+            reward: { nukes: 1 },
+            completed: false
+          }
+        ];
+        
+        dailyMissions.current = missions;
+      }
+    } catch (error) {
+      console.error('❌ Retention system initialization failed:', error);
+      dailyMissions.current = [];
+    }
   };
   
   const getContextualTip = (): string => {
@@ -1484,6 +1598,11 @@ function Game() {
 
     setTimeSec(0);
   };
+
+  /* ----- Retention System Initialization ----- */
+  useEffect(() => {
+    initializeRetentionSystem();
+  }, []);
 
   /* ----- Loop (always running) ----- */
   useEffect(() => {
@@ -3885,6 +4004,8 @@ function Game() {
             onToggleHandedness={toggleHandedness}
             musicEnabled={musicEnabled}
             onToggleMusic={toggleMusic}
+            dailyMissions={dailyMissions.current}
+            streakCount={streakCount}
           />}
 
           {phase === "win" && (
@@ -4806,6 +4927,54 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     textAlign: "left", // Ensure left alignment
   },
+  // Retention System Styles
+  retentionSection: {
+    marginTop: 20,
+    marginHorizontal: 20,
+    backgroundColor: "rgba(26, 26, 46, 0.8)",
+    borderRadius: 12,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: "#4A90E2",
+  },
+  retentionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  retentionTitle: {
+    color: "#FFD700",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  streakText: {
+    color: "#FF6B35",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  missionCard: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  missionText: {
+    color: "#E8F4FF",
+    fontSize: 12,
+    flex: 1,
+  },
+  missionProgress: {
+    color: "#4A90E2",
+    fontSize: 12,
+    fontWeight: "bold",
+    marginLeft: 10,
+  },
+  noMissionText: {
+    color: "#888",
+    fontSize: 12,
+    fontStyle: "italic",
+  },
+
   menuCTA: {
     marginTop: 30,
     marginHorizontal: 20,
