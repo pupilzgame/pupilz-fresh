@@ -598,17 +598,293 @@ type EnhancedMenuProps = {
   streakCount: number;
 };
 
-const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic, dailyMissions, streakCount }) => {
-  const [openId, setOpenId] = useState<string>("");
+const TabMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic, dailyMissions, streakCount }) => {
+  const [activeTab, setActiveTab] = useState<string>("play");
   const [animPhase, setAnimPhase] = useState(0);
   const menuStarsRef = useRef<Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}>>([]);
   const { width, height } = useWindowDimensions();
+
+  const tabs = [
+    { id: "play", icon: "🎮", title: "PLAY" },
+    { id: "progress", icon: "🏆", title: "PROGRESS" },
+    { id: "help", icon: "📖", title: "HELP" },
+    { id: "settings", icon: "⚙️", title: "SETTINGS" }
+  ];
 
   useEffect(() => {
     // Initialize menu stars
     const stars: Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}> = [];
     const layers = [
       { count: 15, parallax: 0.3, size: 2, opacity: 0.4 },
+      { count: 10, parallax: 0.6, size: 3, opacity: 0.6 },
+      { count: 8, parallax: 0.9, size: 4, opacity: 0.8 },
+    ];
+    
+    layers.forEach((layer, li) => {
+      for (let i = 0; i < layer.count; i++) {
+        stars.push({
+          id: `menu-L${li}-${i}`,
+          x: Math.random() * width,
+          y: Math.random() * height,
+          size: layer.size,
+          parallax: layer.parallax,
+          opacity: layer.opacity
+        });
+      }
+    });
+    menuStarsRef.current = stars;
+
+    const interval = setInterval(() => {
+      setAnimPhase(p => (p + 1) % 100);
+      menuStarsRef.current.forEach(star => {
+        star.y += star.parallax * 0.8;
+        if (star.y > height + 10) {
+          star.y = -10;
+          star.x = Math.random() * width;
+        }
+      });
+    }, 16);
+    
+    return () => clearInterval(interval);
+  }, [width, height]);
+
+  const subtleFade = 0.85 + Math.sin(animPhase * 0.06) * 0.15;
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case "play":
+        return (
+          <View style={styles.tabContent}>
+            <Text style={styles.menuSubtitle}>
+              • INFILTRATE EARTH'S ATMOSPHERE •{'\n'}• ESTABLISH DOMINANCE •
+            </Text>
+            
+            <View style={styles.quickMissionPreview}>
+              <Text style={styles.quickMissionTitle}>🎯 TODAY'S MISSION</Text>
+              {dailyMissions.length > 0 ? (
+                <View style={styles.quickMissionCard}>
+                  <Text style={styles.quickMissionText}>
+                    {dailyMissions[0].description}
+                  </Text>
+                  <View style={styles.quickMissionProgress}>
+                    <Text style={styles.quickMissionProgressText}>
+                      {dailyMissions[0].progress}/{dailyMissions[0].target}
+                    </Text>
+                    <View style={styles.quickProgressBar}>
+                      <View 
+                        style={[
+                          styles.quickProgressFill, 
+                          { width: `${Math.min((dailyMissions[0].progress / dailyMissions[0].target) * 100, 100)}%` }
+                        ]} 
+                      />
+                    </View>
+                  </View>
+                </View>
+              ) : (
+                <Text style={styles.quickMissionLoading}>Loading mission...</Text>
+              )}
+              
+              <View style={styles.quickStreak}>
+                <Text style={styles.quickStreakText}>🔥 {streakCount} day streak</Text>
+              </View>
+            </View>
+          </View>
+        );
+      
+      case "progress":
+        return (
+          <View style={styles.tabContent}>
+            <Text style={styles.tabTitle}>🏆 YOUR PROGRESS</Text>
+            
+            <View style={styles.streakInfo}>
+              <Text style={styles.streakTitle}>🔥 Current Streak</Text>
+              <Text style={styles.streakValue}>{streakCount} days</Text>
+            </View>
+            
+            <Text style={styles.progressSectionTitle}>📋 Daily Missions</Text>
+            {dailyMissions.length > 0 ? (
+              dailyMissions.map((mission) => (
+                <View key={mission.id} style={styles.progressItem}>
+                  <View style={styles.progressItemHeader}>
+                    <Text style={styles.progressItemTitle}>
+                      {mission.completed ? '✅' : '⏳'} {mission.description}
+                    </Text>
+                    <Text style={styles.progressItemProgress}>
+                      {mission.progress}/{mission.target}
+                    </Text>
+                  </View>
+                  <View style={styles.progressBar}>
+                    <View 
+                      style={[
+                        styles.progressBarFill, 
+                        { width: `${Math.min((mission.progress / mission.target) * 100, 100)}%` }
+                      ]} 
+                    />
+                  </View>
+                  <Text style={styles.progressItemReward}>
+                    Reward: {mission.reward.nukes ? `${mission.reward.nukes} Nukes` : ''}
+                    {mission.reward.energyCells ? `${mission.reward.energyCells} Energy Cells` : ''}
+                  </Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.noProgressText}>Loading missions...</Text>
+            )}
+          </View>
+        );
+      
+      case "help":
+        return (
+          <View style={styles.tabContent}>
+            <Text style={styles.tabTitle}>📖 HOW TO PLAY</Text>
+            
+            <View style={styles.helpSection}>
+              <Text style={styles.helpSectionTitle}>🎮 Controls</Text>
+              <Text style={styles.helpText}>• Drag anywhere to move pod</Text>
+              <Text style={styles.helpText}>• Auto-fire weapons continuously</Text>
+            </View>
+            
+            <View style={styles.helpSection}>
+              <Text style={styles.helpSectionTitle}>🎯 Objective</Text>
+              <Text style={styles.helpText}>• Kill required ships each level</Text>
+              <Text style={styles.helpText}>• Fly through rings to advance levels</Text>
+              <Text style={styles.helpText}>• Defeat boss at Level 5 → fly through EARTH ring to win</Text>
+            </View>
+            
+            <View style={styles.helpSection}>
+              <Text style={styles.helpSectionTitle}>📦 Items</Text>
+              <Text style={styles.helpText}>🔫 Multi/Spread/Laser/Flame/Homing</Text>
+              <Text style={styles.helpText}>⚡ Shield/Drone/Rapid/Time-slow</Text>
+              <Text style={styles.helpText}>🎒 Energy/Nuke — tap to use</Text>
+            </View>
+          </View>
+        );
+      
+      case "settings":
+        return (
+          <View style={styles.tabContent}>
+            <Text style={styles.tabTitle}>⚙️ SETTINGS</Text>
+            
+            <View style={styles.settingsSection}>
+              <Pressable onPress={onToggleHandedness} style={styles.settingToggle}>
+                <Text style={styles.settingLabel}>
+                  {leftHandedMode ? '👈 Left-Handed' : '👉 Right-Handed'}
+                </Text>
+                <View style={[styles.toggleSwitch, leftHandedMode && styles.toggleSwitchActive]}>
+                  <View style={[styles.toggleKnob, leftHandedMode && styles.toggleKnobActive]} />
+                </View>
+              </Pressable>
+              
+              <Pressable onPress={onToggleMusic} style={styles.settingToggle}>
+                <Text style={styles.settingLabel}>
+                  {musicEnabled ? '🎵 Music On' : '🔇 Music Off'}
+                </Text>
+                <View style={[styles.toggleSwitch, musicEnabled && styles.toggleSwitchActive]}>
+                  <View style={[styles.toggleKnob, musicEnabled && styles.toggleKnobActive]} />
+                </View>
+              </Pressable>
+            </View>
+          </View>
+        );
+      
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <View style={styles.menuContainer}>
+      <View style={styles.menuParticles} pointerEvents="none">
+        {menuStarsRef.current.map((star) => (
+          <View
+            key={star.id}
+            style={{
+              position: 'absolute',
+              left: star.x,
+              top: star.y,
+              width: star.size,
+              height: star.size,
+              borderRadius: star.size / 2,
+              backgroundColor: '#8FB7FF',
+              opacity: star.opacity,
+            }}
+          />
+        ))}
+      </View>
+
+      <View style={styles.logoContainer}>
+        <Image 
+          source={require('./assets/pupilz-logo.png')} 
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
+      </View>
+
+      <View style={styles.tabBar}>
+        {tabs.map((tab) => (
+          <Pressable
+            key={tab.id}
+            onPress={() => setActiveTab(tab.id)}
+            style={[styles.tab, activeTab === tab.id && styles.activeTab]}
+          >
+            <Text style={[styles.tabIcon, activeTab === tab.id && styles.activeTabIcon]}>
+              {tab.icon}
+            </Text>
+            <Text style={[styles.tabTitle, activeTab === tab.id && styles.activeTabTitle]}>
+              {tab.title}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <ScrollView style={styles.tabContentContainer} showsVerticalScrollIndicator={false}>
+        {renderTabContent()}
+      </ScrollView>
+
+      <Pressable 
+        onPress={onStart} 
+        style={({ pressed }) => [
+          styles.menuCTA,
+          pressed && styles.menuCTAPressed,
+          { opacity: subtleFade }
+        ]}
+      >
+        <View style={styles.menuCTAGlow} />
+        <Text style={styles.menuCTAText}>INVADE EARTH!</Text>
+      </Pressable>
+    </View>
+  );
+};
+
+// Use the new tab-based menu
+const EnhancedMenu = TabMenu;
+
+function Game() {
+  // PWA and Telegram WebApp integration
+  useFullScreenPWA();
+  
+  const { width, height } = useWindowDimensions();
+  const rawInsets = useSafeAreaInsets();
+  // Safety fallback for insets to prevent undefined errors
+  const insets = {
+    top: rawInsets?.top || 0,
+    bottom: rawInsets?.bottom || 0,
+    left: rawInsets?.left || 0,
+    right: rawInsets?.right || 0,
+  };
+
+  // Phase
+  const [phase, _setPhase] = useState<Phase>("menu");
+  const phaseRef = useRef<Phase>("menu");
+  const setPhase = (p: Phase) => { phaseRef.current = p; _setPhase(p); };
+  
+  // Retention System State
+  const dailyMissions = useRef<DailyMission[]>([]);
+  const achievements = useRef<Achievement[]>([]);
+  const [streakCount, setStreakCount] = useState(0);
+
+  // AAA-Quality Smart Tip System - Comprehensive & Contextual
+  const gameplayTips = {
       { count: 10, parallax: 0.6, size: 3, opacity: 0.6 },
       { count: 8, parallax: 0.9, size: 4, opacity: 0.8 },
     ];
@@ -5155,6 +5431,148 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     textAlign: "center",
     marginTop: 10,
+  },
+
+  // Tab-based Menu Styles
+  tabBar: {
+    flexDirection: "row",
+    marginHorizontal: 20,
+    marginBottom: 15,
+    backgroundColor: "rgba(26, 26, 46, 0.8)",
+    borderRadius: 12,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: "#4A90E2",
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  activeTab: {
+    backgroundColor: "#4A90E2",
+  },
+  tabIcon: {
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  activeTabIcon: {
+    fontSize: 16,
+  },
+  tabTitle: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#888",
+  },
+  activeTabTitle: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#FFF",
+  },
+  tabContentContainer: {
+    flex: 1,
+    marginHorizontal: 20,
+  },
+  tabContent: {
+    paddingBottom: 20,
+  },
+  quickMissionPreview: {
+    backgroundColor: "rgba(26, 26, 46, 0.6)",
+    borderRadius: 12,
+    padding: 15,
+    marginTop: 15,
+    borderWidth: 1,
+    borderColor: "#4A90E2",
+  },
+  quickMissionTitle: {
+    color: "#FFD700",
+    fontSize: 14,
+    fontWeight: "bold",
+    marginBottom: 10,
+  },
+  quickMissionCard: {
+    marginBottom: 10,
+  },
+  quickMissionText: {
+    color: "#E8F4FF",
+    fontSize: 12,
+    marginBottom: 8,
+  },
+  quickMissionProgress: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  quickMissionProgressText: {
+    color: "#4A90E2",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  quickProgressBar: {
+    flex: 1,
+    height: 6,
+    backgroundColor: "rgba(74, 144, 226, 0.2)",
+    borderRadius: 3,
+    marginLeft: 10,
+  },
+  quickProgressFill: {
+    height: 6,
+    backgroundColor: "#4A90E2",
+    borderRadius: 3,
+  },
+  quickMissionLoading: {
+    color: "#888",
+    fontSize: 12,
+    fontStyle: "italic",
+  },
+  quickStreak: {
+    alignItems: "center",
+    marginTop: 8,
+  },
+  quickStreakText: {
+    color: "#FF6B35",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  tabTitle: {
+    color: "#FFD700",
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 15,
+    textAlign: "center",
+  },
+  helpSection: {
+    marginBottom: 15,
+  },
+  helpSectionTitle: {
+    color: "#4A90E2",
+    fontSize: 14,
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  helpText: {
+    color: "#E8F4FF",
+    fontSize: 12,
+    marginBottom: 4,
+    lineHeight: 16,
+  },
+  settingsSection: {
+    paddingHorizontal: 10,
+  },
+  settingToggle: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+  },
+  settingLabel: {
+    color: "#E8F4FF",
+    fontSize: 14,
+    fontWeight: "500",
   },
 
   menuCTA: {
