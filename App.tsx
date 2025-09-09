@@ -594,7 +594,7 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
           ))}
         </View>
 
-        {/* RETENTION SYSTEM UI - Quick Status */}
+        {/* RETENTION SYSTEM UI - TEMPORARILY DISABLED FOR DEBUGGING 
         <View style={{
           backgroundColor: 'rgba(20, 20, 40, 0.8)',
           borderColor: '#4A90E2',
@@ -631,6 +631,7 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
             Achievements: {(achievements.current || []).filter(a => a.completed).length}/{(achievements.current || []).length}
           </Text>
         </View>
+        */}
         
         <Pressable 
           onPress={onStart} 
@@ -1875,20 +1876,21 @@ function Game() {
     return () => { window.removeEventListener("keydown", handleKeyDown); };
   }, []);
 
-  // RETENTION SYSTEM INITIALIZATION
+  // RETENTION SYSTEM INITIALIZATION - TEMPORARILY DISABLED FOR DEBUGGING
   useEffect(() => {
     try {
+      console.log('🎯 Retention system initialization DISABLED for debugging');
       // Load saved retention data
-      loadRetentionData();
+      // loadRetentionData();
       
       // Initialize achievements if first time
-      initializeAchievements();
+      // initializeAchievements();
       
       // Check and generate daily missions
-      checkDailyMissions();
+      // checkDailyMissions();
       
-      console.log('🎯 Retention system initialized');
-      console.log(`📊 Streak: ${streakData.current?.current || 0} days, Freezes: ${streakData.current?.freezesAvailable || 0}`);
+      // console.log('🎯 Retention system initialized');
+      // console.log(`📊 Streak: ${streakData.current?.current || 0} days, Freezes: ${streakData.current?.freezesAvailable || 0}`);
     } catch (error) {
       console.log('❌ Retention system initialization error:', error);
     }
