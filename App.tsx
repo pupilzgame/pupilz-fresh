@@ -615,10 +615,10 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
           </Text>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
             <Text style={{ color: '#8FB7FF', fontSize: 12 }}>
-              🔥 Streak: {streakData.current.current} days
+              🔥 Streak: {streakData.current?.current || 0} days
             </Text>
             <Text style={{ color: '#8FB7FF', fontSize: 12 }}>
-              ❄️ Freezes: {streakData.current.freezesAvailable}
+              ❄️ Freezes: {streakData.current?.freezesAvailable || 0}
             </Text>
           </View>
           <Text style={{
@@ -627,8 +627,8 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
             textAlign: 'center',
             marginTop: 4,
           }}>
-            Missions: {dailyMissions.current.filter(m => m.completed).length}/{dailyMissions.current.length} • 
-            Achievements: {achievements.current.filter(a => a.completed).length}/{achievements.current.length}
+            Missions: {(dailyMissions.current || []).filter(m => m.completed).length}/{(dailyMissions.current || []).length} • 
+            Achievements: {(achievements.current || []).filter(a => a.completed).length}/{(achievements.current || []).length}
           </Text>
         </View>
         
@@ -1296,7 +1296,7 @@ function Game() {
     const today = new Date().toDateString();
     
     // Check if we need new missions
-    if (dailyMissions.current.length === 0 || !dailyMissions.current[0].id.startsWith(today)) {
+    if (!dailyMissions.current || dailyMissions.current.length === 0 || !dailyMissions.current[0]?.id?.startsWith(today)) {
       dailyMissions.current = generateDailyMissions();
       saveRetentionData();
       console.log('🎯 New daily missions generated');
@@ -1304,6 +1304,7 @@ function Game() {
   };
 
   const updateMissionProgress = (type: DailyMission['type'], value: number = 1) => {
+    if (!dailyMissions.current) return;
     let missionCompleted = false;
     
     dailyMissions.current.forEach(mission => {
@@ -1378,7 +1379,7 @@ function Game() {
 
   // Achievement System Functions
   const initializeAchievements = () => {
-    if (achievements.current.length > 0) return; // Already initialized
+    if (achievements.current && achievements.current.length > 0) return; // Already initialized
 
     const achievementDefinitions: Omit<Achievement, 'progress' | 'completed'>[] = [
       // Combat Achievements
@@ -1417,6 +1418,7 @@ function Game() {
   };
 
   const updateAchievementProgress = (id: string, value: number) => {
+    if (!achievements.current) return;
     const achievement = achievements.current.find(a => a.id === id);
     if (achievement && !achievement.completed) {
       achievement.progress = Math.min(achievement.progress + value, achievement.target);
@@ -1875,17 +1877,21 @@ function Game() {
 
   // RETENTION SYSTEM INITIALIZATION
   useEffect(() => {
-    // Load saved retention data
-    loadRetentionData();
-    
-    // Initialize achievements if first time
-    initializeAchievements();
-    
-    // Check and generate daily missions
-    checkDailyMissions();
-    
-    console.log('🎯 Retention system initialized');
-    console.log(`📊 Streak: ${streakData.current.current} days, Freezes: ${streakData.current.freezesAvailable}`);
+    try {
+      // Load saved retention data
+      loadRetentionData();
+      
+      // Initialize achievements if first time
+      initializeAchievements();
+      
+      // Check and generate daily missions
+      checkDailyMissions();
+      
+      console.log('🎯 Retention system initialized');
+      console.log(`📊 Streak: ${streakData.current?.current || 0} days, Freezes: ${streakData.current?.freezesAvailable || 0}`);
+    } catch (error) {
+      console.log('❌ Retention system initialization error:', error);
+    }
   }, []);
 
   /* ----- Web Touch & Telegram WebApp Prevention ----- */
