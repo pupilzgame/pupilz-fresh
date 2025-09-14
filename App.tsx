@@ -109,6 +109,53 @@ type Phase    = "menu" | "playing" | "dead" | "win" | "respawning";
 
 type PUKind = "S" | "M" | "L" | "F" | "H" | "R" | "B" | "E" | "T" | "D" | "N";
 
+// Scalable AAA Scoring System Configuration
+const SCORING_CONFIG = {
+  basePoints: {
+    asteroid: 10,
+    barrier: 20,
+    ship: 100,
+    boss: 1000,
+    // Future extensibility: drone: 75, mothership: 5000, etc.
+  },
+
+  typeMultipliers: {
+    debris: 0.5,
+    crystal: 0.7,
+    rock: 1.0,
+    energy: 1.0,
+    metal: 1.5,
+    asteroid: 2.0,
+    wreckage: 1.8,
+    // Future extensibility: plasma: 2.5, quantum: 3.0, etc.
+  },
+
+  // Scales infinitely for future levels
+  levelMultipliers: [1.0, 1.0, 1.5, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0],
+
+  bonuses: {
+    survival: 2,        // per second survived
+    levelComplete: 200, // × level number
+    lifeBonus: 300,     // × remaining lives
+    victoryBonus: 2000, // complete game victory
+  }
+} as const;
+
+// Universal scoring function for any enemy type
+const calculateEnemyScore = (
+  enemyType: 'asteroid' | 'barrier' | 'ship' | 'boss',
+  subType: string,
+  radius: number = 20,
+  level: number = 1
+): number => {
+  const basePoints = SCORING_CONFIG.basePoints[enemyType] || 10;
+  const typeMultiplier = SCORING_CONFIG.typeMultipliers[subType as keyof typeof SCORING_CONFIG.typeMultipliers] || 1.0;
+  const sizeMultiplier = Math.max(0.5, radius / 20);
+  const levelMultiplier = SCORING_CONFIG.levelMultipliers[level - 1] || (level * 0.5);
+
+  return Math.round(basePoints * typeMultiplier * sizeMultiplier * levelMultiplier);
+};
+
 type ProjKind = "bullet" | "laser" | "fire" | "homing";
 type Projectile = {
   id: number; kind: ProjKind;
@@ -153,6 +200,15 @@ type Boss = {
 };
 
 type Particle = { id: number; x: number; y: number; vx: number; vy: number; r: number; ttl: number; color: string };
+
+type ScorePopup = {
+  id: number;
+  x: number;
+  y: number;
+  score: number;
+  ttl: number;
+  maxTtl: number;
+};
 
 /* ---------- Tunables ---------- */
 const POD_RADIUS = 18;
@@ -817,8 +873,14 @@ function Game() {
   
   // Audio system
   const titleMusic = useRef<Audio.Sound | null>(null);
+  const gameplayMusic = useRef<Audio.Sound | null>(null);
+  const missionFailedMusic = useRef<Audio.Sound | null>(null);
+  const earthReachedMusic = useRef<Audio.Sound | null>(null);
+  const gameplayMusicPlaying = useRef(false); // Track if gameplay music is currently playing
+  const userInteracted = useRef(false); // Track if user has interacted with the page
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [musicVolume, setMusicVolume] = useState(0.7);
+  const [audioLoaded, setAudioLoaded] = useState(false);
   
 
   // Camera/world
@@ -916,6 +978,7 @@ function Game() {
   const stars     = useRef<Star[]>([]);
   const projs     = useRef<Projectile[]>([]);
   const particles = useRef<Particle[]>([]);
+  const scorePopups = useRef<ScorePopup[]>([]);
 
   // Enemies
   const ships = useRef<EnemyShip[]>([]);
@@ -949,7 +1012,11 @@ function Game() {
   const nextPwrY = useRef(0);
   const nextShipY = useRef(0);
 
-  // Score / Kills (kept for fun)
+  // AAA Scoring System
+  const currentScore = useRef(0);
+  const sessionStartTime = useRef(0);
+
+  // Legacy kill counters (for stats/debugging)
   const killsAst = useRef(0);
   const killsBar = useRef(0);
   const killsShip = useRef(0);
@@ -963,6 +1030,68 @@ function Game() {
     const age = Math.max(0, timeSec - ringSpawnT.current);
     const shrink = Math.max(RING_MIN_FRACTION, 1 - RING_SHRINK_RATE * age);
     return ringBaseR.current * shrink;
+  };
+
+  // AAA Scoring System Functions
+  const addScore = (points: number, source?: string) => {
+    currentScore.current += points;
+    if (source) {
+      console.log(`🎯 +${points} pts from ${source} (Total: ${currentScore.current})`);
+    }
+  };
+
+  const scoreAsteroidKill = (asteroid: Asteroid) => {
+    const points = calculateEnemyScore('asteroid', asteroid.type, asteroid.r, level.current);
+    addScore(points, `${asteroid.type} asteroid`);
+    spawnScorePopup(asteroid.x, asteroid.y, points);
+    killsAst.current += 1;
+  };
+
+  const scoreBarrierKill = (barrier: Barrier) => {
+    const points = calculateEnemyScore('barrier', barrier.type, Math.max(barrier.w, barrier.h), level.current);
+    addScore(points, `${barrier.type} barrier`);
+    spawnScorePopup(barrier.x + barrier.w/2, barrier.y + barrier.h/2, points);
+    killsBar.current += 1;
+  };
+
+  const scoreShipKill = (ship: EnemyShip) => {
+    const points = calculateEnemyScore('ship', ship.kind, 20, level.current);
+    addScore(points, `${ship.kind} ship`);
+    spawnScorePopup(ship.x, ship.y, points);
+    killsShip.current += 1;
+  };
+
+  const scoreBossKill = () => {
+    const points = calculateEnemyScore('boss', 'boss', 50, level.current);
+    addScore(points, 'boss defeated');
+    spawnScorePopup(boss.current.x, boss.current.y, points);
+  };
+
+  const scoreLevelComplete = () => {
+    const points = SCORING_CONFIG.bonuses.levelComplete * level.current;
+    addScore(points, `level ${level.current} complete`);
+    // Show score popup at ring center
+    spawnScorePopup(ringCenterX.current, ringCenterY.current, points);
+  };
+
+  const calculateFinalScore = () => {
+    // Add survival bonus
+    const survivalTime = Math.floor(timeSec - sessionStartTime.current);
+    const survivalPoints = survivalTime * SCORING_CONFIG.bonuses.survival;
+    addScore(survivalPoints, `${survivalTime}s survival`);
+
+    // Add life bonus
+    const lifePoints = lives.current * SCORING_CONFIG.bonuses.lifeBonus;
+    if (lifePoints > 0) {
+      addScore(lifePoints, `${lives.current} lives remaining`);
+    }
+
+    // Add victory bonus if won
+    if (level.current >= 5) {
+      addScore(SCORING_CONFIG.bonuses.victoryBonus, 'victory bonus');
+    }
+
+    return currentScore.current;
   };
 
   // Audio system functions
@@ -982,6 +1111,63 @@ function Game() {
       console.log('🎵 Title music loaded');
     } catch (error) {
       console.log('❌ Failed to load title music:', error);
+    }
+  };
+
+  const loadGameplayMusic = async () => {
+    try {
+      if (gameplayMusic.current) {
+        await gameplayMusic.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz_gameplay_Loopedx4.mp3'),
+        {
+          isLooping: true,
+          volume: musicVolume,
+        }
+      );
+      gameplayMusic.current = sound;
+      console.log('🎵 Gameplay music loaded');
+    } catch (error) {
+      console.log('❌ Failed to load gameplay music:', error);
+    }
+  };
+
+  const loadMissionFailedMusic = async () => {
+    try {
+      if (missionFailedMusic.current) {
+        await missionFailedMusic.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz_mission_failed.mp3'),
+        {
+          isLooping: true,
+          volume: musicVolume,
+        }
+      );
+      missionFailedMusic.current = sound;
+      console.log('🎵 Mission failed music loaded');
+    } catch (error) {
+      console.log('❌ Failed to load mission failed music:', error);
+    }
+  };
+
+  const loadEarthReachedMusic = async () => {
+    try {
+      if (earthReachedMusic.current) {
+        await earthReachedMusic.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz_earth_reached.mp3'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      earthReachedMusic.current = sound;
+      console.log('🎵 Earth reached music loaded');
+    } catch (error) {
+      console.log('❌ Failed to load earth reached music:', error);
     }
   };
 
@@ -1018,6 +1204,58 @@ function Game() {
     }
   };
 
+  const stopAllMusic = async () => {
+    try {
+      if (titleMusic.current) {
+        await titleMusic.current.pauseAsync();
+      }
+      if (gameplayMusic.current) {
+        await gameplayMusic.current.pauseAsync();
+      }
+      if (missionFailedMusic.current) {
+        await missionFailedMusic.current.pauseAsync();
+      }
+      if (earthReachedMusic.current) {
+        await earthReachedMusic.current.pauseAsync();
+      }
+      gameplayMusicPlaying.current = false; // Track that gameplay music stopped
+      console.log('🎵 All music stopped');
+    } catch (error) {
+      console.log('❌ Failed to stop all music:', error);
+    }
+  };
+
+  const playMissionFailedMusic = async () => {
+    try {
+      // First stop all other music
+      await stopAllMusic();
+
+      if (missionFailedMusic.current && musicEnabled) {
+        await missionFailedMusic.current.setPositionAsync(0); // Reset to beginning
+        await missionFailedMusic.current.setVolumeAsync(musicVolume);
+        await missionFailedMusic.current.playAsync();
+        console.log('🎵 Mission failed music playing');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play mission failed music:', error);
+    }
+  };
+
+  const playEarthReachedMusic = async () => {
+    try {
+      // First stop all other music
+      await stopAllMusic();
+
+      if (earthReachedMusic.current && musicEnabled) {
+        await earthReachedMusic.current.setPositionAsync(0); // Reset to beginning
+        await earthReachedMusic.current.setVolumeAsync(musicVolume);
+        await earthReachedMusic.current.playAsync();
+        console.log('🎵 Earth reached music playing');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play earth reached music:', error);
+    }
+  };
 
   // Check if EARTH ring has fallen off top of screen - MISSION FAILURE
   const checkEarthRingFailure = () => {
@@ -1386,6 +1624,10 @@ function Game() {
     lives.current = maxLives; // Reset lives for new mission
     livesLostThisSession.current = 0; // Reset session tracking
     respawnCountdown.current = 0;
+
+    // Reset scoring system
+    currentScore.current = 0;
+    sessionStartTime.current = timeSec;
     
     // Reset ship-based progression
     shipsKilledThisLevel.current = 0;
@@ -1436,6 +1678,7 @@ function Game() {
     powerups.current = [];
     projs.current = [];
     particles.current = [];
+    scorePopups.current = [];
     ships.current = [];
     enemyProjs.current = [];
     boss.current.active = false;
@@ -1982,14 +2225,23 @@ function Game() {
     }
   };
   
-  const onShipKilled = () => {
+  const onShipKilled = (ship?: EnemyShip) => {
+    // Score the ship kill if ship data available
+    if (ship) {
+      scoreShipKill(ship);
+    } else {
+      // Fallback scoring for legacy calls
+      killsShip.current += 1;
+      const points = calculateEnemyScore('ship', 'fighter', 20, level.current);
+      addScore(points, 'ship');
+    }
+
     // Only count ships toward level progression if quota hasn't been met yet
     if (!quotaJustMet.current) {
       shipsKilledThisLevel.current += 1;
     }
-    killsShip.current += 1;
     console.log(`SHIP KILLED: ${shipsKilledThisLevel.current}/${shipsRequiredForLevel.current} at level ${level.current} (QuotaMet: ${quotaJustMet.current})`);
-    
+
     // Check if this kill triggers the celebration sequence
     checkShipQuota();
   };
@@ -2033,11 +2285,88 @@ function Game() {
     shakeT.current = Math.max(shakeT.current, 0.10 + power * 0.05);
   };
 
+  const spawnScorePopup = (x: number, y: number, score: number) => {
+    const id = (scorePopups.current[scorePopups.current.length - 1]?.id ?? 0) + 1;
+    const maxTtl = 1.5; // 1.5 seconds duration
+
+    scorePopups.current.push({
+      id,
+      x: x + rand(-10, 10), // Small random horizontal offset for variety
+      y,
+      score,
+      ttl: maxTtl,
+      maxTtl
+    });
+  };
+
   const showAcquisitionMessage = (message: string) => {
     acquisitionMessageText.current = message;
     acquisitionMessageTimer.current = 3.0; // Show for 3 seconds
     acquisitionMessageOpacity.current = 1.0; // Start fully visible
     console.log(`🎉 ACQUISITION: ${message}`);
+  };
+
+  const createConfetti = () => {
+    const colors = ["#FFD700", "#FF6B35", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD", "#98D8C8"];
+    const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
+
+    // Create confetti pieces across the top of screen
+    for (let i = 0; i < 50; i++) {
+      particles.current.push({
+        id: idBase + i + 1,
+        x: Math.random() * width,
+        y: -20,
+        vx: rand(-30, 30),
+        vy: rand(100, 200),
+        r: rand(2, 5),
+        ttl: rand(3, 5),
+        color: colors[Math.floor(Math.random() * colors.length)]
+      });
+    }
+  };
+
+  const createFirework = (x: number, y: number) => {
+    const colors = ["#FFD700", "#FF1744", "#00E676", "#2196F3", "#FF9800", "#E91E63", "#9C27B0"];
+    const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
+    const particleCount = 25;
+
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (i / particleCount) * Math.PI * 2;
+      const speed = rand(120, 250);
+      particles.current.push({
+        id: idBase + i + 1,
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        r: rand(2, 4),
+        ttl: rand(1.5, 2.5),
+        color: colors[Math.floor(Math.random() * colors.length)]
+      });
+    }
+  };
+
+  const startVictoryCelebration = () => {
+    // Initial fireworks burst
+    setTimeout(() => createFirework(width * 0.2, height * 0.3), 100);
+    setTimeout(() => createFirework(width * 0.8, height * 0.4), 300);
+    setTimeout(() => createFirework(width * 0.5, height * 0.2), 500);
+
+    // Continuous confetti
+    createConfetti();
+    const confettiInterval = setInterval(() => {
+      createConfetti();
+    }, 1000);
+
+    // More fireworks over time
+    setTimeout(() => createFirework(width * 0.3, height * 0.5), 1200);
+    setTimeout(() => createFirework(width * 0.7, height * 0.3), 1800);
+    setTimeout(() => createFirework(width * 0.1, height * 0.6), 2400);
+    setTimeout(() => createFirework(width * 0.9, height * 0.2), 3000);
+
+    // Stop confetti after 8 seconds
+    setTimeout(() => {
+      clearInterval(confettiInterval);
+    }, 8000);
   };
 
   const ringDisintegrate = (centerX: number, centerY: number, radius: number) => {
@@ -2091,9 +2420,12 @@ function Game() {
     const oldLevel = level.current;
     level.current += 1;
     console.log(`LEVEL UP: ${oldLevel} → ${level.current}`);
-    
+
+    // Award level completion score
+    scoreLevelComplete();
+
     // Play level up sound
-    
+
     hudFadeT.current = 3.0;
 
     if (level.current > 5) {
@@ -2242,6 +2574,7 @@ function Game() {
       (window as any).currentRespawnInterval = countdownInterval;
     } else {
       // No lives left - true game over
+      calculateFinalScore(); // Calculate final score with bonuses
       setPhase("dead");
     }
   };
@@ -2448,8 +2781,8 @@ function Game() {
         const a = asteroids.current[i];
         const dx = a.x - cx, dy = a.y - cy;
         if (dx*dx + dy*dy <= (sweepR.current + a.r) * (sweepR.current + a.r)) {
+          scoreAsteroidKill(a);
           asteroids.current.splice(i, 1);
-          killsAst.current += 1;
           boom(a.x, a.y, 0.9 + a.r * 0.02, getAsteroidTypeData(a.type).color);
         }
       }
@@ -2460,8 +2793,8 @@ function Game() {
         const by = clamp(cy, b.y, b.y + b.h);
         const dx = bx - cx, dy = by - cy;
         if (dx*dx + dy*dy <= sweepR.current * sweepR.current) {
+          scoreBarrierKill(b);
           barriers.current.splice(i, 1);
-          killsBar.current += 1;
           boom(bx, by, 1.0, getBarrierTypeData(b.type).color);
         }
       }
@@ -2470,8 +2803,8 @@ function Game() {
         const s = ships.current[i];
         const dx = s.x - cx, dy = s.y - cy;
         if (dx*dx + dy*dy <= (sweepR.current + 14) * (sweepR.current + 14)) {
+          onShipKilled(s);
           ships.current.splice(i, 1);
-          onShipKilled();
           boom(s.x, s.y, 1.2, "#FFD890");
         }
       }
@@ -2495,6 +2828,7 @@ function Game() {
             boss.current.active = false;
             bossGateCleared.current = true;
             console.log('BOSS DEFEATED - bossGateCleared set to TRUE');
+            scoreBossKill(); // Award points and show score popup
             boom(boss.current.x, boss.current.y, 1.8, "#FFE486");
             
             // Dramatic EARTH ring entrance effects (no distracting white flash)
@@ -2737,9 +3071,9 @@ function Game() {
                 if (dist <= explosionRadius) {
                   other.hp = Math.max(0, other.hp - explosionDamage);
                   if (other.hp <= 0) {
+                    scoreAsteroidKill(other);
                     boom(other.x, other.y, 1.0, "#FF6B35");
                     asteroids.current.splice(k, 1);
-                    killsAst.current += 1;
                     if (k < j) j--; // Adjust index if we removed an earlier element
                   }
                 }
@@ -2791,8 +3125,8 @@ function Game() {
             
             if (a.hp <= 0) {
               // Asteroid destroyed
+              scoreAsteroidKill(a);
               asteroids.current.splice(j, 1);
-              killsAst.current += 1;
               boom(a.x, a.y, 0.8 + a.r * 0.02, getAsteroidTypeData(a.type).color);
             }
             
@@ -2835,8 +3169,8 @@ function Game() {
               }
               
               if (br.hp <= 0) {
+                scoreBarrierKill(br);
                 barriers.current.splice(j, 1);
-                killsBar.current += 1;
                 boom(cx, cy, 1.0, getBarrierTypeData(br.type).color);
               }
               
@@ -2861,8 +3195,8 @@ function Game() {
               s.hp -= dmg;
               boom(p.x, p.y, 0.7, "#FFD890");
               if (s.hp <= 0) {
+                onShipKilled(s);
                 ships.current.splice(j, 1);
-                onShipKilled();
                 boom(s.x, s.y, 1.1, "#FFB46B");
               }
               if (p.kind === "laser" && (p.pierce ?? 0) > 1) { p.pierce!--; hit = false; }
@@ -2888,6 +3222,7 @@ function Game() {
               b.active = false;
               bossGateCleared.current = true;
               console.log('BOSS DEFEATED (projectile) - bossGateCleared set to TRUE');
+              scoreBossKill(); // Award points and show score popup
               boom(b.x, b.y, 1.6, "#FFE486");
               
               // Dramatic EARTH ring entrance effects (no distracting white flash)
@@ -2922,6 +3257,7 @@ function Game() {
             if (drones.current.length > 0) {
               // Drone sacrifices itself
               sacrificeDrone(a.x, a.y);
+              scoreAsteroidKill(a); // Award points and show popup for drone kill
               boom(a.x, a.y, 0.9, "#FFD700");
               asteroids.current.splice(i, 1);
               break;
@@ -2946,6 +3282,7 @@ function Game() {
             if (drones.current.length > 0) {
               // Drone sacrifices itself
               sacrificeDrone(cx, cy);
+              scoreBarrierKill(br); // Award points and show popup for drone kill
               boom(cx, cy, 0.9, "#FFD700");
               barriers.current.splice(i, 1);
               break;
@@ -3020,7 +3357,7 @@ function Game() {
               boom(ship.x, shipScreenY, 1.0, "#FF6B35"); // Ship impact explosion
               if (ship.hp <= 0) {
                 ships.current.splice(j, 1);
-                onShipKilled();
+                onShipKilled(ship); // Pass ship data for proper scoring and popup
                 boom(ship.x, ship.y, 1.5, "#FFD890"); // Larger ship destruction explosion
               } else {
                 // Even if ship survives, create dramatic explosion effect
@@ -3040,6 +3377,7 @@ function Game() {
             if (drones.current.length > 0) {
               // Drone sacrifices itself
               sacrificeDrone(s.x, s.y);
+              scoreShipKill(s); // Award points and show popup for drone kill
               boom(s.x, s.y, 1.0, "#FFD700");
               ships.current.splice(i, 1);
             } else if (shieldLives.current > 0) {
@@ -3149,6 +3487,8 @@ function Game() {
             // 2-second delay for dramatic effect after ring disintegrates
             setTimeout(() => {
               console.log('VICTORY SEQUENCE - Showing EARTH REACHED message');
+              calculateFinalScore(); // Calculate final score with victory bonus
+              startVictoryCelebration(); // 🎉 START THE PARTY! 🎉
               setPhase("win");
             }, 2000);
             return;
@@ -3227,15 +3567,26 @@ function Game() {
       if (pa.ttl <= 0 || pa.y - scrollY.current < -80) particles.current.splice(i, 1);
     }
 
+    // Score popup updates
+    for (let i = scorePopups.current.length - 1; i >= 0; i--) {
+      const popup = scorePopups.current[i];
+      popup.ttl -= dt;
+      popup.y -= 60 * dt; // Float upward at 60 pixels per second
+      if (popup.ttl <= 0) scorePopups.current.splice(i, 1);
+    }
+
     // Ring respawning now handled by ship-based progression system
     // No automatic ring respawning needed
   };
 
   /* ----- Start / Restart ----- */
-  const startGame = () => { 
+  const startGame = () => {
     console.log('🚀 GAME START: Simple dispatch message');
-    
+
     hardResetWorld();
+
+    // Reset gameplay music flag so it starts fresh
+    gameplayMusicPlaying.current = false;
     
     // Show simple dispatch message
     gameStartMessageText.current = "🚁 MOTHERSHIP DISPATCH: Pod deployed - Begin descent!";
@@ -3288,14 +3639,13 @@ function Game() {
           shouldDuckAndroid: false,
         });
         
-        // Load title music
+        // Load all music tracks
         await loadTitleMusic();
-        
-        
-        // Play title music if on menu
-        if (phase === "menu") {
-          await playTitleMusic();
-        }
+        await loadGameplayMusic();
+        await loadMissionFailedMusic();
+        await loadEarthReachedMusic();
+        setAudioLoaded(true);
+        console.log('🎵 Audio system fully loaded and ready');
       } catch (error) {
         console.log('❌ Audio initialization error:', error);
       }
@@ -3308,40 +3658,154 @@ function Game() {
       if (titleMusic.current) {
         titleMusic.current.unloadAsync();
       }
+      if (gameplayMusic.current) {
+        gameplayMusic.current.unloadAsync();
+      }
+      if (missionFailedMusic.current) {
+        missionFailedMusic.current.unloadAsync();
+      }
+      if (earthReachedMusic.current) {
+        earthReachedMusic.current.unloadAsync();
+      }
     };
   }, []);
 
   // Handle phase changes for audio
   useEffect(() => {
     const handlePhaseAudio = async () => {
-      if (!titleMusic.current) return;
-      
+      if (!titleMusic.current || !gameplayMusic.current || !missionFailedMusic.current || !audioLoaded) return;
+
       if (phase === "menu") {
-        // On menu: play music if enabled
+        // Stop all music first
+        await stopAllMusic();
+
+        // Play title music if enabled (restart from beginning)
         if (musicEnabled) {
           try {
+            await titleMusic.current.setPositionAsync(0); // Restart from beginning
             await titleMusic.current.setVolumeAsync(musicVolume);
             await titleMusic.current.playAsync();
-            console.log('🎵 Menu music started');
+            console.log('🎵 Title music started from beginning');
           } catch (error) {
-            console.log('❌ Failed to start menu music:', error);
+            console.log('❌ Failed to start title music:', error);
+          }
+        }
+      } else if (phase === "playing") {
+        // Stop title and mission failed music only
+        try {
+          if (titleMusic.current) {
+            await titleMusic.current.pauseAsync();
+          }
+          if (missionFailedMusic.current) {
+            await missionFailedMusic.current.pauseAsync();
+          }
+        } catch (error) {
+          console.log('❌ Failed to stop title/mission failed music:', error);
+        }
+
+        // Play gameplay music if enabled and not already playing
+        if (musicEnabled) {
+          try {
+            if (!gameplayMusicPlaying.current) {
+              // Only restart from beginning if not already playing
+              await gameplayMusic.current.setPositionAsync(0); // Restart from beginning
+              await gameplayMusic.current.setVolumeAsync(musicVolume);
+              await gameplayMusic.current.playAsync();
+              gameplayMusicPlaying.current = true;
+              console.log('🎵 Gameplay music started from beginning');
+            } else {
+              // Just ensure proper volume if already playing
+              await gameplayMusic.current.setVolumeAsync(musicVolume);
+              console.log('🎵 Gameplay music continues playing');
+            }
+          } catch (error) {
+            console.log('❌ Failed to start/continue gameplay music:', error);
           }
         } else {
-          await titleMusic.current.setVolumeAsync(0);
+          // Music disabled - mute if playing
+          if (gameplayMusicPlaying.current) {
+            try {
+              await gameplayMusic.current.setVolumeAsync(0);
+            } catch (error) {
+              console.log('❌ Failed to mute gameplay music:', error);
+            }
+          }
         }
+      } else if (phase === "respawning") {
+        // Keep gameplay music playing during respawn screens
+        // Only adjust volume based on music settings
+        if (musicEnabled) {
+          try {
+            if (gameplayMusic.current) {
+              await gameplayMusic.current.setVolumeAsync(musicVolume);
+            }
+            console.log('🎵 Gameplay music continues during respawn');
+          } catch (error) {
+            console.log('❌ Failed to adjust gameplay music volume:', error);
+          }
+        } else {
+          try {
+            if (gameplayMusic.current) {
+              await gameplayMusic.current.setVolumeAsync(0);
+            }
+          } catch (error) {
+            console.log('❌ Failed to mute gameplay music:', error);
+          }
+        }
+      } else if (phase === "dead") {
+        // Final game over - play mission failed music
+        await playMissionFailedMusic();
+      } else if (phase === "win") {
+        // Play Earth reached music for victory screen
+        await playEarthReachedMusic();
+        console.log('🎵 Earth reached music playing for victory screen');
       } else {
-        // Not on menu: mute music but keep playing for smooth transitions
+        // Other phases: keep gameplay music if it was playing
+        // This covers any other intermediate states
+        console.log('🎵 Audio state maintained for phase:', phase);
+      }
+    };
+
+    handlePhaseAudio();
+  }, [phase, musicEnabled, musicVolume, audioLoaded]);
+
+  // Auto-start music when user interacts with the page (browser autoplay policy)
+  useEffect(() => {
+    const startMusicOnInteraction = async () => {
+      if (audioLoaded && phase === "menu" && musicEnabled && titleMusic.current && !userInteracted.current) {
         try {
-          await titleMusic.current.setVolumeAsync(0);
-          console.log('🎵 Music muted for gameplay');
+          await titleMusic.current.stopAsync(); // Stop first to reset
+          await titleMusic.current.setPositionAsync(0);
+          await titleMusic.current.setVolumeAsync(musicVolume);
+          await titleMusic.current.playAsync();
+          userInteracted.current = true; // Mark as started
+          console.log('🎵 Started title music after user interaction');
         } catch (error) {
-          console.log('❌ Failed to mute music:', error);
+          console.log('❌ Failed to start title music after interaction:', error);
         }
       }
     };
-    
-    handlePhaseAudio();
-  }, [phase, musicEnabled]);
+
+    const handleUserInteraction = () => {
+      if (audioLoaded && !userInteracted.current) {
+        startMusicOnInteraction();
+      }
+    };
+
+    // Add global listeners for any user interaction
+    if (audioLoaded && !userInteracted.current) {
+      document.addEventListener('click', handleUserInteraction, { once: true });
+      document.addEventListener('touchstart', handleUserInteraction, { once: true });
+      document.addEventListener('keydown', handleUserInteraction, { once: true });
+    }
+
+    // Cleanup
+    return () => {
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('touchstart', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+    };
+  }, [audioLoaded, phase, musicEnabled, musicVolume]);
 
   /* ----- Render ----- */
   const rNow = currentRingRadius();
@@ -3377,7 +3841,7 @@ function Game() {
           }}
         >
           <Text style={styles.score}>
-            LVL {level.current} • ⏱ {Math.floor(timeSec)}s • ❤️ {lives.current}
+            🎯 {currentScore.current.toLocaleString()} • LVL {level.current} • ⏱ {Math.floor(timeSec)}s • ❤️ {lives.current}
             {level.current < 5 && shipsRequiredForLevel.current > 0 && (
               <Text style={styles.shipProgress}> • 🚀 {shipsKilledThisLevel.current}/{shipsRequiredForLevel.current}</Text>
             )}
@@ -3612,6 +4076,26 @@ function Game() {
       {particles.current.map((pa) => (
         <View key={`PT-${pa.id}`} style={[styles.particle, { backgroundColor: pa.color, width: pa.r * 2, height: pa.r * 2, borderRadius: pa.r, transform: [{ translateX: pa.x - pa.r }, { translateY: yToScreen(pa.y - pa.r) }] }]} />
       ))}
+
+      {/* Score Popups */}
+      {scorePopups.current.map((popup) => {
+        const progress = 1 - (popup.ttl / popup.maxTtl);
+        const opacity = progress < 0.8 ? 1 : (1 - progress) / 0.2; // Fade out in last 20%
+        return (
+          <Text
+            key={`SP-${popup.id}`}
+            style={[
+              styles.scorePopup,
+              {
+                opacity,
+                transform: [{ translateX: popup.x - 20 }, { translateY: yToScreen(popup.y) - 10 }]
+              }
+            ]}
+          >
+            +{popup.score}
+          </Text>
+        );
+      })}
 
       {/* Pod (show during gameplay) */}
       {phase === "playing" && podY.current > -500 && (
@@ -3874,6 +4358,10 @@ function Game() {
           {phase === "win" && (
             <>
               <Text style={styles.overlayText}>Congratulations Pupil! You have made it to Earth — you are one step closer to world domination!</Text>
+              <View style={styles.finalScoreContainer}>
+                <Text style={styles.finalScoreLabel}>FINAL SCORE</Text>
+                <Text style={styles.finalScoreValue}>{currentScore.current.toLocaleString()}</Text>
+              </View>
               <Pressable onPress={goMenu} style={styles.startBtn}>
                 <Text style={styles.startBtnText}>BACK TO MENU</Text>
               </Pressable>
@@ -3985,6 +4473,10 @@ function Game() {
                 <Text style={styles.overlayText}>Your mission ends here, Pupil.</Text>
                 <Text style={styles.overlayText}>Return to base for reassignment.</Text>
                 <Text style={styles.overlayText}>The galaxy needs better-trained pilots.</Text>
+              </View>
+              <View style={styles.finalScoreContainer}>
+                <Text style={styles.finalScoreLabel}>FINAL SCORE</Text>
+                <Text style={styles.finalScoreValue}>{currentScore.current.toLocaleString()}</Text>
               </View>
               <View style={styles.buttonContainer}>
                 <Pressable onPress={startGame} style={styles.startBtn}>
@@ -4658,7 +5150,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     justifyContent: 'flex-end', // Position content towards bottom
     paddingHorizontal: 20,
-    paddingBottom: '20%', // Push content up from very bottom
+    paddingBottom: '5%', // Reduced from 20% to give more space for content
   },
   menuParticles: {
     position: 'absolute',
@@ -4704,7 +5196,6 @@ const styles = StyleSheet.create({
   },
   menuScrollView: {
     flex: 1,
-    maxHeight: "70%",
     paddingBottom: 20,
     zIndex: 2,
   },
@@ -4894,5 +5385,48 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "rgba(90,214,111,0.3)",
+  },
+
+  finalScoreContainer: {
+    marginTop: 20,
+    marginBottom: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "rgba(255,215,0,0.5)",
+    alignItems: "center",
+  },
+
+  finalScoreLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFD700",
+    marginBottom: 5,
+    textShadowColor: "rgba(0,0,0,0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+    letterSpacing: 1.5,
+  },
+
+  finalScoreValue: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    textShadowColor: "rgba(255,215,0,0.6)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+
+  scorePopup: {
+    position: "absolute",
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#FFD700",
+    textShadowColor: "rgba(0,0,0,0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+    zIndex: 1000,
   },
 });
