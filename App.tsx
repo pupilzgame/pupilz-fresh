@@ -149,16 +149,22 @@ class LeaderboardManager {
   // Load leaderboard from Vercel KV
   static async loadLeaderboard(): Promise<LeaderboardState> {
     try {
+      console.log('🗄️ Loading leaderboard from database...');
       const response = await fetch('/api/leaderboard');
       if (!response.ok) {
-        console.warn('Failed to fetch leaderboard, using fallback');
+        console.error(`❌ Leaderboard API failed: ${response.status} ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('Error details:', errorText);
         return this.getDefaultState();
       }
 
       const data = await response.json();
       if (!data.success || !Array.isArray(data.entries)) {
+        console.error('❌ Invalid leaderboard data format:', data);
         return this.getDefaultState();
       }
+
+      console.log(`✅ Loaded ${data.entries.length} leaderboard entries from database`);
 
       // Get personal best from localStorage (client-side only)
       const personalBest = parseInt(localStorage.getItem('pupilz_personal_best') || '0');
@@ -192,6 +198,7 @@ class LeaderboardManager {
     victory: boolean
   ): Promise<{ newState: LeaderboardState; rank: number }> {
     try {
+      console.log(`💾 Saving score to database: ${playerName} - ${score} points`);
       const response = await fetch('/api/leaderboard', {
         method: 'POST',
         headers: {
@@ -206,13 +213,18 @@ class LeaderboardManager {
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ Failed to save score: ${response.status} ${response.statusText}`, errorText);
         throw new Error('Failed to add entry to leaderboard');
       }
 
       const data = await response.json();
       if (!data.success) {
+        console.error('❌ Server rejected score entry:', data.error);
         throw new Error(data.error || 'Failed to add entry');
       }
+
+      console.log(`✅ Score saved successfully! Rank: ${data.rank}`);
 
       // Update personal best in localStorage
       const newPersonalBest = Math.max(state.personalBest, score);
