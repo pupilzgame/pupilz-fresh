@@ -1251,9 +1251,10 @@ function Game() {
   const [showNameEntry, setShowNameEntry] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [playerName, setPlayerName] = useState("");
+  const [telegramUsername, setTelegramUsername] = useState<string | null>(null);
   const [gameResultData, setGameResultData] = useState<{score: number; level: number; victory: boolean} | null>(null);
 
-  // Load leaderboard on component mount
+  // Load leaderboard and detect Telegram user on component mount
   useEffect(() => {
     const loadLeaderboard = async () => {
       try {
@@ -1265,7 +1266,29 @@ function Game() {
         setLeaderboardLoaded(true); // Still set loaded to prevent infinite loading
       }
     };
+
+    const detectTelegramUser = () => {
+      // Check if running in Telegram WebApp
+      if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
+        const tg = (window as any).Telegram.WebApp;
+        const user = tg.initDataUnsafe?.user;
+
+        if (user) {
+          // Use username if available, otherwise use first_name
+          const username = user.username || user.first_name || 'Player';
+          console.log('🤖 Detected Telegram user:', username);
+          setTelegramUsername(username);
+          setPlayerName(username.toUpperCase().slice(0, 8)); // Allow up to 8 chars for usernames
+        } else {
+          console.log('🔍 No Telegram user data available');
+        }
+      } else {
+        console.log('🌐 Not running in Telegram WebApp');
+      }
+    };
+
     loadLeaderboard();
+    detectTelegramUser();
   }, []);
 
   // Legacy kill counters (for stats/debugging)
@@ -1357,11 +1380,34 @@ function Game() {
   };
 
   // AAA Leaderboard Integration Functions
-  const checkLeaderboardQualification = (score: number, level: number, victory: boolean) => {
+  const checkLeaderboardQualification = async (score: number, level: number, victory: boolean) => {
     if (LeaderboardManager.qualifiesForLeaderboard(score, leaderboardState.entries)) {
       console.log(`🏆 Score ${score} qualifies for leaderboard!`);
-      setGameResultData({ score, level, victory });
-      setShowNameEntry(true);
+
+      // If we have Telegram username, auto-submit without showing name entry
+      if (telegramUsername && playerName) {
+        console.log(`🤖 Auto-submitting with Telegram username: ${playerName}`);
+        try {
+          const { newState, rank } = await LeaderboardManager.addEntry(
+            leaderboardState,
+            playerName,
+            score,
+            level,
+            victory
+          );
+          setLeaderboardState(newState);
+          console.log(`🎯 Auto-added "${playerName}" to leaderboard at rank ${rank}!`);
+        } catch (error) {
+          console.error('Failed to auto-submit score:', error);
+          // Fall back to manual entry
+          setGameResultData({ score, level, victory });
+          setShowNameEntry(true);
+        }
+      } else {
+        // No Telegram username, show manual entry
+        setGameResultData({ score, level, victory });
+        setShowNameEntry(true);
+      }
     } else {
       console.log(`📊 Score ${score} doesn't qualify for leaderboard (minimum: 100)`);
     }
@@ -5417,35 +5463,58 @@ function Game() {
 
       {/* AAA Name Entry Modal for High Scores */}
       {showNameEntry && (
-        <View style={styles.nameEntryOverlay}>
-          <View style={styles.nameEntryModal}>
+        <View style={styles.nameEntryOverlay} pointerEvents="box-none">
+          <View style={styles.nameEntryModal} pointerEvents="auto">
             <Text style={styles.nameEntryTitle}>🏆 HIGH SCORE! 🏆</Text>
             <Text style={styles.nameEntrySubtitle}>
               Score: {gameResultData?.score.toLocaleString()} • Level: {gameResultData?.level}
             </Text>
             <Text style={styles.nameEntryPrompt}>Enter your pilot name:</Text>
 
+            {telegramUsername && (
+              <Text style={styles.telegramUserDetected}>
+                🤖 Telegram User Detected: @{telegramUsername}
+              </Text>
+            )}
+
             <TextInput
               style={[
                 styles.nameEntryInput,
-                playerName.trim() && styles.nameEntryInputActive
+                playerName.trim() && styles.nameEntryInputActive,
+                telegramUsername && styles.nameEntryInputTelegram
               ]}
               value={playerName}
               onChangeText={(text) => {
-                // Auto-uppercase and limit to 3 chars
-                setPlayerName(text.toUpperCase().slice(0, 3));
+                // Auto-uppercase and limit based on source
+                const maxLength = telegramUsername ? 8 : 3;
+                const cleanText = text.toUpperCase().slice(0, maxLength);
+                setPlayerName(cleanText);
               }}
-              placeholder="ACE"
-              placeholderTextColor="#888"
-              maxLength={3}
+              placeholder={telegramUsername ? telegramUsername.toUpperCase() : "ACE"}
+              placeholderTextColor={telegramUsername ? "#4CAF50" : "#888"}
+              maxLength={telegramUsername ? 8 : 3}
               autoCapitalize="characters"
               autoCorrect={false}
               autoComplete="off"
-              autoFocus={true}
+              autoFocus={!telegramUsername} // Don't auto-focus if Telegram detected
               selectTextOnFocus={true}
-              blurOnSubmit={false}
               returnKeyType="done"
               onSubmitEditing={handleNameSubmit}
+              editable={true}
+              // React Native Web specific fixes
+              {...(Platform.OS === 'web' && {
+                // @ts-ignore
+                style: {
+                  ...StyleSheet.flatten([
+                    styles.nameEntryInput,
+                    playerName.trim() && styles.nameEntryInputActive,
+                    telegramUsername && styles.nameEntryInputTelegram
+                  ]),
+                  outline: 'none',
+                  userSelect: 'text',
+                  pointerEvents: 'auto'
+                }
+              })}
             />
 
             <View style={styles.nameEntryButtons}>
@@ -6520,8 +6589,12 @@ const styles = StyleSheet.create({
     // Prevent layout shift and improve stability
     includeFontPadding: false,
     textAlignVertical: "center",
-    // Better focus behavior
-    outlineStyle: "none",
+    // Web-specific input fixes
+    ...(Platform.OS === 'web' && {
+      outline: 'none',
+      userSelect: 'text',
+      cursor: 'text',
+    }),
   },
   nameEntryInputActive: {
     borderColor: "#00FFFF",
@@ -6530,6 +6603,26 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  nameEntryInputTelegram: {
+    borderColor: "#4CAF50", // Green border for Telegram
+    backgroundColor: "#0f2a0f", // Dark green background
+    shadowColor: "#4CAF50",
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  telegramUserDetected: {
+    fontSize: 14,
+    color: "#4CAF50",
+    textAlign: "center",
+    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: "rgba(76, 175, 80, 0.1)",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(76, 175, 80, 0.3)",
   },
   nameEntryButtons: {
     flexDirection: "row",
