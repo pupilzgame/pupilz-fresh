@@ -14,7 +14,7 @@ type LeaderboardEntry = {
   score: number;
   level: number;
   victory: boolean;
-  timestamp: string;
+  created_at: string;
   achievements: string[];
 };
 
@@ -56,7 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         score: entry.score,
         level: entry.level,
         victory: entry.victory,
-        timestamp: new Date(entry.timestamp).getTime(),
+        timestamp: new Date(entry.created_at).getTime(),
         achievements: entry.achievements || []
       })) || [];
 
@@ -83,7 +83,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         score,
         level,
         victory,
-        timestamp: new Date().toISOString(),
+        created_at: new Date().toISOString(),
         achievements: calculateAchievements(score, level, victory)
       };
 
@@ -119,7 +119,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           score: data.score,
           level: data.level,
           victory: data.victory,
-          timestamp: new Date(data.timestamp).getTime(),
+          timestamp: new Date(data.created_at).getTime(),
           achievements: data.achievements || []
         }
       });

@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS leaderboard (
   score integer NOT NULL CHECK (score >= 0),
   level integer NOT NULL CHECK (level >= 1),
   victory boolean NOT NULL DEFAULT false,
-  timestamp timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz NOT NULL DEFAULT now(),
   achievements text[] DEFAULT '{}'::text[]
 );
 
@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS leaderboard (
 CREATE INDEX IF NOT EXISTS idx_leaderboard_score ON leaderboard (score DESC);
 
 -- Create index for efficient timestamp-based queries
-CREATE INDEX IF NOT EXISTS idx_leaderboard_timestamp ON leaderboard (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_leaderboard_created_at ON leaderboard (created_at DESC);
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE leaderboard ENABLE ROW LEVEL SECURITY;
