@@ -72,10 +72,21 @@ Pupilz Pod Descent - A React Native Expo space shooter game with TypeScript supp
   - `Pupilz_gameplay_Loopedx4.mp3` - In-game background music (loops)
   - `Pupilz_mission_failed.mp3` - Game over music (loops)
   - `Pupilz_earth_reached.mp3` - Victory celebration music (single play)
-- **Sound Effects**: 4 SFX files for weapons, explosions, UI interactions
+- **Sound Effects**: 10+ SFX files covering all game events
+  - `space-bubbles.mp3` - Mothership beam-up sequence
+  - `Pupilz-get-item.mp3` - Inventory item pickups
+  - `Pupilz-clear-level.mp3` - Level ring progression
+  - `Pupilz-Button-Press.mp3` - UI button interactions
+  - `Pupilz-astroid-breaking.mp3` - Debris explosions
+  - `Pupilz-gun-cocking.mp3` - Weapon upgrade pickups
+  - `Pupilz_respawn.mp3` - Pod respawn
+  - `weapon-fire.wav` - Basic weapon firing
+  - `Pupilz-use-item.mp3` - Inventory item usage
+  - `Pupilz-laser-gun.wav` - Laser weapon firing
+  - `Pupilz-human-ship-explode.wav` - Ship/pod explosions
 - **Controls**: Independent music (🎵/🔇) and SFX (🔊/🔇) toggles
 - **Implementation**: expo-av with professional audio management and browser autoplay compliance
-- **Smart Audio**: Phase-based music switching, no simultaneous track conflicts
+- **Smart Audio**: Phase-based music switching, comprehensive SFX coverage
 
 ## Key Game Mechanics
 
@@ -169,11 +180,18 @@ Pupilz Pod Descent - A React Native Expo space shooter game with TypeScript supp
 - **Perfect Integration**: Synced with Earth reached victory sequence
 - **Meme-Worthy**: 8-second celebration perfect for social sharing
 
-### 🎵 Complete Audio Overhaul
+### 🎵 Complete Audio System Overhaul
 - **4 Music Tracks**: Title, gameplay, mission failed (looped), Earth reached
+- **10+ Sound Effects**: Comprehensive SFX covering all game events
+  - Mothership beam-up sequence audio
+  - Item pickup and inventory usage sounds
+  - Level progression and UI interaction feedback
+  - Weapon firing (basic and laser variants)
+  - Destruction audio for debris, ships, and player pod
+  - Pod respawn and weapon upgrade sounds
 - **Smart Exclusivity**: No simultaneous music conflicts, phase-based switching
+- **Professional Implementation**: expo-av with proper volume controls and cleanup
 - **Browser Compliance**: User interaction requirement for autoplay policies
-- **Professional Polish**: Seamless transitions between game phases
 
 ### Previous Updates (December 2024)
 

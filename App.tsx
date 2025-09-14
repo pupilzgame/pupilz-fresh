@@ -876,6 +876,21 @@ function Game() {
   const gameplayMusic = useRef<Audio.Sound | null>(null);
   const missionFailedMusic = useRef<Audio.Sound | null>(null);
   const earthReachedMusic = useRef<Audio.Sound | null>(null);
+  const spaceBubblesSound = useRef<Audio.Sound | null>(null);
+  const getItemSound = useRef<Audio.Sound | null>(null);
+  const clearLevelSound = useRef<Audio.Sound | null>(null);
+  const buttonPressSound = useRef<Audio.Sound | null>(null);
+  const asteroidBreakingSound = useRef<Audio.Sound | null>(null);
+  const gunCockingSound = useRef<Audio.Sound | null>(null);
+  const respawnSound = useRef<Audio.Sound | null>(null);
+  const weaponFireSound = useRef<Audio.Sound | null>(null);
+  const useItemSound = useRef<Audio.Sound | null>(null);
+  const laserGunSound = useRef<Audio.Sound | null>(null);
+  const humanShipExplodeSound = useRef<Audio.Sound | null>(null);
+  const multiGunSound = useRef<Audio.Sound | null>(null);
+  const homingMissilesGunSound = useRef<Audio.Sound | null>(null);
+  const fireGunSound = useRef<Audio.Sound | null>(null);
+  const spreadGunSound = useRef<Audio.Sound | null>(null);
   const gameplayMusicPlaying = useRef(false); // Track if gameplay music is currently playing
   const userInteracted = useRef(false); // Track if user has interacted with the page
   const [musicEnabled, setMusicEnabled] = useState(true);
@@ -1171,6 +1186,291 @@ function Game() {
     }
   };
 
+  const loadSpaceBubblesSound = async () => {
+    try {
+      if (spaceBubblesSound.current) {
+        await spaceBubblesSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/space-bubbles.mp3'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      spaceBubblesSound.current = sound;
+      console.log('🔊 Space bubbles sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load space bubbles sound:', error);
+    }
+  };
+
+  const loadGetItemSound = async () => {
+    try {
+      if (getItemSound.current) {
+        await getItemSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-get-item.mp3'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      getItemSound.current = sound;
+      console.log('🔊 Get item sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load get item sound:', error);
+    }
+  };
+
+  const loadClearLevelSound = async () => {
+    try {
+      if (clearLevelSound.current) {
+        await clearLevelSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-clear-level.mp3'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      clearLevelSound.current = sound;
+      console.log('🔊 Clear level sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load clear level sound:', error);
+    }
+  };
+
+  const loadButtonPressSound = async () => {
+    try {
+      if (buttonPressSound.current) {
+        await buttonPressSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-Button-Press.mp3'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      buttonPressSound.current = sound;
+      console.log('🔊 Button press sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load button press sound:', error);
+    }
+  };
+
+  const loadAsteroidBreakingSound = async () => {
+    try {
+      if (asteroidBreakingSound.current) {
+        await asteroidBreakingSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-astroid-breaking.mp3'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      asteroidBreakingSound.current = sound;
+      console.log('🔊 Asteroid breaking sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load asteroid breaking sound:', error);
+    }
+  };
+
+  const loadGunCockingSound = async () => {
+    try {
+      if (gunCockingSound.current) {
+        await gunCockingSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-gun-cocking.mp3'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      gunCockingSound.current = sound;
+      console.log('🔊 Gun cocking sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load gun cocking sound:', error);
+    }
+  };
+
+  const loadRespawnSound = async () => {
+    try {
+      if (respawnSound.current) {
+        await respawnSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz_respawn.mp3'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      respawnSound.current = sound;
+      console.log('🔊 Respawn sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load respawn sound:', error);
+    }
+  };
+
+  const loadWeaponFireSound = async () => {
+    try {
+      if (weaponFireSound.current) {
+        await weaponFireSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/weapon-fire.wav'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      weaponFireSound.current = sound;
+      console.log('🔊 Weapon fire sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load weapon fire sound:', error);
+    }
+  };
+
+  const loadUseItemSound = async () => {
+    try {
+      if (useItemSound.current) {
+        await useItemSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-use-item.mp3'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      useItemSound.current = sound;
+      console.log('🔊 Use item sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load use item sound:', error);
+    }
+  };
+
+  const loadLaserGunSound = async () => {
+    try {
+      if (laserGunSound.current) {
+        await laserGunSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-Laser-gun.mp3'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      laserGunSound.current = sound;
+      console.log('🔊 Laser gun sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load laser gun sound:', error);
+    }
+  };
+
+  const loadHumanShipExplodeSound = async () => {
+    try {
+      if (humanShipExplodeSound.current) {
+        await humanShipExplodeSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-human-ship-explode.wav'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      humanShipExplodeSound.current = sound;
+      console.log('🔊 Human ship explode sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load human ship explode sound:', error);
+    }
+  };
+
+  const loadMultiGunSound = async () => {
+    try {
+      if (multiGunSound.current) {
+        await multiGunSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-multi-gun.wav'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      multiGunSound.current = sound;
+      console.log('🔊 Multi gun sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load multi gun sound:', error);
+    }
+  };
+
+  const loadHomingMissilesGunSound = async () => {
+    try {
+      if (homingMissilesGunSound.current) {
+        await homingMissilesGunSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-homing-missles-gun.wav'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      homingMissilesGunSound.current = sound;
+      console.log('🔊 Homing missiles gun sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load homing missiles gun sound:', error);
+    }
+  };
+
+  const loadFireGunSound = async () => {
+    try {
+      if (fireGunSound.current) {
+        await fireGunSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-fire-gun.wav'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      fireGunSound.current = sound;
+      console.log('🔊 Fire gun sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load fire gun sound:', error);
+    }
+  };
+
+  const loadSpreadGunSound = async () => {
+    try {
+      if (spreadGunSound.current) {
+        await spreadGunSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-spread-gun.wav'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      spreadGunSound.current = sound;
+      console.log('🔊 Spread gun sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load spread gun sound:', error);
+    }
+  };
+
   const playTitleMusic = async () => {
     try {
       if (titleMusic.current && musicEnabled) {
@@ -1254,6 +1554,201 @@ function Game() {
       }
     } catch (error) {
       console.log('❌ Failed to play earth reached music:', error);
+    }
+  };
+
+  const playSpaceBubblesSound = async () => {
+    try {
+      if (spaceBubblesSound.current && musicEnabled) {
+        await spaceBubblesSound.current.setPositionAsync(0); // Reset to beginning
+        await spaceBubblesSound.current.setVolumeAsync(musicVolume);
+        await spaceBubblesSound.current.playAsync();
+        console.log('🔊 Space bubbles sound playing for mothership beam-up');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play space bubbles sound:', error);
+    }
+  };
+
+  const playGetItemSound = async () => {
+    try {
+      if (getItemSound.current && musicEnabled) {
+        await getItemSound.current.setPositionAsync(0); // Reset to beginning
+        await getItemSound.current.setVolumeAsync(musicVolume);
+        await getItemSound.current.playAsync();
+        console.log('🔊 Get item sound playing for inventory pickup');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play get item sound:', error);
+    }
+  };
+
+  const playClearLevelSound = async () => {
+    try {
+      if (clearLevelSound.current && musicEnabled) {
+        await clearLevelSound.current.setPositionAsync(0); // Reset to beginning
+        await clearLevelSound.current.setVolumeAsync(musicVolume);
+        await clearLevelSound.current.playAsync();
+        console.log('🔊 Clear level sound playing for level ring pop');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play clear level sound:', error);
+    }
+  };
+
+  const playButtonPressSound = async () => {
+    try {
+      if (buttonPressSound.current && musicEnabled) {
+        await buttonPressSound.current.setPositionAsync(0); // Reset to beginning
+        await buttonPressSound.current.setVolumeAsync(musicVolume);
+        await buttonPressSound.current.playAsync();
+        console.log('🔊 Button press sound playing for UI interaction');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play button press sound:', error);
+    }
+  };
+
+  const playAsteroidBreakingSound = async () => {
+    try {
+      if (asteroidBreakingSound.current && musicEnabled) {
+        await asteroidBreakingSound.current.setPositionAsync(0); // Reset to beginning
+        await asteroidBreakingSound.current.setVolumeAsync(musicVolume);
+        await asteroidBreakingSound.current.playAsync();
+        console.log('🔊 Asteroid breaking sound playing for debris explosion');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play asteroid breaking sound:', error);
+    }
+  };
+
+  const playGunCockingSound = async () => {
+    try {
+      if (gunCockingSound.current && musicEnabled) {
+        await gunCockingSound.current.setPositionAsync(0); // Reset to beginning
+        await gunCockingSound.current.setVolumeAsync(musicVolume);
+        await gunCockingSound.current.playAsync();
+        console.log('🔊 Gun cocking sound playing for weapon upgrade pickup');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play gun cocking sound:', error);
+    }
+  };
+
+  const playRespawnSound = async () => {
+    try {
+      if (respawnSound.current && musicEnabled) {
+        await respawnSound.current.setPositionAsync(0); // Reset to beginning
+        await respawnSound.current.setVolumeAsync(musicVolume);
+        await respawnSound.current.playAsync();
+        console.log('🔊 Respawn sound playing for pod respawn');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play respawn sound:', error);
+    }
+  };
+
+  const playWeaponFireSound = async () => {
+    try {
+      if (weaponFireSound.current && musicEnabled) {
+        await weaponFireSound.current.setPositionAsync(0); // Reset to beginning
+        await weaponFireSound.current.setVolumeAsync(musicVolume);
+        await weaponFireSound.current.playAsync();
+        console.log('🔊 Weapon fire sound playing for basic weapon');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play weapon fire sound:', error);
+    }
+  };
+
+  const playUseItemSound = async () => {
+    try {
+      if (useItemSound.current && musicEnabled) {
+        await useItemSound.current.setPositionAsync(0); // Reset to beginning
+        await useItemSound.current.setVolumeAsync(musicVolume);
+        await useItemSound.current.playAsync();
+        console.log('🔊 Use item sound playing for inventory item usage');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play use item sound:', error);
+    }
+  };
+
+  const playLaserGunSound = async () => {
+    try {
+      if (laserGunSound.current && musicEnabled) {
+        await laserGunSound.current.setPositionAsync(0); // Reset to beginning
+        await laserGunSound.current.setVolumeAsync(musicVolume);
+        await laserGunSound.current.playAsync();
+        console.log('🔊 Laser gun sound playing for laser weapon fire');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play laser gun sound:', error);
+    }
+  };
+
+  const playHumanShipExplodeSound = async () => {
+    try {
+      if (humanShipExplodeSound.current && musicEnabled) {
+        await humanShipExplodeSound.current.setPositionAsync(0); // Reset to beginning
+        await humanShipExplodeSound.current.setVolumeAsync(musicVolume);
+        await humanShipExplodeSound.current.playAsync();
+        console.log('🔊 Human ship explode sound playing for ship/pod explosion');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play human ship explode sound:', error);
+    }
+  };
+
+  const playMultiGunSound = async () => {
+    try {
+      if (multiGunSound.current && musicEnabled) {
+        await multiGunSound.current.setPositionAsync(0); // Reset to beginning
+        await multiGunSound.current.setVolumeAsync(musicVolume);
+        await multiGunSound.current.playAsync();
+        console.log('🔊 Multi gun sound playing for M weapon fire');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play multi gun sound:', error);
+    }
+  };
+
+  const playHomingMissilesGunSound = async () => {
+    try {
+      if (homingMissilesGunSound.current && musicEnabled) {
+        await homingMissilesGunSound.current.setPositionAsync(0); // Reset to beginning
+        await homingMissilesGunSound.current.setVolumeAsync(musicVolume);
+        await homingMissilesGunSound.current.playAsync();
+        console.log('🔊 Homing missiles gun sound playing for H weapon fire');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play homing missiles gun sound:', error);
+    }
+  };
+
+  const playFireGunSound = async () => {
+    try {
+      if (fireGunSound.current && musicEnabled) {
+        await fireGunSound.current.setPositionAsync(0); // Reset to beginning
+        await fireGunSound.current.setVolumeAsync(musicVolume);
+        await fireGunSound.current.playAsync();
+        console.log('🔊 Fire gun sound playing for F weapon fire');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play fire gun sound:', error);
+    }
+  };
+
+  const playSpreadGunSound = async () => {
+    try {
+      if (spreadGunSound.current && musicEnabled) {
+        await spreadGunSound.current.setPositionAsync(0); // Reset to beginning
+        await spreadGunSound.current.setVolumeAsync(musicVolume);
+        await spreadGunSound.current.playAsync();
+        console.log('🔊 Spread gun sound playing for S weapon fire');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play spread gun sound:', error);
     }
   };
 
@@ -1601,6 +2096,7 @@ function Game() {
     invulnTime.current = 2.5; // Generous invulnerability
     hudFadeT.current = 4.0; // Extended HUD visibility
     canSkipCountdown.current = false;
+    playRespawnSound(); // Play SFX for pod respawn
     setPhase("playing");
   };
   
@@ -2019,6 +2515,7 @@ function Game() {
     switch (weapon.current.kind) {
       case "basic": {
         // Basic pod blaster - single weak shot to encourage pickup hunting
+        playWeaponFireSound(); // Play SFX for basic weapon fire
         projs.current.push({ id: nextId(), kind: "bullet", x: wX, y: wz + POD_RADIUS + 4, vx: 0, vy: BULLET_SPEED * 0.9, r: 3, ttl: 1.8 });
         break;
       }
@@ -2030,23 +2527,26 @@ function Game() {
           const offset = (i - (count - 1) / 2) * spreadPx;
           projs.current.push({ id: nextId(), kind: "bullet", x: wX + offset, y: wz + POD_RADIUS + 4, vx: 0, vy: BULLET_SPEED, r: 4, ttl: 2.0 });
         }
+        playMultiGunSound(); // Play multi-gun sound effect
         break;
       }
       case "S": {
         // Spread shot progression: 3→4→5 pellets for satisfying scaling
         const L = weapon.current.level;
-        const angles = L === 1 ? [-0.25, 0, 0.25] : 
-                       L === 2 ? [-0.35, -0.12, 0.12, 0.35] : 
+        const angles = L === 1 ? [-0.25, 0, 0.25] :
+                       L === 2 ? [-0.35, -0.12, 0.12, 0.35] :
                        [-0.4, -0.2, 0, 0.2, 0.4]; // 3/4/5 pellets
         for (const a of angles) {
           const vx = Math.sin(a) * BULLET_SPEED * 0.65;
           const vy = Math.cos(a) * BULLET_SPEED;
           projs.current.push({ id: nextId(), kind: "bullet", x: wX, y: wz + POD_RADIUS + 4, vx, vy: Math.abs(vy), r: 4, ttl: 1.8 });
         }
+        playSpreadGunSound(); // Play spread gun sound effect
         break;
       }
       case "L": {
         // Laser progression: Increasingly powerful and visually impressive
+        playLaserGunSound(); // Play SFX for laser weapon fire
         const L = weapon.current.level;
         const pierce = 3 + L * 2; // 5/7/9 pierce - dramatically more
         const laserCount = L; // 1/2/3 parallel lasers
@@ -2092,6 +2592,7 @@ function Game() {
           projs.current.push({ id: nextId(), kind: "fire", x: wX, y: wz + POD_RADIUS + 4, vx: lane * 50, vy: FIRE_SPEED, r: 4, ttl: 2.2, t: 0 });
         }
         spawnMuzzle(wX, wz + POD_RADIUS + 2, "#FFB46B");
+        playFireGunSound(); // Play fire gun sound effect
         break;
       }
       case "H": {
@@ -2101,6 +2602,7 @@ function Game() {
           projs.current.push({ id: nextId(), kind: "homing", x: wX, y: wz + POD_RADIUS + 4, vx: 0, vy: HOMING_SPEED, r: 5, ttl: 3.0, turn: 1100 + 140 * (weapon.current.level - 1) });
         }
         spawnMuzzle(wX, wz + POD_RADIUS + 2, "#FFE486");
+        playHomingMissilesGunSound(); // Play homing missiles sound effect
         break;
       }
     }
@@ -2109,6 +2611,7 @@ function Game() {
   const tryNuke = () => {
     if (phaseRef.current !== "playing") return;
     if (nukesLeft.current <= 0) return;
+    playUseItemSound(); // Play SFX for nuke usage
     nukesLeft.current -= 1;
 
     // start sweep from pod
@@ -2120,6 +2623,7 @@ function Game() {
   const activateEnergyCell = () => {
     if (phaseRef.current !== "playing") return;
     if (energyCells.current <= 0) return;
+    playUseItemSound(); // Play SFX for energy cell usage
     energyCells.current -= 1;
 
     // +3 shields (stacking) & 3s i-frames
@@ -2508,6 +3012,9 @@ function Game() {
     // Track death cause for contextual tips
     lastDeathCause.current = cause;
     deathStats.current[cause] += 1;
+
+    // Play pod explosion sound
+    playHumanShipExplodeSound();
     
     // Generate tip once for this death
     currentDeathTip.current = getContextualTip();
@@ -2782,6 +3289,7 @@ function Game() {
         const dx = a.x - cx, dy = a.y - cy;
         if (dx*dx + dy*dy <= (sweepR.current + a.r) * (sweepR.current + a.r)) {
           scoreAsteroidKill(a);
+          playAsteroidBreakingSound(); // Play SFX for asteroid destruction
           asteroids.current.splice(i, 1);
           boom(a.x, a.y, 0.9 + a.r * 0.02, getAsteroidTypeData(a.type).color);
         }
@@ -2794,6 +3302,7 @@ function Game() {
         const dx = bx - cx, dy = by - cy;
         if (dx*dx + dy*dy <= sweepR.current * sweepR.current) {
           scoreBarrierKill(b);
+          playAsteroidBreakingSound(); // Play SFX for barrier destruction
           barriers.current.splice(i, 1);
           boom(bx, by, 1.0, getBarrierTypeData(b.type).color);
         }
@@ -2804,6 +3313,7 @@ function Game() {
         const dx = s.x - cx, dy = s.y - cy;
         if (dx*dx + dy*dy <= (sweepR.current + 14) * (sweepR.current + 14)) {
           onShipKilled(s);
+          playHumanShipExplodeSound(); // Play SFX for ship explosion
           ships.current.splice(i, 1);
           boom(s.x, s.y, 1.2, "#FFD890");
         }
@@ -3072,6 +3582,7 @@ function Game() {
                   other.hp = Math.max(0, other.hp - explosionDamage);
                   if (other.hp <= 0) {
                     scoreAsteroidKill(other);
+                    playAsteroidBreakingSound(); // Play SFX for asteroid destruction
                     boom(other.x, other.y, 1.0, "#FF6B35");
                     asteroids.current.splice(k, 1);
                     if (k < j) j--; // Adjust index if we removed an earlier element
@@ -3087,6 +3598,7 @@ function Game() {
                 const edx = bcx - p.x, edy = bcy - p.y;
                 const dist = Math.sqrt(edx * edx + edy * edy);
                 if (dist <= explosionRadius) {
+                  playAsteroidBreakingSound(); // Play SFX for barrier destruction
                   boom(bcx, bcy, 1.2, "#FF4444");
                   barriers.current.splice(k, 1);
                   killsBar.current += 1;
@@ -3126,6 +3638,7 @@ function Game() {
             if (a.hp <= 0) {
               // Asteroid destroyed
               scoreAsteroidKill(a);
+              playAsteroidBreakingSound(); // Play SFX for asteroid destruction
               asteroids.current.splice(j, 1);
               boom(a.x, a.y, 0.8 + a.r * 0.02, getAsteroidTypeData(a.type).color);
             }
@@ -3170,6 +3683,7 @@ function Game() {
               
               if (br.hp <= 0) {
                 scoreBarrierKill(br);
+                playAsteroidBreakingSound(); // Play SFX for barrier destruction
                 barriers.current.splice(j, 1);
                 boom(cx, cy, 1.0, getBarrierTypeData(br.type).color);
               }
@@ -3196,6 +3710,7 @@ function Game() {
               boom(p.x, p.y, 0.7, "#FFD890");
               if (s.hp <= 0) {
                 onShipKilled(s);
+                playHumanShipExplodeSound(); // Play SFX for ship explosion
                 ships.current.splice(j, 1);
                 boom(s.x, s.y, 1.1, "#FFB46B");
               }
@@ -3258,12 +3773,14 @@ function Game() {
               // Drone sacrifices itself
               sacrificeDrone(a.x, a.y);
               scoreAsteroidKill(a); // Award points and show popup for drone kill
+              playAsteroidBreakingSound(); // Play SFX for asteroid destruction
               boom(a.x, a.y, 0.9, "#FFD700");
               asteroids.current.splice(i, 1);
               break;
             } else if (shieldLives.current > 0) {
               shieldLives.current -= 1;
               invulnTime.current = HIT_INVULN_TIME;
+              playAsteroidBreakingSound(); // Play SFX for asteroid destruction
               boom(a.x, a.y, 0.9, "#9FFFB7");
               asteroids.current.splice(i, 1);
               break;
@@ -3283,12 +3800,14 @@ function Game() {
               // Drone sacrifices itself
               sacrificeDrone(cx, cy);
               scoreBarrierKill(br); // Award points and show popup for drone kill
+              playAsteroidBreakingSound(); // Play SFX for barrier destruction
               boom(cx, cy, 0.9, "#FFD700");
               barriers.current.splice(i, 1);
               break;
             } else if (shieldLives.current > 0) {
               shieldLives.current -= 1;
               invulnTime.current = HIT_INVULN_TIME;
+              playAsteroidBreakingSound(); // Play SFX for barrier destruction
               boom(cx, cy, 0.9, "#9FFFB7");
               barriers.current.splice(i, 1);
               break;
@@ -3356,6 +3875,7 @@ function Game() {
               boom(drone.x, drone.y, 1.4, "#FFD700"); // Large gold explosion for drone impact
               boom(ship.x, shipScreenY, 1.0, "#FF6B35"); // Ship impact explosion
               if (ship.hp <= 0) {
+                playHumanShipExplodeSound(); // Play SFX for ship explosion
                 ships.current.splice(j, 1);
                 onShipKilled(ship); // Pass ship data for proper scoring and popup
                 boom(ship.x, ship.y, 1.5, "#FFD890"); // Larger ship destruction explosion
@@ -3378,11 +3898,13 @@ function Game() {
               // Drone sacrifices itself
               sacrificeDrone(s.x, s.y);
               scoreShipKill(s); // Award points and show popup for drone kill
+              playHumanShipExplodeSound(); // Play SFX for ship explosion
               boom(s.x, s.y, 1.0, "#FFD700");
               ships.current.splice(i, 1);
             } else if (shieldLives.current > 0) {
               shieldLives.current -= 1;
               invulnTime.current = HIT_INVULN_TIME;
+              playHumanShipExplodeSound(); // Play SFX for ship explosion
               boom(s.x, s.y, 1.0, "#9FFFB7");
               ships.current.splice(i, 1);
             } else {
@@ -3436,6 +3958,7 @@ function Game() {
           } else {
             // Weapon pickup (S/M/L/F/H): swap or level up (cap at 3)
             const newKind = p.kind as Weapon["kind"];
+            playGunCockingSound(); // Play SFX for weapon upgrade pickup
             if (weapon.current.kind === newKind) {
               weapon.current.level = Math.min(3, weapon.current.level + 1) as 1 | 2 | 3;
             } else {
@@ -3444,6 +3967,7 @@ function Game() {
           }
 
           // pickup feedback
+          playGetItemSound(); // Play SFX for item pickup
           boom(p.x, p.y, 0.6, "#CFFFD1");
           powerups.current.splice(i, 1);
           hudFadeT.current = 2.0; // briefly keep HUD visible
@@ -3483,6 +4007,13 @@ function Game() {
             podVictoryY.current = podY.current; // Save starting position
             podVictoryScale.current = 1;
             console.log('🛸 MOTHERSHIP BEAM-UP SEQUENCE INITIATED');
+
+            // Recall all drones to mothership during beam-up
+            drones.current = [];
+            console.log('🤖 All drones recalled to mothership for victory sequence');
+
+            // Play space bubbles SFX for mothership beam-up
+            playSpaceBubblesSound();
             
             // 2-second delay for dramatic effect after ring disintegrates
             setTimeout(() => {
@@ -3496,6 +4027,7 @@ function Game() {
             // Boss not cleared yet - trigger boss fight
             if (!levelUpProcessed.current) {
               levelUpProcessed.current = true;
+              playClearLevelSound(); // Play SFX for level ring pop
               levelUp();
             }
             return;
@@ -3516,7 +4048,8 @@ function Game() {
             } else if (currentLevel === 4) {
               showAcquisitionMessage("FINAL APPROACH • BOSS ENCOUNTER IMMINENT");
             }
-            
+
+            playClearLevelSound(); // Play SFX for level ring pop
             levelUp();
           }
           return;
@@ -3581,6 +4114,7 @@ function Game() {
 
   /* ----- Start / Restart ----- */
   const startGame = () => {
+    playButtonPressSound(); // Play button press SFX
     console.log('🚀 GAME START: Simple dispatch message');
 
     hardResetWorld();
@@ -3601,9 +4135,10 @@ function Game() {
     setPhase("playing"); 
     // Audio handled by phase useEffect
   };
-  const goMenu = () => { 
-    setPhase("menu"); 
-    hardResetWorld(); 
+  const goMenu = () => {
+    playButtonPressSound(); // Play button press SFX
+    setPhase("menu");
+    hardResetWorld();
     // Audio handled by phase useEffect
   };
   const toggleHandedness = () => {
@@ -3644,6 +4179,21 @@ function Game() {
         await loadGameplayMusic();
         await loadMissionFailedMusic();
         await loadEarthReachedMusic();
+        await loadSpaceBubblesSound();
+        await loadGetItemSound();
+        await loadClearLevelSound();
+        await loadButtonPressSound();
+        await loadAsteroidBreakingSound();
+        await loadGunCockingSound();
+        await loadRespawnSound();
+        await loadWeaponFireSound();
+        await loadUseItemSound();
+        await loadLaserGunSound();
+        await loadHumanShipExplodeSound();
+        await loadMultiGunSound();
+        await loadHomingMissilesGunSound();
+        await loadFireGunSound();
+        await loadSpreadGunSound();
         setAudioLoaded(true);
         console.log('🎵 Audio system fully loaded and ready');
       } catch (error) {
@@ -3666,6 +4216,51 @@ function Game() {
       }
       if (earthReachedMusic.current) {
         earthReachedMusic.current.unloadAsync();
+      }
+      if (spaceBubblesSound.current) {
+        spaceBubblesSound.current.unloadAsync();
+      }
+      if (getItemSound.current) {
+        getItemSound.current.unloadAsync();
+      }
+      if (clearLevelSound.current) {
+        clearLevelSound.current.unloadAsync();
+      }
+      if (buttonPressSound.current) {
+        buttonPressSound.current.unloadAsync();
+      }
+      if (asteroidBreakingSound.current) {
+        asteroidBreakingSound.current.unloadAsync();
+      }
+      if (gunCockingSound.current) {
+        gunCockingSound.current.unloadAsync();
+      }
+      if (respawnSound.current) {
+        respawnSound.current.unloadAsync();
+      }
+      if (weaponFireSound.current) {
+        weaponFireSound.current.unloadAsync();
+      }
+      if (useItemSound.current) {
+        useItemSound.current.unloadAsync();
+      }
+      if (laserGunSound.current) {
+        laserGunSound.current.unloadAsync();
+      }
+      if (humanShipExplodeSound.current) {
+        humanShipExplodeSound.current.unloadAsync();
+      }
+      if (multiGunSound.current) {
+        multiGunSound.current.unloadAsync();
+      }
+      if (homingMissilesGunSound.current) {
+        homingMissilesGunSound.current.unloadAsync();
+      }
+      if (fireGunSound.current) {
+        fireGunSound.current.unloadAsync();
+      }
+      if (spreadGunSound.current) {
+        spreadGunSound.current.unloadAsync();
       }
     };
   }, []);
@@ -4242,11 +4837,18 @@ function Game() {
         onResponderTerminationRequest={() => true} // Always allow termination
         onResponderGrant={(e) => {
           if (phase !== "playing") return;
-          
+
           const touch = e.nativeEvent;
-          const x = touch.locationX || touch.pageX || 0;
-          const y = touch.locationY || touch.pageY || 0;
-          
+          // Robust coordinate extraction with validation
+          let x = touch.locationX ?? touch.pageX ?? 0;
+          let y = touch.locationY ?? touch.pageY ?? 0;
+
+          // Validate coordinates are within screen bounds to prevent edge glitches
+          if (x < 0 || x > width || y < 0 || y > height) {
+            console.log(`⚠️ Invalid touch coordinates: (${x}, ${y}) - ignoring touch event`);
+            return;
+          }
+
           touching.current = true;
           touchStartX.current = x;
           touchStartY.current = y;
@@ -4255,17 +4857,34 @@ function Game() {
         }}
         onResponderMove={(e) => {
           if (!touching.current || phase !== "playing") return;
-          
+
           const touch = e.nativeEvent;
-          const currentX = touch.locationX || touch.pageX || touchStartX.current;
-          const currentY = touch.locationY || touch.pageY || touchStartY.current;
-          
+          // Robust coordinate extraction with fallback to last known position
+          let currentX = touch.locationX ?? touch.pageX;
+          let currentY = touch.locationY ?? touch.pageY;
+
+          // If coordinates are invalid or out of bounds, use fallback
+          if (currentX == null || currentY == null ||
+              currentX < 0 || currentX > width ||
+              currentY < 0 || currentY > height) {
+            console.log(`⚠️ Invalid move coordinates: (${currentX}, ${currentY}) - using fallback`);
+            currentX = touchStartX.current;
+            currentY = touchStartY.current;
+          }
+
           const deltaX = currentX - touchStartX.current;
           const deltaY = currentY - touchStartY.current;
-          
+
+          // Additional safety: prevent extremely large jumps that could cause glitches
+          const maxDelta = Math.max(width, height) * 0.8; // Max 80% of screen in one frame
+          if (Math.abs(deltaX) > maxDelta || Math.abs(deltaY) > maxDelta) {
+            console.log(`⚠️ Extreme touch delta detected: (${deltaX}, ${deltaY}) - clamping movement`);
+            return; // Skip this movement frame
+          }
+
           const newX = clamp(podStartX.current + deltaX, POD_RADIUS, width - POD_RADIUS);
           const newY = clamp(podStartY.current + deltaY, POD_RADIUS, height - POD_RADIUS);
-          
+
           podX.current = newX;
           podY.current = newY;
         }}
