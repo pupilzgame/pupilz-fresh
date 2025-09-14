@@ -5767,9 +5767,10 @@ const styles = StyleSheet.create({
   menuContainer: {
     flex: 1,
     position: 'relative',
-    justifyContent: 'flex-end', // Position content towards bottom
+    justifyContent: 'flex-start', // Start from top but with padding
     paddingHorizontal: 20,
-    paddingBottom: '5%', // Reduced from 20% to give more space for content
+    paddingTop: 80, // Increase top padding to push content down
+    paddingBottom: 20, // Keep bottom padding reasonable
   },
   menuParticles: {
     position: 'absolute',
@@ -5781,7 +5782,8 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 20, // Reduced from 30
+    marginBottom: 25,
+    marginTop: 20, // Reduced since container now has more top padding
     zIndex: 2,
   },
   logoMain: {
@@ -5793,9 +5795,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   logoImage: {
-    width: 250,
-    height: 80,
-    marginBottom: 5,
+    width: 220, // Reduced from 250 for better fit
+    height: 70,  // Reduced from 80 for better fit
+    marginBottom: 8,
     alignSelf: 'center',
   },
   logoSub: {
