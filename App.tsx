@@ -1011,6 +1011,7 @@ function Game() {
   const victoryBeamProgress = useRef(0); // 0 to 1 over 2 seconds
   const podVictoryY = useRef(0); // Pod Y during beam-up
   const podVictoryScale = useRef(1); // Pod scale during beam-up
+  const finalDeathSequence = useRef(false); // Track final death to hide pod
   
   // Simple game start messaging
   const gameStartMessageTimer = useRef(0);
@@ -2198,6 +2199,7 @@ function Game() {
     victoryBeamProgress.current = 0;
     podVictoryY.current = 0;
     podVictoryScale.current = 1;
+    finalDeathSequence.current = false; // Reset final death sequence flag
     
     // Reset game start messaging
     gameStartMessageTimer.current = 0;
@@ -2500,8 +2502,8 @@ function Game() {
   useEffect(() => { timeSecRef.current = timeSec; }, [timeSec]);
 
   const tryShoot = () => {
-    // Don't shoot during victory beam-up sequence
-    if (victoryBeamActive.current) return;
+    // Don't shoot during victory beam-up sequence or final death
+    if (victoryBeamActive.current || finalDeathSequence.current) return;
     
     const now = timeSecRef.current;
     if (now - lastShotTime.current < currentCooldown()) return;
@@ -3009,6 +3011,9 @@ function Game() {
   };
 
   const killPlayer = (cause: 'asteroid' | 'barrier' | 'enemy' | 'boss' | 'ship' | 'earth_ring_missed' = 'enemy') => {
+    // Prevent multiple deaths during final death sequence
+    if (finalDeathSequence.current) return;
+
     // Track death cause for contextual tips
     lastDeathCause.current = cause;
     deathStats.current[cause] += 1;
@@ -3055,20 +3060,20 @@ function Game() {
       // Still have lives - enhanced respawn system
       setPhase("respawning");
       livesLostThisSession.current += 1;
-      
+
       // Emergency nuke system: Give player a nuke if down to last life and has none
       if (lives.current === 1 && nukesLeft.current === 0) {
         nukesLeft.current = 1;
         console.log('🚨 EMERGENCY NUKE: Last life safety net activated!');
       }
-      
+
       // Smart countdown based on user preferences
       const isFirstLoss = livesLostThisSession.current === 1;
       const baseTime = isFirstLoss ? 4.0 : 3.0;
       const countdownTime = quickRespawn ? 1.5 : baseTime;
       respawnCountdown.current = countdownTime;
       canSkipCountdown.current = true;
-      
+
       const countdownInterval = setInterval(() => {
         respawnCountdown.current -= 0.1;
         if (respawnCountdown.current <= 0) {
@@ -3076,13 +3081,20 @@ function Game() {
           respawnPlayer();
         }
       }, 100);
-      
+
       // Store interval ID for skip functionality
       (window as any).currentRespawnInterval = countdownInterval;
     } else {
-      // No lives left - true game over
+      // No lives left - true game over with dramatic pause
+      finalDeathSequence.current = true; // Hide pod during final death
+      projs.current = []; // Clear all player projectiles immediately
       calculateFinalScore(); // Calculate final score with bonuses
-      setPhase("dead");
+
+      // Add 2.5-second delay to let pod explosion sink in
+      setTimeout(() => {
+        setPhase("dead");
+        console.log('🎮 Mission failed screen shown after dramatic pause');
+      }, 2500); // 2.5 second delay for emotional impact
     }
   };
 
@@ -4692,8 +4704,8 @@ function Game() {
         );
       })}
 
-      {/* Pod (show during gameplay) */}
-      {phase === "playing" && podY.current > -500 && (
+      {/* Pod (show during gameplay, but not during final death sequence) */}
+      {phase === "playing" && podY.current > -500 && !finalDeathSequence.current && (
         <>
           <View
             style={[
