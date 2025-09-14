@@ -1274,10 +1274,7 @@ function Game() {
           const tg = (window as any).Telegram.WebApp;
           console.log('🔍 Telegram WebApp detected, checking user data...');
 
-          // Initialize Telegram WebApp if needed
-          if (typeof tg.ready === 'function') {
-            tg.ready();
-          }
+          // Don't call ready() here - useFullScreenPWA hook already handles Telegram initialization
 
           const user = tg.initDataUnsafe?.user;
 
@@ -1301,10 +1298,10 @@ function Game() {
 
     loadLeaderboard();
 
-    // Delay Telegram detection to ensure WebApp is fully initialized
+    // Delay Telegram detection to ensure WebApp is fully initialized by useFullScreenPWA
     setTimeout(() => {
       detectTelegramUser();
-    }, 100);
+    }, 500); // Increased delay to let useFullScreenPWA complete initialization
   }, []);
 
   // Legacy kill counters (for stats/debugging)
