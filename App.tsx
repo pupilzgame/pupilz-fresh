@@ -142,41 +142,31 @@ const SCORING_CONFIG = {
   }
 } as const;
 
-// AAA Leaderboard Management System
+// AAA Leaderboard Management System with Vercel KV
 class LeaderboardManager {
-  private static readonly STORAGE_KEY = 'pupilz_leaderboard_v1';
-  private static readonly MAX_ENTRIES = 10;
-  private static readonly MIN_SCORE_THRESHOLD = 100; // Minimum score to qualify (lowered for testing)
+  private static readonly MIN_SCORE_THRESHOLD = 100;
 
-  // Load leaderboard from persistent storage
-  static loadLeaderboard(): LeaderboardState {
+  // Load leaderboard from Vercel KV
+  static async loadLeaderboard(): Promise<LeaderboardState> {
     try {
-      const stored = localStorage.getItem(this.STORAGE_KEY);
-      if (!stored) {
+      const response = await fetch('/api/leaderboard');
+      if (!response.ok) {
+        console.warn('Failed to fetch leaderboard, using fallback');
         return this.getDefaultState();
       }
 
-      const parsed = JSON.parse(stored);
-
-      // Validate data structure
-      if (!Array.isArray(parsed.entries)) {
-        console.warn('Invalid leaderboard data, resetting');
+      const data = await response.json();
+      if (!data.success || !Array.isArray(data.entries)) {
         return this.getDefaultState();
       }
 
-      // Ensure all entries have required fields
-      const validEntries = parsed.entries
-        .filter((entry: any) =>
-          typeof entry.score === 'number' &&
-          typeof entry.playerName === 'string' &&
-          entry.score >= this.MIN_SCORE_THRESHOLD
-        )
-        .slice(0, this.MAX_ENTRIES);
+      // Get personal best from localStorage (client-side only)
+      const personalBest = parseInt(localStorage.getItem('pupilz_personal_best') || '0');
 
       return {
-        entries: validEntries,
-        personalBest: parsed.personalBest || 0,
-        lastRank: parsed.lastRank || null,
+        entries: data.entries,
+        personalBest,
+        lastRank: null,
         newHighScore: false
       };
     } catch (error) {
@@ -185,38 +175,72 @@ class LeaderboardManager {
     }
   }
 
-  // Save leaderboard to persistent storage
-  static saveLeaderboard(state: LeaderboardState): void {
-    try {
-      const toSave = {
-        ...state,
-        newHighScore: false // Don't persist the new high score flag
-      };
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(toSave));
-    } catch (error) {
-      console.warn('Failed to save leaderboard:', error);
-    }
-  }
-
   // Check if a score qualifies for the leaderboard
   static qualifiesForLeaderboard(score: number, currentEntries: LeaderboardEntry[]): boolean {
     if (score < this.MIN_SCORE_THRESHOLD) return false;
-
-    if (currentEntries.length < this.MAX_ENTRIES) return true;
-
+    if (currentEntries.length < 10) return true;
     const lowestScore = Math.min(...currentEntries.map(e => e.score));
     return score > lowestScore;
   }
 
-  // Add a new entry to the leaderboard
-  static addEntry(
+  // Add a new entry to the leaderboard via API
+  static async addEntry(
+    state: LeaderboardState,
+    playerName: string,
+    score: number,
+    level: number,
+    victory: boolean
+  ): Promise<{ newState: LeaderboardState; rank: number }> {
+    try {
+      const response = await fetch('/api/leaderboard', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          playerName,
+          score,
+          level,
+          victory
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add entry to leaderboard');
+      }
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to add entry');
+      }
+
+      // Update personal best in localStorage
+      const newPersonalBest = Math.max(state.personalBest, score);
+      const isNewHighScore = score > state.personalBest;
+      localStorage.setItem('pupilz_personal_best', newPersonalBest.toString());
+
+      // Reload leaderboard to get updated data
+      const updatedState = await this.loadLeaderboard();
+      updatedState.personalBest = newPersonalBest;
+      updatedState.lastRank = data.rank;
+      updatedState.newHighScore = isNewHighScore;
+
+      return { newState: updatedState, rank: data.rank };
+    } catch (error) {
+      console.error('Failed to add leaderboard entry:', error);
+      // Fallback to local state update
+      return this.addEntryLocal(state, playerName, score, level, victory);
+    }
+  }
+
+  // Fallback local method for offline functionality
+  private static addEntryLocal(
     state: LeaderboardState,
     playerName: string,
     score: number,
     level: number,
     victory: boolean
   ): { newState: LeaderboardState; rank: number } {
-
     const newEntry: LeaderboardEntry = {
       id: Date.now().toString() + Math.random().toString(36),
       playerName: playerName.toUpperCase().substring(0, 3),
@@ -227,45 +251,40 @@ class LeaderboardManager {
       achievements: this.calculateAchievements(score, level, victory)
     };
 
-    // Add entry and sort by score (descending)
     const newEntries = [...state.entries, newEntry]
       .sort((a, b) => b.score - a.score)
-      .slice(0, this.MAX_ENTRIES);
+      .slice(0, 10);
 
-    // Find the rank of the new entry
     const rank = newEntries.findIndex(entry => entry.id === newEntry.id) + 1;
-
     const newPersonalBest = Math.max(state.personalBest, score);
     const isNewHighScore = score > state.personalBest;
 
-    const newState: LeaderboardState = {
-      entries: newEntries,
-      personalBest: newPersonalBest,
-      lastRank: rank,
-      newHighScore: isNewHighScore
+    return {
+      newState: {
+        entries: newEntries,
+        personalBest: newPersonalBest,
+        lastRank: rank,
+        newHighScore: isNewHighScore
+      },
+      rank
     };
-
-    this.saveLeaderboard(newState);
-    return { newState, rank };
   }
 
   // Calculate achievements for a score
   private static calculateAchievements(score: number, level: number, victory: boolean): string[] {
     const achievements: string[] = [];
-
     if (victory) achievements.push('EARTH_REACHED');
     if (score >= 100000) achievements.push('CENTURION');
     if (score >= 250000) achievements.push('ELITE_PILOT');
     if (level >= 5) achievements.push('BOSS_FIGHTER');
-
     return achievements;
   }
 
   // Get default empty state
-  private static getDefaultState(): LeaderboardState {
+  static getDefaultState(): LeaderboardState {
     return {
       entries: [],
-      personalBest: 0,
+      personalBest: parseInt(localStorage.getItem('pupilz_personal_best') || '0'),
       lastRank: null,
       newHighScore: false
     };
@@ -1227,11 +1246,27 @@ function Game() {
   const sessionStartTime = useRef(0);
 
   // AAA Leaderboard System State
-  const [leaderboardState, setLeaderboardState] = useState<LeaderboardState>(() => LeaderboardManager.loadLeaderboard());
+  const [leaderboardState, setLeaderboardState] = useState<LeaderboardState>(() => LeaderboardManager.getDefaultState());
+  const [leaderboardLoaded, setLeaderboardLoaded] = useState(false);
   const [showNameEntry, setShowNameEntry] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [playerName, setPlayerName] = useState("");
   const [gameResultData, setGameResultData] = useState<{score: number; level: number; victory: boolean} | null>(null);
+
+  // Load leaderboard on component mount
+  useEffect(() => {
+    const loadLeaderboard = async () => {
+      try {
+        const state = await LeaderboardManager.loadLeaderboard();
+        setLeaderboardState(state);
+        setLeaderboardLoaded(true);
+      } catch (error) {
+        console.warn('Failed to load leaderboard:', error);
+        setLeaderboardLoaded(true); // Still set loaded to prevent infinite loading
+      }
+    };
+    loadLeaderboard();
+  }, []);
 
   // Legacy kill counters (for stats/debugging)
   const killsAst = useRef(0);
@@ -1251,9 +1286,12 @@ function Game() {
 
   // AAA Scoring System Functions
   const addScore = (points: number, source?: string) => {
+    console.log(`🎯 Adding ${points} points from ${source} (Before: ${currentScore.current})`);
     currentScore.current += points;
-    if (source) {
-      console.log(`🎯 +${points} pts from ${source} (Total: ${currentScore.current})`);
+    console.log(`🎯 Score now: ${currentScore.current}`);
+    if (points < 0) {
+      console.warn(`⚠️ NEGATIVE POINTS DETECTED! ${points} from ${source}`);
+      console.trace(); // Show stack trace for negative scores
     }
   };
 
@@ -1292,22 +1330,29 @@ function Game() {
   };
 
   const calculateFinalScore = () => {
+    console.log(`🔍 FINAL SCORE DEBUG - Starting score: ${currentScore.current}`);
+    console.log(`🔍 Time: ${timeSec}, SessionStart: ${sessionStartTime.current}, Lives: ${lives.current}, Level: ${level.current}`);
+
     // Add survival bonus
     const survivalTime = Math.floor(timeSec - sessionStartTime.current);
     const survivalPoints = survivalTime * SCORING_CONFIG.bonuses.survival;
+    console.log(`🔍 Survival: ${survivalTime}s * ${SCORING_CONFIG.bonuses.survival} = ${survivalPoints}`);
     addScore(survivalPoints, `${survivalTime}s survival`);
 
     // Add life bonus
     const lifePoints = lives.current * SCORING_CONFIG.bonuses.lifeBonus;
+    console.log(`🔍 Life bonus: ${lives.current} lives * ${SCORING_CONFIG.bonuses.lifeBonus} = ${lifePoints}`);
     if (lifePoints > 0) {
       addScore(lifePoints, `${lives.current} lives remaining`);
     }
 
     // Add victory bonus if won
     if (level.current >= 5) {
+      console.log(`🔍 Victory bonus: ${SCORING_CONFIG.bonuses.victoryBonus}`);
       addScore(SCORING_CONFIG.bonuses.victoryBonus, 'victory bonus');
     }
 
+    console.log(`🔍 FINAL SCORE DEBUG - End score: ${currentScore.current}`);
     return currentScore.current;
   };
 
@@ -1322,24 +1367,29 @@ function Game() {
     }
   };
 
-  const handleNameSubmit = () => {
-    if (!gameResultData || !playerName.trim()) return;
+  const handleNameSubmit = async () => {
+    const trimmedName = playerName.trim();
+    if (!gameResultData || !trimmedName) return;
 
-    const { newState, rank } = LeaderboardManager.addEntry(
-      leaderboardState,
-      playerName.trim(),
-      gameResultData.score,
-      gameResultData.level,
-      gameResultData.victory
-    );
+    try {
+      const { newState, rank } = await LeaderboardManager.addEntry(
+        leaderboardState,
+        trimmedName,
+        gameResultData.score,
+        gameResultData.level,
+        gameResultData.victory
+      );
 
-    setLeaderboardState(newState);
-    setShowNameEntry(false);
-    setPlayerName("");
-    setGameResultData(null);
+      setLeaderboardState(newState);
+      setShowNameEntry(false);
+      setPlayerName("");
+      setGameResultData(null);
 
-    console.log(`🎯 Added to leaderboard at rank ${rank}!`);
-    // Could show a celebration message here
+      console.log(`🎯 Added "${trimmedName}" to leaderboard at rank ${rank}!`);
+    } catch (error) {
+      console.error('Failed to submit score:', error);
+      // Could show error message to user here
+    }
   };
 
   const handleSkipLeaderboard = () => {
@@ -5376,15 +5426,26 @@ function Game() {
             <Text style={styles.nameEntryPrompt}>Enter your pilot name:</Text>
 
             <TextInput
-              style={styles.nameEntryInput}
+              style={[
+                styles.nameEntryInput,
+                playerName.trim() && styles.nameEntryInputActive
+              ]}
               value={playerName}
-              onChangeText={setPlayerName}
+              onChangeText={(text) => {
+                // Auto-uppercase and limit to 3 chars
+                setPlayerName(text.toUpperCase().slice(0, 3));
+              }}
               placeholder="ACE"
               placeholderTextColor="#888"
               maxLength={3}
               autoCapitalize="characters"
               autoCorrect={false}
+              autoComplete="off"
               autoFocus={true}
+              selectTextOnFocus={true}
+              blurOnSubmit={false}
+              returnKeyType="done"
+              onSubmitEditing={handleNameSubmit}
             />
 
             <View style={styles.nameEntryButtons}>
@@ -5403,13 +5464,6 @@ function Game() {
                 ]}>
                   SUBMIT
                 </Text>
-              </Pressable>
-
-              <Pressable
-                onPress={handleSkipLeaderboard}
-                style={[styles.nameEntryButton, styles.nameEntrySkip]}
-              >
-                <Text style={styles.nameEntryButtonText}>SKIP</Text>
               </Pressable>
             </View>
 
@@ -6453,33 +6507,52 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#FFD700",
     borderRadius: 8,
-    padding: 12,
-    fontSize: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 28,
     fontWeight: "bold",
     color: "#FFFFFF",
     textAlign: "center",
     width: "100%",
     marginBottom: 20,
+    minHeight: 56,
+    letterSpacing: 4,
+    // Prevent layout shift and improve stability
+    includeFontPadding: false,
+    textAlignVertical: "center",
+    // Better focus behavior
+    outlineStyle: "none",
+  },
+  nameEntryInputActive: {
+    borderColor: "#00FFFF",
+    backgroundColor: "#1f1f33",
+    shadowColor: "#00FFFF",
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   nameEntryButtons: {
     flexDirection: "row",
-    gap: 16,
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 12,
   },
   nameEntryButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 10,
     borderWidth: 2,
-    minWidth: 100,
+    minWidth: 140,
+    alignItems: "center",
+    justifyContent: "center",
   },
   nameEntrySubmit: {
     backgroundColor: "#FFD700",
     borderColor: "#FFD700",
-  },
-  nameEntrySkip: {
-    backgroundColor: "transparent",
-    borderColor: "#666",
+    shadowColor: "#FFD700",
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 6,
   },
   nameEntryButtonDisabled: {
     backgroundColor: "#444",
