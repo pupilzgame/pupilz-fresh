@@ -19,6 +19,7 @@ import {
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     useWindowDimensions,
     View,
 } from "react-native";
@@ -141,6 +142,169 @@ const SCORING_CONFIG = {
   }
 } as const;
 
+// AAA Leaderboard Management System
+class LeaderboardManager {
+  private static readonly STORAGE_KEY = 'pupilz_leaderboard_v1';
+  private static readonly MAX_ENTRIES = 10;
+  private static readonly MIN_SCORE_THRESHOLD = 100; // Minimum score to qualify (lowered for testing)
+
+  // Load leaderboard from persistent storage
+  static loadLeaderboard(): LeaderboardState {
+    try {
+      const stored = localStorage.getItem(this.STORAGE_KEY);
+      if (!stored) {
+        return this.getDefaultState();
+      }
+
+      const parsed = JSON.parse(stored);
+
+      // Validate data structure
+      if (!Array.isArray(parsed.entries)) {
+        console.warn('Invalid leaderboard data, resetting');
+        return this.getDefaultState();
+      }
+
+      // Ensure all entries have required fields
+      const validEntries = parsed.entries
+        .filter((entry: any) =>
+          typeof entry.score === 'number' &&
+          typeof entry.playerName === 'string' &&
+          entry.score >= this.MIN_SCORE_THRESHOLD
+        )
+        .slice(0, this.MAX_ENTRIES);
+
+      return {
+        entries: validEntries,
+        personalBest: parsed.personalBest || 0,
+        lastRank: parsed.lastRank || null,
+        newHighScore: false
+      };
+    } catch (error) {
+      console.warn('Failed to load leaderboard:', error);
+      return this.getDefaultState();
+    }
+  }
+
+  // Save leaderboard to persistent storage
+  static saveLeaderboard(state: LeaderboardState): void {
+    try {
+      const toSave = {
+        ...state,
+        newHighScore: false // Don't persist the new high score flag
+      };
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(toSave));
+    } catch (error) {
+      console.warn('Failed to save leaderboard:', error);
+    }
+  }
+
+  // Check if a score qualifies for the leaderboard
+  static qualifiesForLeaderboard(score: number, currentEntries: LeaderboardEntry[]): boolean {
+    if (score < this.MIN_SCORE_THRESHOLD) return false;
+
+    if (currentEntries.length < this.MAX_ENTRIES) return true;
+
+    const lowestScore = Math.min(...currentEntries.map(e => e.score));
+    return score > lowestScore;
+  }
+
+  // Add a new entry to the leaderboard
+  static addEntry(
+    state: LeaderboardState,
+    playerName: string,
+    score: number,
+    level: number,
+    victory: boolean
+  ): { newState: LeaderboardState; rank: number } {
+
+    const newEntry: LeaderboardEntry = {
+      id: Date.now().toString() + Math.random().toString(36),
+      playerName: playerName.toUpperCase().substring(0, 3),
+      score,
+      level,
+      victory,
+      timestamp: Date.now(),
+      achievements: this.calculateAchievements(score, level, victory)
+    };
+
+    // Add entry and sort by score (descending)
+    const newEntries = [...state.entries, newEntry]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, this.MAX_ENTRIES);
+
+    // Find the rank of the new entry
+    const rank = newEntries.findIndex(entry => entry.id === newEntry.id) + 1;
+
+    const newPersonalBest = Math.max(state.personalBest, score);
+    const isNewHighScore = score > state.personalBest;
+
+    const newState: LeaderboardState = {
+      entries: newEntries,
+      personalBest: newPersonalBest,
+      lastRank: rank,
+      newHighScore: isNewHighScore
+    };
+
+    this.saveLeaderboard(newState);
+    return { newState, rank };
+  }
+
+  // Calculate achievements for a score
+  private static calculateAchievements(score: number, level: number, victory: boolean): string[] {
+    const achievements: string[] = [];
+
+    if (victory) achievements.push('EARTH_REACHED');
+    if (score >= 100000) achievements.push('CENTURION');
+    if (score >= 250000) achievements.push('ELITE_PILOT');
+    if (level >= 5) achievements.push('BOSS_FIGHTER');
+
+    return achievements;
+  }
+
+  // Get default empty state
+  private static getDefaultState(): LeaderboardState {
+    return {
+      entries: [],
+      personalBest: 0,
+      lastRank: null,
+      newHighScore: false
+    };
+  }
+
+  // Get rank suffix (1st, 2nd, 3rd, 4th, etc.)
+  static getRankSuffix(rank: number): string {
+    const lastDigit = rank % 10;
+    const lastTwoDigits = rank % 100;
+
+    if (lastTwoDigits >= 11 && lastTwoDigits <= 13) {
+      return `${rank}th`;
+    }
+
+    switch (lastDigit) {
+      case 1: return `${rank}st`;
+      case 2: return `${rank}nd`;
+      case 3: return `${rank}rd`;
+      default: return `${rank}th`;
+    }
+  }
+
+  // Format score for display
+  static formatScore(score: number): string {
+    return score.toLocaleString();
+  }
+
+  // Get achievement display name
+  static getAchievementName(achievement: string): string {
+    const names: Record<string, string> = {
+      'EARTH_REACHED': '🌍 Earth Reached',
+      'CENTURION': '💯 Centurion',
+      'ELITE_PILOT': '⭐ Elite Pilot',
+      'BOSS_FIGHTER': '👾 Boss Fighter'
+    };
+    return names[achievement] || achievement;
+  }
+}
+
 // Universal scoring function for any enemy type
 const calculateEnemyScore = (
   enemyType: 'asteroid' | 'barrier' | 'ship' | 'boss',
@@ -208,6 +372,24 @@ type ScorePopup = {
   score: number;
   ttl: number;
   maxTtl: number;
+};
+
+// AAA Leaderboard System Types
+type LeaderboardEntry = {
+  id: string;
+  playerName: string;
+  score: number;
+  level: number;
+  victory: boolean;
+  timestamp: number;
+  achievements: string[];
+};
+
+type LeaderboardState = {
+  entries: LeaderboardEntry[];
+  personalBest: number;
+  lastRank: number | null;
+  newHighScore: boolean;
 };
 
 /* ---------- Tunables ---------- */
@@ -527,9 +709,10 @@ type EnhancedMenuProps = {
   onToggleHandedness: () => void;
   musicEnabled: boolean;
   onToggleMusic: () => void;
+  onShowLeaderboard: () => void;
 };
 
-const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic }) => {
+const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic, onShowLeaderboard }) => {
   const [openId, setOpenId] = useState<string>("");
   const [animPhase, setAnimPhase] = useState(0);
   const menuStarsRef = useRef<Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}>>([]);
@@ -648,9 +831,20 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
             )
           ))}
         </View>
-        
-        <Pressable 
-          onPress={onStart} 
+
+        <Pressable
+          onPress={onShowLeaderboard}
+          style={({ pressed }) => [
+            styles.leaderboardButton,
+            pressed && styles.leaderboardButtonPressed,
+            { opacity: subtleFade }
+          ]}
+        >
+          <Text style={styles.leaderboardButtonText}>🏆 TOP PILOTS</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={onStart}
           style={({ pressed }) => [
             styles.menuCTA,
             pressed && styles.menuCTAPressed,
@@ -1032,6 +1226,13 @@ function Game() {
   const currentScore = useRef(0);
   const sessionStartTime = useRef(0);
 
+  // AAA Leaderboard System State
+  const [leaderboardState, setLeaderboardState] = useState<LeaderboardState>(() => LeaderboardManager.loadLeaderboard());
+  const [showNameEntry, setShowNameEntry] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [playerName, setPlayerName] = useState("");
+  const [gameResultData, setGameResultData] = useState<{score: number; level: number; victory: boolean} | null>(null);
+
   // Legacy kill counters (for stats/debugging)
   const killsAst = useRef(0);
   const killsBar = useRef(0);
@@ -1108,6 +1309,43 @@ function Game() {
     }
 
     return currentScore.current;
+  };
+
+  // AAA Leaderboard Integration Functions
+  const checkLeaderboardQualification = (score: number, level: number, victory: boolean) => {
+    if (LeaderboardManager.qualifiesForLeaderboard(score, leaderboardState.entries)) {
+      console.log(`🏆 Score ${score} qualifies for leaderboard!`);
+      setGameResultData({ score, level, victory });
+      setShowNameEntry(true);
+    } else {
+      console.log(`📊 Score ${score} doesn't qualify for leaderboard (minimum: 100)`);
+    }
+  };
+
+  const handleNameSubmit = () => {
+    if (!gameResultData || !playerName.trim()) return;
+
+    const { newState, rank } = LeaderboardManager.addEntry(
+      leaderboardState,
+      playerName.trim(),
+      gameResultData.score,
+      gameResultData.level,
+      gameResultData.victory
+    );
+
+    setLeaderboardState(newState);
+    setShowNameEntry(false);
+    setPlayerName("");
+    setGameResultData(null);
+
+    console.log(`🎯 Added to leaderboard at rank ${rank}!`);
+    // Could show a celebration message here
+  };
+
+  const handleSkipLeaderboard = () => {
+    setShowNameEntry(false);
+    setPlayerName("");
+    setGameResultData(null);
   };
 
   // Audio system functions
@@ -3088,7 +3326,9 @@ function Game() {
       // No lives left - true game over with dramatic pause
       finalDeathSequence.current = true; // Hide pod during final death
       projs.current = []; // Clear all player projectiles immediately
-      calculateFinalScore(); // Calculate final score with bonuses
+      const finalScore = calculateFinalScore(); // Calculate final score with bonuses
+      console.log(`💀 GAME OVER! Final score: ${finalScore}, Level: ${level.current}`);
+      checkLeaderboardQualification(finalScore, level.current, false); // Check for leaderboard entry
 
       // Add 2.5-second delay to let pod explosion sink in
       setTimeout(() => {
@@ -4030,7 +4270,9 @@ function Game() {
             // 2-second delay for dramatic effect after ring disintegrates
             setTimeout(() => {
               console.log('VICTORY SEQUENCE - Showing EARTH REACHED message');
-              calculateFinalScore(); // Calculate final score with victory bonus
+              const finalScore = calculateFinalScore(); // Calculate final score with victory bonus
+              console.log(`🎉 VICTORY! Final score: ${finalScore}, Level: ${level.current}`);
+              checkLeaderboardQualification(finalScore, level.current, true); // Check for leaderboard entry
               startVictoryCelebration(); // 🎉 START THE PARTY! 🎉
               setPhase("win");
             }, 2000);
@@ -4978,12 +5220,13 @@ function Game() {
             </Text>
           )}
 
-          {phase === "menu" && <EnhancedMenu 
-            onStart={startGame} 
-            leftHandedMode={leftHandedMode.current} 
+          {phase === "menu" && <EnhancedMenu
+            onStart={startGame}
+            leftHandedMode={leftHandedMode.current}
             onToggleHandedness={toggleHandedness}
             musicEnabled={musicEnabled}
             onToggleMusic={toggleMusic}
+            onShowLeaderboard={() => setShowLeaderboard(true)}
           />}
 
           {phase === "win" && (
@@ -5119,6 +5362,103 @@ function Game() {
               </View>
             </>
           )}
+        </View>
+      )}
+
+      {/* AAA Name Entry Modal for High Scores */}
+      {showNameEntry && (
+        <View style={styles.nameEntryOverlay}>
+          <View style={styles.nameEntryModal}>
+            <Text style={styles.nameEntryTitle}>🏆 HIGH SCORE! 🏆</Text>
+            <Text style={styles.nameEntrySubtitle}>
+              Score: {gameResultData?.score.toLocaleString()} • Level: {gameResultData?.level}
+            </Text>
+            <Text style={styles.nameEntryPrompt}>Enter your pilot name:</Text>
+
+            <TextInput
+              style={styles.nameEntryInput}
+              value={playerName}
+              onChangeText={setPlayerName}
+              placeholder="ACE"
+              placeholderTextColor="#888"
+              maxLength={3}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              autoFocus={true}
+            />
+
+            <View style={styles.nameEntryButtons}>
+              <Pressable
+                onPress={handleNameSubmit}
+                disabled={!playerName.trim()}
+                style={[
+                  styles.nameEntryButton,
+                  styles.nameEntrySubmit,
+                  !playerName.trim() && styles.nameEntryButtonDisabled
+                ]}
+              >
+                <Text style={[
+                  styles.nameEntryButtonText,
+                  !playerName.trim() && styles.nameEntryButtonTextDisabled
+                ]}>
+                  SUBMIT
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={handleSkipLeaderboard}
+                style={[styles.nameEntryButton, styles.nameEntrySkip]}
+              >
+                <Text style={styles.nameEntryButtonText}>SKIP</Text>
+              </Pressable>
+            </View>
+
+            <Text style={styles.nameEntryHint}>3 characters max • Will be shown in CAPS</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Leaderboard Display Modal */}
+      {showLeaderboard && (
+        <View style={styles.leaderboardOverlay}>
+          <View style={styles.leaderboardModal}>
+            <Text style={styles.leaderboardTitle}>🏆 TOP PILOTS 🏆</Text>
+
+            <ScrollView style={styles.leaderboardList}>
+              {leaderboardState.entries.map((entry, index) => {
+                const rank = index + 1;
+                const isPersonalBest = entry.score === leaderboardState.personalBest;
+
+                return (
+                  <View key={entry.id} style={[
+                    styles.leaderboardEntry,
+                    isPersonalBest && styles.leaderboardEntryPersonal
+                  ]}>
+                    <Text style={styles.leaderboardRank}>
+                      {LeaderboardManager.getRankSuffix(rank)}
+                    </Text>
+                    <Text style={styles.leaderboardName}>{entry.playerName}</Text>
+                    <Text style={styles.leaderboardScore}>
+                      {LeaderboardManager.formatScore(entry.score)}
+                    </Text>
+                    <Text style={styles.leaderboardLevel}>Lvl {entry.level}</Text>
+                    {entry.victory && <Text style={styles.leaderboardVictory}>🌍</Text>}
+                  </View>
+                );
+              })}
+
+              {leaderboardState.entries.length === 0 && (
+                <Text style={styles.leaderboardEmpty}>No scores yet. Be the first!</Text>
+              )}
+            </ScrollView>
+
+            <Pressable
+              onPress={() => setShowLeaderboard(false)}
+              style={styles.leaderboardCloseButton}
+            >
+              <Text style={styles.leaderboardCloseText}>CLOSE</Text>
+            </Pressable>
+          </View>
         </View>
       )}
     </View>
@@ -6061,5 +6401,230 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
     zIndex: 1000,
+  },
+
+  // AAA Leaderboard Name Entry Styles
+  nameEntryOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 2000,
+  },
+  nameEntryModal: {
+    backgroundColor: "#1a1a2e",
+    borderRadius: 16,
+    padding: 32,
+    width: "85%",
+    maxWidth: 400,
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FFD700",
+    shadowColor: "#FFD700",
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  nameEntryTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#FFD700",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  nameEntrySubtitle: {
+    fontSize: 16,
+    color: "#FFFFFF",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  nameEntryPrompt: {
+    fontSize: 18,
+    color: "#FFFFFF",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  nameEntryInput: {
+    backgroundColor: "#2a2a3e",
+    borderWidth: 2,
+    borderColor: "#FFD700",
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    textAlign: "center",
+    width: "100%",
+    marginBottom: 20,
+  },
+  nameEntryButtons: {
+    flexDirection: "row",
+    gap: 16,
+    marginBottom: 12,
+  },
+  nameEntryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 2,
+    minWidth: 100,
+  },
+  nameEntrySubmit: {
+    backgroundColor: "#FFD700",
+    borderColor: "#FFD700",
+  },
+  nameEntrySkip: {
+    backgroundColor: "transparent",
+    borderColor: "#666",
+  },
+  nameEntryButtonDisabled: {
+    backgroundColor: "#444",
+    borderColor: "#666",
+  },
+  nameEntryButtonText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    textAlign: "center",
+    color: "#1a1a2e",
+  },
+  nameEntryButtonTextDisabled: {
+    color: "#888",
+  },
+  nameEntryHint: {
+    fontSize: 12,
+    color: "#888",
+    textAlign: "center",
+  },
+
+  // AAA Leaderboard Display Styles
+  leaderboardOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 2000,
+  },
+  leaderboardModal: {
+    backgroundColor: "#1a1a2e",
+    borderRadius: 16,
+    padding: 24,
+    width: "90%",
+    maxWidth: 500,
+    height: "70%",
+    borderWidth: 2,
+    borderColor: "#FFD700",
+    shadowColor: "#FFD700",
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  leaderboardTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#FFD700",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  leaderboardList: {
+    flex: 1,
+    marginBottom: 20,
+  },
+  leaderboardEntry: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#2a2a3e",
+    marginBottom: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#444",
+  },
+  leaderboardEntryPersonal: {
+    borderColor: "#FFD700",
+    backgroundColor: "rgba(255, 215, 0, 0.1)",
+  },
+  leaderboardRank: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#FFD700",
+    width: 50,
+  },
+  leaderboardName: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    flex: 1,
+  },
+  leaderboardScore: {
+    fontSize: 16,
+    color: "#FFFFFF",
+    width: 80,
+    textAlign: "right",
+  },
+  leaderboardLevel: {
+    fontSize: 14,
+    color: "#888",
+    width: 50,
+    textAlign: "right",
+  },
+  leaderboardVictory: {
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  leaderboardEmpty: {
+    fontSize: 16,
+    color: "#888",
+    textAlign: "center",
+    marginTop: 50,
+  },
+  leaderboardCloseButton: {
+    backgroundColor: "#FFD700",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignSelf: "center",
+  },
+  leaderboardCloseText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#1a1a2e",
+  },
+
+  // Menu Leaderboard Button Styles
+  leaderboardButton: {
+    backgroundColor: "rgba(255, 215, 0, 0.15)",
+    borderWidth: 2,
+    borderColor: "#FFD700",
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 16,
+    marginBottom: 8,
+    shadowColor: "#FFD700",
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  leaderboardButtonPressed: {
+    backgroundColor: "rgba(255, 215, 0, 0.3)",
+    transform: [{ scale: 0.98 }],
+  },
+  leaderboardButtonText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#FFD700",
+    textShadowColor: "rgba(255, 215, 0, 0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 });
