@@ -13,10 +13,10 @@ const nextConfig = {
   // Ensure proper handling of static files
   trailingSlash: false,
 
-  // Environment variables for KV
+  // Environment variables for Supabase
   env: {
-    KV_REST_API_URL: process.env.KV_REST_API_URL,
-    KV_REST_API_TOKEN: process.env.KV_REST_API_TOKEN,
+    SUPABASE_URL: process.env.SUPABASE_URL,
+    SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
   },
 }
 

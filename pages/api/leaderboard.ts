@@ -1,24 +1,23 @@
-import { kv } from '@vercel/kv';
+import { createClient } from '@supabase/supabase-js';
 import type { NextApiRequest, NextApiResponse } from 'next';
+
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.SUPABASE_URL || '',
+  process.env.SUPABASE_ANON_KEY || ''
+);
 
 // AAA Leaderboard Types
 type LeaderboardEntry = {
   id: string;
-  playerName: string;
+  player_name: string;
   score: number;
   level: number;
   victory: boolean;
-  timestamp: number;
+  timestamp: string;
   achievements: string[];
 };
 
-type LeaderboardResponse = {
-  entries: LeaderboardEntry[];
-  personalBest?: number;
-  lastRank?: number | null;
-};
-
-const LEADERBOARD_KEY = 'pupilz_global_leaderboard';
 const MAX_ENTRIES = 10;
 const MIN_SCORE_THRESHOLD = 100;
 
@@ -35,14 +34,34 @@ const calculateAchievements = (score: number, level: number, victory: boolean): 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     if (req.method === 'GET') {
-      // Get leaderboard
-      const entries = await kv.lrange(LEADERBOARD_KEY, 0, MAX_ENTRIES - 1);
-      const parsedEntries = entries.map(entry =>
-        typeof entry === 'string' ? JSON.parse(entry) : entry
-      ) as LeaderboardEntry[];
+      // Get top leaderboard entries
+      const { data: entries, error } = await supabase
+        .from('leaderboard')
+        .select('*')
+        .order('score', { ascending: false })
+        .limit(MAX_ENTRIES);
+
+      if (error) {
+        console.error('Supabase GET error:', error);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to fetch leaderboard'
+        });
+      }
+
+      // Transform data to match expected format
+      const transformedEntries = entries?.map(entry => ({
+        id: entry.id,
+        playerName: entry.player_name,
+        score: entry.score,
+        level: entry.level,
+        victory: entry.victory,
+        timestamp: new Date(entry.timestamp).getTime(),
+        achievements: entry.achievements || []
+      })) || [];
 
       res.status(200).json({
-        entries: parsedEntries,
+        entries: transformedEntries,
         success: true
       });
 
@@ -59,41 +78,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       // Create new entry
-      const newEntry: LeaderboardEntry = {
-        id: Date.now().toString() + Math.random().toString(36),
-        playerName: playerName.toUpperCase().substring(0, 3),
+      const newEntry = {
+        player_name: playerName.toUpperCase().substring(0, 3),
         score,
         level,
         victory,
-        timestamp: Date.now(),
+        timestamp: new Date().toISOString(),
         achievements: calculateAchievements(score, level, victory)
       };
 
-      // Get current leaderboard
-      const currentEntries = await kv.lrange(LEADERBOARD_KEY, 0, -1);
-      const parsedCurrentEntries = currentEntries.map(entry =>
-        typeof entry === 'string' ? JSON.parse(entry) : entry
-      ) as LeaderboardEntry[];
+      // Insert into Supabase
+      const { data, error } = await supabase
+        .from('leaderboard')
+        .insert([newEntry])
+        .select()
+        .single();
 
-      // Add new entry and sort by score (descending)
-      const updatedEntries = [...parsedCurrentEntries, newEntry]
-        .sort((a, b) => b.score - a.score)
-        .slice(0, MAX_ENTRIES);
-
-      // Find the rank of the new entry
-      const rank = updatedEntries.findIndex(entry => entry.id === newEntry.id) + 1;
-
-      // Clear old leaderboard and add updated entries
-      await kv.del(LEADERBOARD_KEY);
-      if (updatedEntries.length > 0) {
-        const serializedEntries = updatedEntries.map(entry => JSON.stringify(entry));
-        await kv.rpush(LEADERBOARD_KEY, ...serializedEntries);
+      if (error) {
+        console.error('Supabase INSERT error:', error);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to save score'
+        });
       }
+
+      // Get current rank by counting scores higher than this one
+      const { count } = await supabase
+        .from('leaderboard')
+        .select('*', { count: 'exact', head: true })
+        .gt('score', score);
+
+      const rank = (count || 0) + 1;
 
       res.status(200).json({
         success: true,
         rank,
-        entry: newEntry
+        entry: {
+          id: data.id,
+          playerName: data.player_name,
+          score: data.score,
+          level: data.level,
+          victory: data.victory,
+          timestamp: new Date(data.timestamp).getTime(),
+          achievements: data.achievements || []
+        }
       });
 
     } else {
