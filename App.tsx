@@ -881,8 +881,29 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
 function Game() {
   // PWA and Telegram WebApp integration
   useFullScreenPWA();
-  
+
   const { width, height } = useWindowDimensions();
+
+  // TELEGRAM DEBUG: Add comprehensive logging for debugging
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      console.log('🔍 TELEGRAM DEBUG - Environment Check:');
+      console.log('  - Window dimensions:', width, 'x', height);
+      console.log('  - User agent:', navigator.userAgent);
+      console.log('  - Is Telegram WebApp:', !!(window as any).Telegram?.WebApp);
+
+      if ((window as any).Telegram?.WebApp) {
+        const tg = (window as any).Telegram.WebApp;
+        console.log('  - Telegram version:', tg.version);
+        console.log('  - Is expanded:', tg.isExpanded);
+        console.log('  - Viewport height:', tg.viewportHeight);
+        console.log('  - Viewport stable height:', tg.viewportStableHeight);
+        console.log('  - Platform:', tg.platform);
+        console.log('  - Color scheme:', tg.colorScheme);
+        console.log('  - Theme params:', tg.themeParams);
+      }
+    }
+  }, [width, height]);
   const rawInsets = useSafeAreaInsets();
   // Safety fallback for insets to prevent undefined errors
   const insets = {
@@ -2445,6 +2466,7 @@ function Game() {
     hudFadeT.current = 4.0; // Extended HUD visibility
     canSkipCountdown.current = false;
     playRespawnSound(); // Play SFX for pod respawn
+    console.log('🎮 TELEGRAM DEBUG - Setting phase to "playing" from respawnPlayer');
     setPhase("playing");
   };
   
@@ -2561,6 +2583,7 @@ function Game() {
 
   /* ----- Loop (always running) ----- */
   useEffect(() => {
+    console.log('🎮 TELEGRAM DEBUG - Starting game loop with dimensions:', width, 'x', height);
     hardResetWorld();
     last.current = null;
 
@@ -4500,7 +4523,8 @@ function Game() {
     podX.current = width / 2;
     
     console.log('🛸 MOTHERSHIP ARRIVAL: Drop-off sequence initiated');
-    
+    console.log('🎮 TELEGRAM DEBUG - Setting phase to "playing" from startGame');
+
     setPhase("playing"); 
     // Audio handled by phase useEffect
   };
@@ -5205,6 +5229,7 @@ function Game() {
         onMoveShouldSetResponder={() => false} // Don't steal moves from other components
         onResponderTerminationRequest={() => true} // Always allow termination
         onResponderGrant={(e) => {
+          console.log('🎮 TELEGRAM DEBUG - Touch detected, phase:', phase);
           if (phase !== "playing") return;
 
           const touch = e.nativeEvent;
