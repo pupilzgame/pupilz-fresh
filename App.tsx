@@ -1268,27 +1268,43 @@ function Game() {
     };
 
     const detectTelegramUser = () => {
-      // Check if running in Telegram WebApp
-      if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
-        const tg = (window as any).Telegram.WebApp;
-        const user = tg.initDataUnsafe?.user;
+      try {
+        // Check if running in Telegram WebApp
+        if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
+          const tg = (window as any).Telegram.WebApp;
+          console.log('🔍 Telegram WebApp detected, checking user data...');
 
-        if (user) {
-          // Use username if available, otherwise use first_name
-          const username = user.username || user.first_name || 'Player';
-          console.log('🤖 Detected Telegram user:', username);
-          setTelegramUsername(username);
-          setPlayerName(username.toUpperCase().slice(0, 8)); // Allow up to 8 chars for usernames
+          // Initialize Telegram WebApp if needed
+          if (typeof tg.ready === 'function') {
+            tg.ready();
+          }
+
+          const user = tg.initDataUnsafe?.user;
+
+          if (user && (user.username || user.first_name)) {
+            // Use username if available, otherwise use first_name
+            const username = user.username || user.first_name || 'Player';
+            console.log('🤖 Detected Telegram user:', username);
+            setTelegramUsername(username);
+            setPlayerName(username.toUpperCase().slice(0, 8)); // Allow up to 8 chars for usernames
+          } else {
+            console.log('🔍 No Telegram user data available');
+          }
         } else {
-          console.log('🔍 No Telegram user data available');
+          console.log('🌐 Not running in Telegram WebApp');
         }
-      } else {
-        console.log('🌐 Not running in Telegram WebApp');
+      } catch (error) {
+        console.error('❌ Error detecting Telegram user:', error);
+        // Don't let Telegram detection errors break the app
       }
     };
 
     loadLeaderboard();
-    detectTelegramUser();
+
+    // Delay Telegram detection to ensure WebApp is fully initialized
+    setTimeout(() => {
+      detectTelegramUser();
+    }, 100);
   }, []);
 
   // Legacy kill counters (for stats/debugging)
@@ -3424,7 +3440,10 @@ function Game() {
       projs.current = []; // Clear all player projectiles immediately
       const finalScore = calculateFinalScore(); // Calculate final score with bonuses
       console.log(`💀 GAME OVER! Final score: ${finalScore}, Level: ${level.current}`);
-      checkLeaderboardQualification(finalScore, level.current, false); // Check for leaderboard entry
+      // Check for leaderboard entry (don't await to avoid blocking)
+      checkLeaderboardQualification(finalScore, level.current, false).catch(error => {
+        console.error('Failed to check leaderboard qualification:', error);
+      });
 
       // Add 2.5-second delay to let pod explosion sink in
       setTimeout(() => {
@@ -4368,7 +4387,10 @@ function Game() {
               console.log('VICTORY SEQUENCE - Showing EARTH REACHED message');
               const finalScore = calculateFinalScore(); // Calculate final score with victory bonus
               console.log(`🎉 VICTORY! Final score: ${finalScore}, Level: ${level.current}`);
-              checkLeaderboardQualification(finalScore, level.current, true); // Check for leaderboard entry
+              // Check for leaderboard entry (don't await to avoid blocking)
+              checkLeaderboardQualification(finalScore, level.current, true).catch(error => {
+                console.error('Failed to check leaderboard qualification:', error);
+              });
               startVictoryCelebration(); // 🎉 START THE PARTY! 🎉
               setPhase("win");
             }, 2000);
