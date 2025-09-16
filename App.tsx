@@ -3216,53 +3216,53 @@ function Game() {
     console.log(`🎉 ACQUISITION: ${message}`);
   };
 
-  const createConfetti = () => {
-    const colors = ["#FFD700", "#FF6B35", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD", "#98D8C8"];
-    const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
+  // DISABLED FOR PERFORMANCE - const createConfetti = () => {
+  //   const colors = ["#FFD700", "#FF6B35", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD", "#98D8C8"];
+  //   const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
 
-    // Conservative confetti count for stability
-    for (let i = 0; i < 15; i++) {
-      particles.current.push({
-        id: idBase + i + 1,
-        x: Math.random() * width,
-        y: -20,
-        vx: rand(-30, 30),
-        vy: rand(100, 200),
-        r: rand(2, 5),
-        ttl: rand(3, 5),
-        color: colors[Math.floor(Math.random() * colors.length)]
-      });
-    }
-  };
+  //   // Conservative confetti count for stability
+  //   for (let i = 0; i < 15; i++) {
+  //     particles.current.push({
+  //       id: idBase + i + 1,
+  //       x: Math.random() * width,
+  //       y: -20,
+  //       vx: rand(-30, 30),
+  //       vy: rand(100, 200),
+  //       r: rand(2, 5),
+  //       ttl: rand(3, 5),
+  //       color: colors[Math.floor(Math.random() * colors.length)]
+  //     });
+  //   }
+  // };
 
-  const createFirework = (x: number, y: number) => {
-    const colors = ["#FFD700", "#FF1744", "#00E676", "#2196F3", "#FF9800", "#E91E63", "#9C27B0"];
-    const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
-    const particleCount = 12; // Conservative count for stability
+  // DISABLED FOR PERFORMANCE - const createFirework = (x: number, y: number) => {
+  //   const colors = ["#FFD700", "#FF1744", "#00E676", "#2196F3", "#FF9800", "#E91E63", "#9C27B0"];
+  //   const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
+  //   const particleCount = 12; // Conservative count for stability
 
-    for (let i = 0; i < particleCount; i++) {
-      const angle = (i / particleCount) * Math.PI * 2;
-      const speed = rand(120, 250);
-      particles.current.push({
-        id: idBase + i + 1,
-        x, y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        r: rand(2, 4),
-        ttl: rand(1.5, 2.5),
-        color: colors[Math.floor(Math.random() * colors.length)]
-      });
-    }
-  };
+  //   for (let i = 0; i < particleCount; i++) {
+  //     const angle = (i / particleCount) * Math.PI * 2;
+  //     const speed = rand(120, 250);
+  //     particles.current.push({
+  //       id: idBase + i + 1,
+  //       x, y,
+  //       vx: Math.cos(angle) * speed,
+  //       vy: Math.sin(angle) * speed,
+  //       r: rand(2, 4),
+  //       ttl: rand(1.5, 2.5),
+  //       color: colors[Math.floor(Math.random() * colors.length)]
+  //     });
+  //   }
+  // };
 
-  const startVictoryCelebration = () => {
-    // Simple celebration for all devices
-    setTimeout(() => createFirework(width * 0.4, height * 0.4), 500);
-    setTimeout(() => createFirework(width * 0.6, height * 0.3), 1200);
+  // DISABLED FOR PERFORMANCE - const startVictoryCelebration = () => {
+  //   // Simple celebration for all devices
+  //   setTimeout(() => createFirework(width * 0.4, height * 0.4), 500);
+  //   setTimeout(() => createFirework(width * 0.6, height * 0.3), 1200);
 
-    createConfetti();
-    setTimeout(() => createConfetti(), 2000);
-  };
+  //   createConfetti();
+  //   setTimeout(() => createConfetti(), 2000);
+  // };
 
   const ringDisintegrate = (centerX: number, centerY: number, radius: number) => {
     const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
@@ -4431,7 +4431,7 @@ function Game() {
               checkLeaderboardQualification(finalScore, level.current, true).catch(error => {
                 console.error('Failed to check leaderboard qualification:', error);
               });
-              startVictoryCelebration(); // 🎉 START THE PARTY! 🎉
+              // startVictoryCelebration(); // 🎉 DISABLED FOR PERFORMANCE 🎉
               setPhase("win");
             }, 2000);
             return;
