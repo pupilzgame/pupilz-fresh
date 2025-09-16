@@ -875,16 +875,35 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
           ))}
         </View>
 
-        <Pressable
-          onPress={onShowLeaderboard}
-          style={({ pressed }) => [
-            styles.leaderboardButton,
-            pressed && styles.leaderboardButtonPressed,
-            { opacity: subtleFade }
-          ]}
-        >
-          <Text style={styles.leaderboardButtonText}>🏆 TOP PILOTS</Text>
-        </Pressable>
+        <View style={styles.socialButtonContainer}>
+          <Pressable
+            onPress={onShowLeaderboard}
+            style={({ pressed }) => [
+              styles.smallButton,
+              styles.leaderboardButtonSmall,
+              pressed && styles.smallButtonPressed,
+              { opacity: subtleFade }
+            ]}
+          >
+            <Text style={styles.smallButtonText}>🏆 TOP PILOTS</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => {
+              if (typeof window !== 'undefined') {
+                window.open('https://x.com/ThePupilz', '_blank');
+              }
+            }}
+            style={({ pressed }) => [
+              styles.smallButton,
+              styles.xButtonSmall,
+              pressed && styles.smallButtonPressed,
+              { opacity: subtleFade }
+            ]}
+          >
+            <Text style={styles.smallButtonText}>🐦 FOLLOW X</Text>
+          </Pressable>
+        </View>
 
         <Pressable
           onPress={onStart}
@@ -6348,8 +6367,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   logoImage: {
-    width: 220, // Reduced from 250 for better fit
-    height: 70,  // Reduced from 80 for better fit
+    width: 330, // 1.5x bigger for better prominence
+    height: 105,  // 1.5x bigger for better prominence
     marginBottom: 8,
     alignSelf: 'center',
   },
@@ -6870,5 +6889,48 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(255, 215, 0, 0.5)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
+  },
+
+  // Social Button Container and Small Buttons
+  socialButtonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 16,
+    marginBottom: 8,
+    paddingHorizontal: 8,
+    gap: 12,
+  },
+  smallButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  leaderboardButtonSmall: {
+    backgroundColor: "rgba(255, 215, 0, 0.15)",
+    borderWidth: 2,
+    borderColor: "#FFD700",
+    shadowColor: "#FFD700",
+  },
+  xButtonSmall: {
+    backgroundColor: "rgba(29, 161, 242, 0.15)",
+    borderWidth: 2,
+    borderColor: "#1DA1F2",
+    shadowColor: "#1DA1F2",
+  },
+  smallButtonPressed: {
+    transform: [{ scale: 0.96 }],
+    opacity: 0.8,
+  },
+  smallButtonText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 });
