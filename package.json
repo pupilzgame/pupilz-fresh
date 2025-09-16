@@ -7,7 +7,10 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "dev": "next dev",
+    "build": "next build",
+    "next-start": "next start"
   },
   "dependencies": {
     "@expo/metro-runtime": "~5.0.4",
@@ -16,6 +19,7 @@
     "expo": "~53.0.22",
     "expo-av": "^15.1.7",
     "expo-status-bar": "~2.2.3",
+    "next": "^15.0.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-native": "0.79.5",
