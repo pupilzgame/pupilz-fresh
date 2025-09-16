@@ -2619,9 +2619,9 @@ function Game() {
 
       update(dt);
 
-      // Ultra-aggressive frame skipping for mobile - only re-render every 6 frames (10fps React updates)
+      // Balanced frame skipping for mobile - re-render every 4 frames (15fps React updates)
       tickCounter.current = (tickCounter.current || 0) + 1;
-      if (tickCounter.current % 6 === 0) {
+      if (tickCounter.current % 4 === 0 || tickCounter.current === 1) {
         setTick((n) => n + 1);
       }
       raf.current = requestAnimationFrame(tick);
