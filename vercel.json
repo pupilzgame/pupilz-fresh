@@ -1,11 +1,6 @@
 {
   "buildCommand": "npx expo export --platform web",
   "outputDirectory": "dist",
-  "functions": {
-    "pages/api/**/*.ts": {
-      "runtime": "nodejs18.x"
-    }
-  },
   "rewrites": [
     {
       "source": "/((?!api).*)",
