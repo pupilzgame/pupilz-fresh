@@ -92,7 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Create new entry
       const newEntry = {
-        player_name: playerName.toUpperCase().substring(0, 3),
+        player_name: playerName.toUpperCase().substring(0, 12),
         score,
         level,
         victory,
