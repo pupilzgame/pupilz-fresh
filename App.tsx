@@ -795,7 +795,7 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
           star.x = Math.random() * width;
         }
       });
-    }, 32); // 30fps for mobile performance (was 16ms/60fps)
+    }, 50); // 20fps for ultra mobile performance (was 16ms/60fps)
     
     return () => clearInterval(interval);
   }, [width, height]);
@@ -2619,9 +2619,9 @@ function Game() {
 
       update(dt);
 
-      // Only trigger React re-render every 3 frames for mobile performance
+      // Ultra-aggressive frame skipping for mobile - only re-render every 6 frames (10fps React updates)
       tickCounter.current = (tickCounter.current || 0) + 1;
-      if (tickCounter.current % 3 === 0) {
+      if (tickCounter.current % 6 === 0) {
         setTick((n) => n + 1);
       }
       raf.current = requestAnimationFrame(tick);
@@ -3215,8 +3215,8 @@ function Game() {
     const colors = ["#FFD700", "#FF6B35", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD", "#98D8C8"];
     const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
 
-    // Reduced confetti for mobile performance - 25 instead of 50
-    for (let i = 0; i < 25; i++) {
+    // Ultra-minimal confetti for mobile performance - 10 instead of 50
+    for (let i = 0; i < 10; i++) {
       particles.current.push({
         id: idBase + i + 1,
         x: Math.random() * width,
@@ -3233,7 +3233,7 @@ function Game() {
   const createFirework = (x: number, y: number) => {
     const colors = ["#FFD700", "#FF1744", "#00E676", "#2196F3", "#FF9800", "#E91E63", "#9C27B0"];
     const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
-    const particleCount = 15; // Reduced from 25 for mobile performance
+    const particleCount = 8; // Ultra-minimal for mobile performance
 
     for (let i = 0; i < particleCount; i++) {
       const angle = (i / particleCount) * Math.PI * 2;
@@ -3251,21 +3251,20 @@ function Game() {
   };
 
   const startVictoryCelebration = () => {
-    // Reduced fireworks for mobile performance - only 3 instead of 7
-    setTimeout(() => createFirework(width * 0.3, height * 0.4), 200);
-    setTimeout(() => createFirework(width * 0.7, height * 0.3), 800);
-    setTimeout(() => createFirework(width * 0.5, height * 0.5), 1500);
+    // Ultra-minimal fireworks for mobile performance - only 2 instead of 7
+    setTimeout(() => createFirework(width * 0.4, height * 0.4), 500);
+    setTimeout(() => createFirework(width * 0.6, height * 0.3), 1200);
 
-    // Reduced confetti frequency for mobile
+    // Minimal confetti for mobile
     createConfetti();
     const confettiInterval = setInterval(() => {
       createConfetti();
-    }, 1500); // Less frequent confetti
+    }, 2000); // Much less frequent confetti
 
-    // Stop confetti after 6 seconds (shorter for mobile)
+    // Stop confetti after 4 seconds (much shorter for mobile)
     setTimeout(() => {
       clearInterval(confettiInterval);
-    }, 6000);
+    }, 4000);
   };
 
   const ringDisintegrate = (centerX: number, centerY: number, radius: number) => {
@@ -4515,9 +4514,9 @@ function Game() {
       if (pa.ttl <= 0 || pa.y - scrollY.current < -80) particles.current.splice(i, 1);
     }
 
-    // Limit particles for mobile performance
-    if (particles.current.length > 200) {
-      particles.current.splice(0, particles.current.length - 200);
+    // Ultra-aggressive particle limit for mobile performance
+    if (particles.current.length > 100) {
+      particles.current.splice(0, particles.current.length - 100);
     }
 
     // Score popup updates
@@ -4526,6 +4525,16 @@ function Game() {
       popup.ttl -= dt;
       popup.y -= 60 * dt; // Float upward at 60 pixels per second
       if (popup.ttl <= 0) scorePopups.current.splice(i, 1);
+    }
+
+    // Limit score popups for mobile performance
+    if (scorePopups.current.length > 15) {
+      scorePopups.current.splice(0, scorePopups.current.length - 15);
+    }
+
+    // Limit enemy projectiles for mobile performance
+    if (enemyProjs.current.length > 30) {
+      enemyProjs.current.splice(0, enemyProjs.current.length - 30);
     }
 
     // Ring respawning now handled by ship-based progression system
