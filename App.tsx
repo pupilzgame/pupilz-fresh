@@ -795,7 +795,7 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
           star.x = Math.random() * width;
         }
       });
-    }, 50); // 20fps for ultra mobile performance (was 16ms/60fps)
+    }, isLowEndDevice ? 100 : (isMobile ? 75 : 50)); // 10fps/13fps/20fps based on device
     
     return () => clearInterval(interval);
   }, [width, height]);
@@ -1152,6 +1152,11 @@ function Game() {
   const gameplayMusicPlaying = useRef(false); // Track if gameplay music is currently playing
   const userInteracted = useRef(false); // Track if user has interacted with the page
   const tickCounter = useRef(0); // For mobile performance optimization
+
+  // Mobile performance detection
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const isLowEndDevice = isMobile && (navigator.hardwareConcurrency <= 4 || navigator.deviceMemory <= 4);
+
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [musicVolume, setMusicVolume] = useState(0.7);
   const [audioLoaded, setAudioLoaded] = useState(false);
@@ -2619,9 +2624,10 @@ function Game() {
 
       update(dt);
 
-      // Balanced frame skipping for mobile - re-render every 4 frames (15fps React updates)
+      // Dynamic frame skipping based on device capability
       tickCounter.current = (tickCounter.current || 0) + 1;
-      if (tickCounter.current % 4 === 0 || tickCounter.current === 1) {
+      const frameSkip = isLowEndDevice ? 8 : (isMobile ? 6 : 4); // 7.5fps, 10fps, or 15fps
+      if (tickCounter.current % frameSkip === 0 || tickCounter.current === 1) {
         setTick((n) => n + 1);
       }
       raf.current = requestAnimationFrame(tick);
@@ -3215,8 +3221,9 @@ function Game() {
     const colors = ["#FFD700", "#FF6B35", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD", "#98D8C8"];
     const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
 
-    // Ultra-minimal confetti for mobile performance - 10 instead of 50
-    for (let i = 0; i < 10; i++) {
+    // Dynamic confetti count based on device capability
+    const confettiCount = isLowEndDevice ? 3 : (isMobile ? 5 : 10);
+    for (let i = 0; i < confettiCount; i++) {
       particles.current.push({
         id: idBase + i + 1,
         x: Math.random() * width,
@@ -3233,7 +3240,7 @@ function Game() {
   const createFirework = (x: number, y: number) => {
     const colors = ["#FFD700", "#FF1744", "#00E676", "#2196F3", "#FF9800", "#E91E63", "#9C27B0"];
     const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
-    const particleCount = 8; // Ultra-minimal for mobile performance
+    const particleCount = isLowEndDevice ? 4 : (isMobile ? 6 : 8); // Dynamic based on device
 
     for (let i = 0; i < particleCount; i++) {
       const angle = (i / particleCount) * Math.PI * 2;
@@ -3251,25 +3258,30 @@ function Game() {
   };
 
   const startVictoryCelebration = () => {
-    // Ultra-minimal fireworks for mobile performance - only 2 instead of 7
-    setTimeout(() => createFirework(width * 0.4, height * 0.4), 500);
-    setTimeout(() => createFirework(width * 0.6, height * 0.3), 1200);
-
-    // Minimal confetti for mobile
-    createConfetti();
-    const confettiInterval = setInterval(() => {
+    if (isLowEndDevice) {
+      // Minimal celebration for low-end devices - single firework only
+      setTimeout(() => createFirework(width * 0.5, height * 0.4), 500);
+      createConfetti(); // Single confetti burst only
+    } else if (isMobile) {
+      // Reduced celebration for mobile
+      setTimeout(() => createFirework(width * 0.4, height * 0.4), 500);
       createConfetti();
-    }, 2000); // Much less frequent confetti
-
-    // Stop confetti after 4 seconds (much shorter for mobile)
-    setTimeout(() => {
-      clearInterval(confettiInterval);
-    }, 4000);
+      setTimeout(() => createConfetti(), 2000);
+    } else {
+      // Full celebration for desktop
+      setTimeout(() => createFirework(width * 0.4, height * 0.4), 500);
+      setTimeout(() => createFirework(width * 0.6, height * 0.3), 1200);
+      createConfetti();
+      const confettiInterval = setInterval(() => createConfetti(), 2000);
+      setTimeout(() => clearInterval(confettiInterval), 4000);
+    }
   };
 
   const ringDisintegrate = (centerX: number, centerY: number, radius: number) => {
     const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
-    const particleCount = Math.floor(radius * 0.8); // More particles for bigger rings
+    // Dynamic particle count based on device capability
+    const multiplier = isLowEndDevice ? 0.2 : (isMobile ? 0.4 : 0.8);
+    const particleCount = Math.floor(radius * multiplier);
     
     for (let i = 0; i < particleCount; i++) {
       // Create particles around the ring circumference
@@ -4514,9 +4526,10 @@ function Game() {
       if (pa.ttl <= 0 || pa.y - scrollY.current < -80) particles.current.splice(i, 1);
     }
 
-    // Ultra-aggressive particle limit for mobile performance
-    if (particles.current.length > 100) {
-      particles.current.splice(0, particles.current.length - 100);
+    // Dynamic particle limits based on device capability
+    const maxParticles = isLowEndDevice ? 30 : (isMobile ? 50 : 100);
+    if (particles.current.length > maxParticles) {
+      particles.current.splice(0, particles.current.length - maxParticles);
     }
 
     // Score popup updates
@@ -4527,14 +4540,16 @@ function Game() {
       if (popup.ttl <= 0) scorePopups.current.splice(i, 1);
     }
 
-    // Limit score popups for mobile performance
-    if (scorePopups.current.length > 15) {
-      scorePopups.current.splice(0, scorePopups.current.length - 15);
+    // Dynamic limits based on device capability
+    const maxScorePopups = isLowEndDevice ? 5 : (isMobile ? 8 : 15);
+    const maxEnemyProjs = isLowEndDevice ? 10 : (isMobile ? 20 : 30);
+
+    if (scorePopups.current.length > maxScorePopups) {
+      scorePopups.current.splice(0, scorePopups.current.length - maxScorePopups);
     }
 
-    // Limit enemy projectiles for mobile performance
-    if (enemyProjs.current.length > 30) {
-      enemyProjs.current.splice(0, enemyProjs.current.length - 30);
+    if (enemyProjs.current.length > maxEnemyProjs) {
+      enemyProjs.current.splice(0, enemyProjs.current.length - maxEnemyProjs);
     }
 
     // Ring respawning now handled by ship-based progression system
