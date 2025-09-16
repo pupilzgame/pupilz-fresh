@@ -786,16 +786,16 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
 
     const interval = setInterval(() => {
       setAnimPhase(p => (p + 1) % 100);
-      
+
       // Update star positions smoothly
       menuStarsRef.current.forEach(star => {
-        star.y += star.parallax * 0.8; // Slow downward movement
+        star.y += star.parallax * 1.2; // Slightly faster movement to compensate for lower framerate
         if (star.y > height + 10) {
           star.y = -10;
           star.x = Math.random() * width;
         }
       });
-    }, 16); // 60fps for smooth movement
+    }, 32); // 30fps for mobile performance (was 16ms/60fps)
     
     return () => clearInterval(interval);
   }, [width, height]);
@@ -1151,10 +1151,11 @@ function Game() {
   const spreadGunSound = useRef<Audio.Sound | null>(null);
   const gameplayMusicPlaying = useRef(false); // Track if gameplay music is currently playing
   const userInteracted = useRef(false); // Track if user has interacted with the page
+  const tickCounter = useRef(0); // For mobile performance optimization
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [musicVolume, setMusicVolume] = useState(0.7);
   const [audioLoaded, setAudioLoaded] = useState(false);
-  
+
 
   // Camera/world
   const scrollY = useRef(0);
@@ -2618,7 +2619,11 @@ function Game() {
 
       update(dt);
 
-      setTick((n) => n + 1);
+      // Only trigger React re-render every 3 frames for mobile performance
+      tickCounter.current = (tickCounter.current || 0) + 1;
+      if (tickCounter.current % 3 === 0) {
+        setTick((n) => n + 1);
+      }
       raf.current = requestAnimationFrame(tick);
     };
 
@@ -3210,8 +3215,8 @@ function Game() {
     const colors = ["#FFD700", "#FF6B35", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD", "#98D8C8"];
     const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
 
-    // Create confetti pieces across the top of screen
-    for (let i = 0; i < 50; i++) {
+    // Reduced confetti for mobile performance - 25 instead of 50
+    for (let i = 0; i < 25; i++) {
       particles.current.push({
         id: idBase + i + 1,
         x: Math.random() * width,
@@ -3228,7 +3233,7 @@ function Game() {
   const createFirework = (x: number, y: number) => {
     const colors = ["#FFD700", "#FF1744", "#00E676", "#2196F3", "#FF9800", "#E91E63", "#9C27B0"];
     const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
-    const particleCount = 25;
+    const particleCount = 15; // Reduced from 25 for mobile performance
 
     for (let i = 0; i < particleCount; i++) {
       const angle = (i / particleCount) * Math.PI * 2;
@@ -3246,27 +3251,21 @@ function Game() {
   };
 
   const startVictoryCelebration = () => {
-    // Initial fireworks burst
-    setTimeout(() => createFirework(width * 0.2, height * 0.3), 100);
-    setTimeout(() => createFirework(width * 0.8, height * 0.4), 300);
-    setTimeout(() => createFirework(width * 0.5, height * 0.2), 500);
+    // Reduced fireworks for mobile performance - only 3 instead of 7
+    setTimeout(() => createFirework(width * 0.3, height * 0.4), 200);
+    setTimeout(() => createFirework(width * 0.7, height * 0.3), 800);
+    setTimeout(() => createFirework(width * 0.5, height * 0.5), 1500);
 
-    // Continuous confetti
+    // Reduced confetti frequency for mobile
     createConfetti();
     const confettiInterval = setInterval(() => {
       createConfetti();
-    }, 1000);
+    }, 1500); // Less frequent confetti
 
-    // More fireworks over time
-    setTimeout(() => createFirework(width * 0.3, height * 0.5), 1200);
-    setTimeout(() => createFirework(width * 0.7, height * 0.3), 1800);
-    setTimeout(() => createFirework(width * 0.1, height * 0.6), 2400);
-    setTimeout(() => createFirework(width * 0.9, height * 0.2), 3000);
-
-    // Stop confetti after 8 seconds
+    // Stop confetti after 6 seconds (shorter for mobile)
     setTimeout(() => {
       clearInterval(confettiInterval);
-    }, 8000);
+    }, 6000);
   };
 
   const ringDisintegrate = (centerX: number, centerY: number, radius: number) => {
@@ -4514,6 +4513,11 @@ function Game() {
       pa.y += pa.vy * enemyDt;
       pa.vx *= 0.98; pa.vy *= 0.98;
       if (pa.ttl <= 0 || pa.y - scrollY.current < -80) particles.current.splice(i, 1);
+    }
+
+    // Limit particles for mobile performance
+    if (particles.current.length > 200) {
+      particles.current.splice(0, particles.current.length - 200);
     }
 
     // Score popup updates
