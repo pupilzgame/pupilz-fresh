@@ -591,16 +591,6 @@ const MENU_SECTIONS: MenuSection[] = [
       "🎒 Energy/Nuke — tap bottom icons to use stored items",
     ],
   },
-  {
-    id: "settings",
-    icon: "⚙️", 
-    title: "SETTINGS",
-    bullets: [
-      "Toggle handedness for comfortable controls",
-      "Adjust music and sound effects volume",
-      "All changes apply immediately",
-    ],
-  },
 ];
 
 type AccordionItemProps = {
@@ -846,6 +836,26 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
         <View style={styles.logoUnderline} />
       </View>
 
+      {/* Compact Settings */}
+      <View style={styles.compactSettings}>
+        <Pressable
+          onPress={onToggleHandedness}
+          style={[styles.compactSettingButton, { opacity: subtleFade }]}
+        >
+          <Text style={styles.compactSettingText}>
+            {leftHandedMode ? '👈' : '👉'}
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={onToggleMusic}
+          style={[styles.compactSettingButton, { opacity: subtleFade }]}
+        >
+          <Text style={styles.compactSettingText}>
+            {musicEnabled ? '🎵' : '🔇'}
+          </Text>
+        </Pressable>
+      </View>
+
       <ScrollView style={styles.menuScrollView} showsVerticalScrollIndicator={false}>
         <Text style={styles.menuSubtitle}>
           • INFILTRATE EARTH'S ATMOSPHERE •{'\n'}• ESTABLISH DOMINANCE •
@@ -853,25 +863,12 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
         
         <View style={styles.menuSections}>
           {MENU_SECTIONS.map((section) => (
-            section.id === "settings" ? (
-              <SettingsAccordion
-                key={section.id}
-                section={section}
-                isOpen={openId === section.id}
-                onToggle={() => handleToggle(section.id)}
-                leftHandedMode={leftHandedMode}
-                onToggleHandedness={onToggleHandedness}
-                musicEnabled={musicEnabled}
-                onToggleMusic={onToggleMusic}
-              />
-            ) : (
-              <AccordionItem
-                key={section.id}
-                section={section}
-                isOpen={openId === section.id}
-                onToggle={() => handleToggle(section.id)}
-              />
-            )
+            <AccordionItem
+              key={section.id}
+              section={section}
+              isOpen={openId === section.id}
+              onToggle={() => handleToggle(section.id)}
+            />
           ))}
         </View>
 
@@ -901,7 +898,7 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
               { opacity: subtleFade }
             ]}
           >
-            <Text style={styles.smallButtonText}>🌐 WEBSITE</Text>
+            <Text style={styles.smallButtonText}>🌐 PUPILZ.IO</Text>
           </Pressable>
 
           <Pressable
@@ -6355,10 +6352,10 @@ const styles = StyleSheet.create({
   menuContainer: {
     flex: 1,
     position: 'relative',
-    justifyContent: 'flex-start', // Start from top but with padding
+    justifyContent: 'center', // Center content vertically
     paddingHorizontal: 20,
-    paddingTop: 80, // Increase top padding to push content down
-    paddingBottom: 20, // Keep bottom padding reasonable
+    paddingTop: 40, // Reduced from 80 for better centering
+    paddingBottom: 40, // Match top padding for equal margins
   },
   menuParticles: {
     position: 'absolute',
@@ -6491,20 +6488,20 @@ const styles = StyleSheet.create({
     textAlign: "left", // Ensure left alignment
   },
   menuCTA: {
-    marginTop: 30,
-    marginHorizontal: 20,
-    marginBottom: 20,
+    marginTop: 20,
+    marginHorizontal: 30,
+    marginBottom: 15,
     backgroundColor: "#FF3366",
-    borderRadius: 25,
-    paddingVertical: 20,
-    paddingHorizontal: 40,
+    borderRadius: 20,
+    paddingVertical: 15,
+    paddingHorizontal: 30,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#FF3366",
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.6,
-    shadowRadius: 12,
-    elevation: 12,
+    shadowRadius: 8,
+    elevation: 8,
     borderWidth: 2,
     borderColor: "#FF6699",
     position: 'relative',
@@ -6954,6 +6951,35 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+    textAlign: "center",
+  },
+
+  // Compact Settings Styles
+  compactSettings: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 16,
+    marginBottom: 8,
+    gap: 20,
+  },
+  compactSettingButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#00FFFF",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  compactSettingText: {
+    fontSize: 18,
     textAlign: "center",
   },
 });
