@@ -167,8 +167,8 @@ class LeaderboardManager {
       console.log(`✅ Loaded ${data.entries.length} leaderboard entries from database`);
 
       // Get personal best and last rank from localStorage (client-side only)
-      const personalBest = parseInt(localStorage.getItem('pupilz_personal_best') || '0');
-      const lastRank = localStorage.getItem('pupilz_last_rank') ? parseInt(localStorage.getItem('pupilz_last_rank')!) : null;
+      const personalBest = typeof window !== 'undefined' ? parseInt(localStorage.getItem('pupilz_personal_best') || '0') : 0;
+      const lastRank = typeof window !== 'undefined' && localStorage.getItem('pupilz_last_rank') ? parseInt(localStorage.getItem('pupilz_last_rank')!) : null;
 
       return {
         entries: data.entries,
@@ -230,8 +230,10 @@ class LeaderboardManager {
       // Update personal best and last rank in localStorage
       const newPersonalBest = Math.max(state.personalBest, score);
       const isNewHighScore = score > state.personalBest;
-      localStorage.setItem('pupilz_personal_best', newPersonalBest.toString());
-      localStorage.setItem('pupilz_last_rank', data.rank.toString());
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('pupilz_personal_best', newPersonalBest.toString());
+        localStorage.setItem('pupilz_last_rank', data.rank.toString());
+      }
 
       // Reload leaderboard to get updated data
       const updatedState = await this.loadLeaderboard();
@@ -274,8 +276,10 @@ class LeaderboardManager {
     const isNewHighScore = score > state.personalBest;
 
     // Save to localStorage for persistence
-    localStorage.setItem('pupilz_personal_best', newPersonalBest.toString());
-    localStorage.setItem('pupilz_last_rank', rank.toString());
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('pupilz_personal_best', newPersonalBest.toString());
+      localStorage.setItem('pupilz_last_rank', rank.toString());
+    }
 
     return {
       newState: {
@@ -300,8 +304,8 @@ class LeaderboardManager {
 
   // Get default empty state
   static getDefaultState(): LeaderboardState {
-    const personalBest = parseInt(localStorage.getItem('pupilz_personal_best') || '0');
-    const lastRank = localStorage.getItem('pupilz_last_rank') ? parseInt(localStorage.getItem('pupilz_last_rank')!) : null;
+    const personalBest = typeof window !== 'undefined' ? parseInt(localStorage.getItem('pupilz_personal_best') || '0') : 0;
+    const lastRank = typeof window !== 'undefined' && localStorage.getItem('pupilz_last_rank') ? parseInt(localStorage.getItem('pupilz_last_rank')!) : null;
     return {
       entries: [],
       personalBest,
