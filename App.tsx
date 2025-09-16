@@ -166,13 +166,14 @@ class LeaderboardManager {
 
       console.log(`✅ Loaded ${data.entries.length} leaderboard entries from database`);
 
-      // Get personal best from localStorage (client-side only)
+      // Get personal best and last rank from localStorage (client-side only)
       const personalBest = parseInt(localStorage.getItem('pupilz_personal_best') || '0');
+      const lastRank = localStorage.getItem('pupilz_last_rank') ? parseInt(localStorage.getItem('pupilz_last_rank')!) : null;
 
       return {
         entries: data.entries,
         personalBest,
-        lastRank: null,
+        lastRank,
         newHighScore: false
       };
     } catch (error) {
@@ -226,10 +227,11 @@ class LeaderboardManager {
 
       console.log(`✅ Score saved successfully! Rank: ${data.rank}`);
 
-      // Update personal best in localStorage
+      // Update personal best and last rank in localStorage
       const newPersonalBest = Math.max(state.personalBest, score);
       const isNewHighScore = score > state.personalBest;
       localStorage.setItem('pupilz_personal_best', newPersonalBest.toString());
+      localStorage.setItem('pupilz_last_rank', data.rank.toString());
 
       // Reload leaderboard to get updated data
       const updatedState = await this.loadLeaderboard();
@@ -271,6 +273,10 @@ class LeaderboardManager {
     const newPersonalBest = Math.max(state.personalBest, score);
     const isNewHighScore = score > state.personalBest;
 
+    // Save to localStorage for persistence
+    localStorage.setItem('pupilz_personal_best', newPersonalBest.toString());
+    localStorage.setItem('pupilz_last_rank', rank.toString());
+
     return {
       newState: {
         entries: newEntries,
@@ -294,10 +300,12 @@ class LeaderboardManager {
 
   // Get default empty state
   static getDefaultState(): LeaderboardState {
+    const personalBest = parseInt(localStorage.getItem('pupilz_personal_best') || '0');
+    const lastRank = localStorage.getItem('pupilz_last_rank') ? parseInt(localStorage.getItem('pupilz_last_rank')!) : null;
     return {
       entries: [],
-      personalBest: parseInt(localStorage.getItem('pupilz_personal_best') || '0'),
-      lastRank: null,
+      personalBest,
+      lastRank,
       newHighScore: false
     };
   }
