@@ -259,7 +259,7 @@ class LeaderboardManager {
   ): { newState: LeaderboardState; rank: number } {
     const newEntry: LeaderboardEntry = {
       id: Date.now().toString() + Math.random().toString(36),
-      playerName: playerName.toUpperCase().substring(0, 3),
+      playerName: playerName.toUpperCase().substring(0, 12),
       score,
       level,
       victory,
@@ -5564,13 +5564,13 @@ function Game() {
               value={playerName}
               onChangeText={(text) => {
                 // Auto-uppercase and limit based on source
-                const maxLength = telegramUsername ? 8 : 3;
+                const maxLength = telegramUsername ? 12 : 12;
                 const cleanText = text.toUpperCase().slice(0, maxLength);
                 setPlayerName(cleanText);
               }}
               placeholder={telegramUsername ? telegramUsername.toUpperCase() : "ACE"}
               placeholderTextColor={telegramUsername ? "#4CAF50" : "#888"}
-              maxLength={telegramUsername ? 8 : 3}
+              maxLength={telegramUsername ? 12 : 12}
               autoCapitalize="characters"
               autoCorrect={false}
               autoComplete="off"
@@ -6803,7 +6803,7 @@ const styles = StyleSheet.create({
     width: 50,
   },
   leaderboardName: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "bold",
     color: "#FFFFFF",
     flex: 1,
