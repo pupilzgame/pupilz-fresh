@@ -33,7 +33,15 @@ const calculateAchievements = (score: number, level: number, victory: boolean): 
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
+    console.log('🔍 API Handler called:', req.method);
+    console.log('🔑 Environment check:', {
+      hasUrl: !!process.env.SUPABASE_URL,
+      hasKey: !!process.env.SUPABASE_ANON_KEY,
+      url: process.env.SUPABASE_URL?.substring(0, 20) + '...'
+    });
+
     if (req.method === 'GET') {
+      console.log('📥 Fetching leaderboard entries...');
       // Get top leaderboard entries
       const { data: entries, error } = await supabase
         .from('leaderboard')
@@ -42,12 +50,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .limit(MAX_ENTRIES);
 
       if (error) {
-        console.error('Supabase GET error:', error);
+        console.error('❌ Supabase GET error:', error);
         return res.status(500).json({
           success: false,
-          error: 'Failed to fetch leaderboard'
+          error: 'Failed to fetch leaderboard',
+          details: error.message
         });
       }
+
+      console.log('✅ Successfully fetched', entries?.length || 0, 'entries');
 
       // Transform data to match expected format
       const transformedEntries = entries?.map(entry => ({
@@ -66,11 +77,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
 
     } else if (req.method === 'POST') {
+      console.log('📤 POST request received:', req.body);
       // Add new score
       const { playerName, score, level, victory } = req.body;
 
       // Validate input
       if (!playerName || typeof score !== 'number' || score < MIN_SCORE_THRESHOLD) {
+        console.log('❌ Validation failed:', { playerName, score, level, victory });
         return res.status(400).json({
           success: false,
           error: 'Invalid input or score below threshold'
@@ -86,6 +99,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         created_at: new Date().toISOString(),
         achievements: calculateAchievements(score, level, victory)
       };
+
+      console.log('💾 Attempting to insert:', newEntry);
 
       // Insert into Supabase
       const { data, error } = await supabase
