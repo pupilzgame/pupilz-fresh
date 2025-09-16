@@ -891,6 +891,22 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
           <Pressable
             onPress={() => {
               if (typeof window !== 'undefined') {
+                window.open('https://pupilz.io/', '_blank');
+              }
+            }}
+            style={({ pressed }) => [
+              styles.smallButton,
+              styles.websiteButtonSmall,
+              pressed && styles.smallButtonPressed,
+              { opacity: subtleFade }
+            ]}
+          >
+            <Text style={styles.smallButtonText}>🌐 WEBSITE</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => {
+              if (typeof window !== 'undefined') {
                 window.open('https://x.com/ThePupilz', '_blank');
               }
             }}
@@ -6897,14 +6913,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: 16,
     marginBottom: 8,
-    paddingHorizontal: 8,
-    gap: 12,
+    paddingHorizontal: 4,
+    gap: 8,
   },
   smallButton: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 6,
     alignItems: "center",
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -6915,6 +6931,12 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#FFD700",
     shadowColor: "#FFD700",
+  },
+  websiteButtonSmall: {
+    backgroundColor: "rgba(46, 125, 50, 0.15)",
+    borderWidth: 2,
+    borderColor: "#2E7D32",
+    shadowColor: "#2E7D32",
   },
   xButtonSmall: {
     backgroundColor: "rgba(29, 161, 242, 0.15)",
@@ -6927,10 +6949,11 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   smallButtonText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "bold",
     color: "#FFFFFF",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+    textAlign: "center",
   },
 });
