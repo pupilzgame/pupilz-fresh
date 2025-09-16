@@ -1153,9 +1153,12 @@ function Game() {
   const userInteracted = useRef(false); // Track if user has interacted with the page
   const tickCounter = useRef(0); // For mobile performance optimization
 
-  // Mobile performance detection
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  const isLowEndDevice = isMobile && (navigator.hardwareConcurrency <= 4 || navigator.deviceMemory <= 4);
+  // Mobile performance detection with safe fallbacks
+  const isMobile = typeof window !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const isLowEndDevice = isMobile && (
+    (typeof navigator.hardwareConcurrency === 'number' && navigator.hardwareConcurrency <= 4) ||
+    ((navigator as any).deviceMemory && (navigator as any).deviceMemory <= 4)
+  );
 
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [musicVolume, setMusicVolume] = useState(0.7);
