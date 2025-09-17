@@ -823,6 +823,26 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
         ))}
       </View>
 
+      {/* Top Corner Settings */}
+      <View style={styles.topCornerSettings}>
+        <Pressable
+          onPress={onToggleHandedness}
+          style={[styles.topCornerButton, { opacity: subtleFade }]}
+        >
+          <Text style={styles.topCornerText}>
+            {leftHandedMode ? '👈' : '👉'}
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={onToggleMusic}
+          style={[styles.topCornerButton, { opacity: subtleFade }]}
+        >
+          <Text style={styles.topCornerText}>
+            {musicEnabled ? '🎵' : '🔇'}
+          </Text>
+        </Pressable>
+      </View>
+
       {/* Logo treatment */}
       <View style={styles.logoContainer}>
         <Image 
@@ -833,26 +853,6 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
         <Text style={styles.logoSub}>
           ── POD DESCENT ──
         </Text>
-      </View>
-
-      {/* Compact Settings */}
-      <View style={styles.compactSettings}>
-        <Pressable
-          onPress={onToggleHandedness}
-          style={[styles.compactSettingButton, { opacity: subtleFade }]}
-        >
-          <Text style={styles.compactSettingText}>
-            {leftHandedMode ? '👈' : '👉'}
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={onToggleMusic}
-          style={[styles.compactSettingButton, { opacity: subtleFade }]}
-        >
-          <Text style={styles.compactSettingText}>
-            {musicEnabled ? '🎵' : '🔇'}
-          </Text>
-        </Pressable>
       </View>
 
       {/* Fixed Subtitle */}
@@ -6955,32 +6955,32 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Compact Settings Styles
-  compactSettings: {
+  // Top Corner Settings Styles
+  topCornerSettings: {
+    position: "absolute",
+    top: 10,
+    right: 10,
     flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 16,
-    marginBottom: 8,
-    gap: 20,
+    gap: 8,
+    zIndex: 10,
   },
-  compactSettingButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
+  topCornerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#00FFFF",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
   },
-  compactSettingText: {
-    fontSize: 18,
+  topCornerText: {
+    fontSize: 16,
     textAlign: "center",
   },
 });
