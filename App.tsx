@@ -29,6 +29,7 @@ import './global.css';
 import { Audio } from 'expo-av';
 import { rand, clamp, lerp, distance, circleCollision, rectCircleCollision, normalize, degToRad, radToDeg } from './src/utils/math';
 import * as GameConfig from './src/config/gameConstants';
+import { useAudioSystem } from './src/systems/audioSystem';
 
 /* ---------- CSS Hexagon Component ---------- */
 function HexagonAsteroid({ 
@@ -562,13 +563,13 @@ type SettingsAccordionProps = {
   onToggle: () => void;
   leftHandedMode: boolean;
   onToggleHandedness: () => void;
-  musicEnabled: boolean;
+  audioSystem.musicEnabled: boolean;
   onToggleMusic: () => void;
 };
 
 const SettingsAccordion: React.FC<SettingsAccordionProps> = ({ 
   section, isOpen, onToggle, leftHandedMode, onToggleHandedness, 
-  musicEnabled, onToggleMusic 
+  audioSystem.musicEnabled, onToggleMusic 
 }) => {
   const contentAnim = useRef(new Animated.Value(isOpen ? 1 : 0)).current;
 
@@ -626,15 +627,15 @@ const SettingsAccordion: React.FC<SettingsAccordionProps> = ({
           style={styles.handednessToggle}
         >
           <Text style={styles.handednessLabel}>
-            {musicEnabled ? '🎵 Music On' : '🔇 Music Off'}
+            {audioSystem.musicEnabled ? '🎵 Music On' : '🔇 Music Off'}
           </Text>
           <View style={[
             styles.toggleSwitch,
-            musicEnabled && styles.toggleSwitchActive
+            audioSystem.musicEnabled && styles.toggleSwitchActive
           ]}>
             <View style={[
               styles.toggleKnob,
-              musicEnabled && styles.toggleKnobActive
+              audioSystem.musicEnabled && styles.toggleKnobActive
             ]} />
           </View>
         </Pressable>
@@ -648,14 +649,14 @@ type EnhancedMenuProps = {
   onStart: () => void;
   leftHandedMode: boolean;
   onToggleHandedness: () => void;
-  musicEnabled: boolean;
+  audioSystem.musicEnabled: boolean;
   onToggleMusic: () => void;
-  sfxEnabled: boolean;
+  audioSystem.sfxEnabled: boolean;
   onToggleSfx: () => void;
   onShowLeaderboard: () => void;
 };
 
-const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic, sfxEnabled, onToggleSfx, onShowLeaderboard }) => {
+const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, audioSystem.musicEnabled, onToggleMusic, audioSystem.sfxEnabled, onToggleSfx, onShowLeaderboard }) => {
   const [openId, setOpenId] = useState<string>("");
   const [animPhase, setAnimPhase] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
@@ -897,15 +898,15 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
                 style={styles.settingItem}
               >
                 <Text style={styles.settingText}>
-                  {musicEnabled ? '🎵 Music' : '🔇 Music'}
+                  {audioSystem.musicEnabled ? '🎵 Music' : '🔇 Music'}
                 </Text>
                 <View style={[
                   styles.settingToggle,
-                  musicEnabled && styles.settingToggleActive
+                  audioSystem.musicEnabled && styles.settingToggleActive
                 ]}>
                   <View style={[
                     styles.settingToggleKnob,
-                    musicEnabled && styles.settingToggleKnobActive
+                    audioSystem.musicEnabled && styles.settingToggleKnobActive
                   ]} />
                 </View>
               </Pressable>
@@ -915,15 +916,15 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
                 style={styles.settingItem}
               >
                 <Text style={styles.settingText}>
-                  {sfxEnabled ? '🔊 Sound Effects' : '🔇 Sound Effects'}
+                  {audioSystem.sfxEnabled ? '🔊 Sound Effects' : '🔇 Sound Effects'}
                 </Text>
                 <View style={[
                   styles.settingToggle,
-                  sfxEnabled && styles.settingToggleActive
+                  audioSystem.sfxEnabled && styles.settingToggleActive
                 ]}>
                   <View style={[
                     styles.settingToggleKnob,
-                    sfxEnabled && styles.settingToggleKnobActive
+                    audioSystem.sfxEnabled && styles.settingToggleKnobActive
                   ]} />
                 </View>
               </Pressable>
@@ -1168,8 +1169,11 @@ function Game() {
 
   const [timeSec, setTimeSec] = useState(0);
   const [, setTick] = useState(0);
-  
-  // Audio system
+
+  // Audio system - using modular audio system
+  const audioSystem = useAudioSystem();
+
+  // Legacy audio system refs (to be removed after migration)
   const titleMusic = useRef<Audio.Sound | null>(null);
   const gameplayMusic = useRef<Audio.Sound | null>(null);
   const missionFailedMusic = useRef<Audio.Sound | null>(null);
@@ -1197,10 +1201,7 @@ function Game() {
   const isMobile = typeof window !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   const isLowEndDevice = false; // Disable for now to prevent crashes
 
-  const [musicEnabled, setMusicEnabled] = useState(false); // Start disabled until user interaction
-  const [sfxEnabled, setSfxEnabled] = useState(true);
-  const [musicVolume, setMusicVolume] = useState(0.7);
-  const [audioLoaded, setAudioLoaded] = useState(false);
+  // Audio state now managed by audioSystem hook
 
 
   // Camera/world
@@ -1559,7 +1560,7 @@ function Game() {
         require('./assets/audio/Title-Track.wav'),
         {
           isLooping: true,
-          volume: musicVolume,
+          volume: audioSystem.musicVolume,
         }
       );
       titleMusic.current = sound;
@@ -1578,7 +1579,7 @@ function Game() {
         require('./assets/audio/Pupilz_gameplay_Loopedx4.mp3'),
         {
           isLooping: true,
-          volume: musicVolume,
+          volume: audioSystem.musicVolume,
         }
       );
       gameplayMusic.current = sound;
@@ -1597,7 +1598,7 @@ function Game() {
         require('./assets/audio/Pupilz_mission_failed.mp3'),
         {
           isLooping: true,
-          volume: musicVolume,
+          volume: audioSystem.musicVolume,
         }
       );
       missionFailedMusic.current = sound;
@@ -1616,7 +1617,7 @@ function Game() {
         require('./assets/audio/Pupilz_earth_reached.mp3'),
         {
           isLooping: false,
-          volume: musicVolume,
+          volume: audioSystem.musicVolume,
         }
       );
       earthReachedMusic.current = sound;
@@ -1635,7 +1636,7 @@ function Game() {
         require('./assets/audio/space-bubbles.mp3'),
         {
           isLooping: false,
-          volume: musicVolume,
+          volume: audioSystem.musicVolume,
         }
       );
       spaceBubblesSound.current = sound;
@@ -1654,7 +1655,7 @@ function Game() {
         require('./assets/audio/Pupilz-get-item.mp3'),
         {
           isLooping: false,
-          volume: musicVolume,
+          volume: audioSystem.musicVolume,
         }
       );
       getItemSound.current = sound;
@@ -1673,7 +1674,7 @@ function Game() {
         require('./assets/audio/Pupilz-clear-level.mp3'),
         {
           isLooping: false,
-          volume: musicVolume,
+          volume: audioSystem.musicVolume,
         }
       );
       clearLevelSound.current = sound;
@@ -1692,7 +1693,7 @@ function Game() {
         require('./assets/audio/Pupilz-Button-Press.mp3'),
         {
           isLooping: false,
-          volume: musicVolume,
+          volume: audioSystem.musicVolume,
         }
       );
       buttonPressSound.current = sound;
@@ -1711,7 +1712,7 @@ function Game() {
         require('./assets/audio/Pupilz-astroid-breaking.mp3'),
         {
           isLooping: false,
-          volume: musicVolume,
+          volume: audioSystem.musicVolume,
         }
       );
       asteroidBreakingSound.current = sound;
@@ -1730,7 +1731,7 @@ function Game() {
         require('./assets/audio/Pupilz-gun-cocking.mp3'),
         {
           isLooping: false,
-          volume: musicVolume,
+          volume: audioSystem.musicVolume,
         }
       );
       gunCockingSound.current = sound;
@@ -1749,7 +1750,7 @@ function Game() {
         require('./assets/audio/Pupilz_respawn.mp3'),
         {
           isLooping: false,
-          volume: musicVolume,
+          volume: audioSystem.musicVolume,
         }
       );
       respawnSound.current = sound;
@@ -1768,7 +1769,7 @@ function Game() {
         require('./assets/audio/weapon-fire.wav'),
         {
           isLooping: false,
-          volume: musicVolume,
+          volume: audioSystem.musicVolume,
         }
       );
       weaponFireSound.current = sound;
@@ -1787,7 +1788,7 @@ function Game() {
         require('./assets/audio/Pupilz-use-item.mp3'),
         {
           isLooping: false,
-          volume: musicVolume,
+          volume: audioSystem.musicVolume,
         }
       );
       useItemSound.current = sound;
@@ -1806,7 +1807,7 @@ function Game() {
         require('./assets/audio/Pupilz-Laser-gun.mp3'),
         {
           isLooping: false,
-          volume: musicVolume,
+          volume: audioSystem.musicVolume,
         }
       );
       laserGunSound.current = sound;
@@ -1825,7 +1826,7 @@ function Game() {
         require('./assets/audio/Pupilz-human-ship-explode.wav'),
         {
           isLooping: false,
-          volume: musicVolume,
+          volume: audioSystem.musicVolume,
         }
       );
       humanShipExplodeSound.current = sound;
@@ -1844,7 +1845,7 @@ function Game() {
         require('./assets/audio/Pupilz-multi-gun.wav'),
         {
           isLooping: false,
-          volume: musicVolume,
+          volume: audioSystem.musicVolume,
         }
       );
       multiGunSound.current = sound;
@@ -1863,7 +1864,7 @@ function Game() {
         require('./assets/audio/Pupilz-homing-missles-gun.wav'),
         {
           isLooping: false,
-          volume: musicVolume,
+          volume: audioSystem.musicVolume,
         }
       );
       homingMissilesGunSound.current = sound;
@@ -1882,7 +1883,7 @@ function Game() {
         require('./assets/audio/Pupilz-fire-gun.wav'),
         {
           isLooping: false,
-          volume: musicVolume,
+          volume: audioSystem.musicVolume,
         }
       );
       fireGunSound.current = sound;
@@ -1901,7 +1902,7 @@ function Game() {
         require('./assets/audio/Pupilz-spread-gun.wav'),
         {
           isLooping: false,
-          volume: musicVolume,
+          volume: audioSystem.musicVolume,
         }
       );
       spreadGunSound.current = sound;
@@ -1913,8 +1914,8 @@ function Game() {
 
   const playTitleMusic = async () => {
     try {
-      if (titleMusic.current && musicEnabled) {
-        await titleMusic.current.setVolumeAsync(musicVolume);
+      if (titleMusic.current && audioSystem.musicEnabled) {
+        await titleMusic.current.setVolumeAsync(audioSystem.musicVolume);
         await titleMusic.current.playAsync();
         console.log('🎵 Title music playing');
       }
@@ -1937,7 +1938,7 @@ function Game() {
   const updateMusicVolume = async (volume: number) => {
     try {
       if (titleMusic.current) {
-        await titleMusic.current.setVolumeAsync(musicEnabled ? volume : 0);
+        await titleMusic.current.setVolumeAsync(audioSystem.musicEnabled ? volume : 0);
       }
     } catch (error) {
       console.log('❌ Failed to set music volume:', error);
@@ -1970,9 +1971,9 @@ function Game() {
       // First stop all other music
       await stopAllMusic();
 
-      if (missionFailedMusic.current && musicEnabled) {
+      if (missionFailedMusic.current && audioSystem.musicEnabled) {
         await missionFailedMusic.current.setPositionAsync(0); // Reset to beginning
-        await missionFailedMusic.current.setVolumeAsync(musicVolume);
+        await missionFailedMusic.current.setVolumeAsync(audioSystem.musicVolume);
         await missionFailedMusic.current.playAsync();
         console.log('🎵 Mission failed music playing');
       }
@@ -1986,9 +1987,9 @@ function Game() {
       // First stop all other music
       await stopAllMusic();
 
-      if (earthReachedMusic.current && musicEnabled) {
+      if (earthReachedMusic.current && audioSystem.musicEnabled) {
         await earthReachedMusic.current.setPositionAsync(0); // Reset to beginning
-        await earthReachedMusic.current.setVolumeAsync(musicVolume);
+        await earthReachedMusic.current.setVolumeAsync(audioSystem.musicVolume);
         await earthReachedMusic.current.playAsync();
         console.log('🎵 Earth reached music playing');
       }
@@ -1999,9 +2000,9 @@ function Game() {
 
   const playSpaceBubblesSound = async () => {
     try {
-      if (spaceBubblesSound.current && sfxEnabled) {
+      if (spaceBubblesSound.current && audioSystem.sfxEnabled) {
         await spaceBubblesSound.current.setPositionAsync(0); // Reset to beginning
-        await spaceBubblesSound.current.setVolumeAsync(musicVolume);
+        await spaceBubblesSound.current.setVolumeAsync(audioSystem.musicVolume);
         await spaceBubblesSound.current.playAsync();
         console.log('🔊 Space bubbles sound playing for mothership beam-up');
       }
@@ -2012,9 +2013,9 @@ function Game() {
 
   const playGetItemSound = async () => {
     try {
-      if (getItemSound.current && sfxEnabled) {
+      if (getItemSound.current && audioSystem.sfxEnabled) {
         await getItemSound.current.setPositionAsync(0); // Reset to beginning
-        await getItemSound.current.setVolumeAsync(musicVolume);
+        await getItemSound.current.setVolumeAsync(audioSystem.musicVolume);
         await getItemSound.current.playAsync();
         console.log('🔊 Get item sound playing for inventory pickup');
       }
@@ -2025,9 +2026,9 @@ function Game() {
 
   const playClearLevelSound = async () => {
     try {
-      if (clearLevelSound.current && sfxEnabled) {
+      if (clearLevelSound.current && audioSystem.sfxEnabled) {
         await clearLevelSound.current.setPositionAsync(0); // Reset to beginning
-        await clearLevelSound.current.setVolumeAsync(musicVolume);
+        await clearLevelSound.current.setVolumeAsync(audioSystem.musicVolume);
         await clearLevelSound.current.playAsync();
         console.log('🔊 Clear level sound playing for level ring pop');
       }
@@ -2038,9 +2039,9 @@ function Game() {
 
   const playButtonPressSound = async () => {
     try {
-      if (buttonPressSound.current && sfxEnabled) {
+      if (buttonPressSound.current && audioSystem.sfxEnabled) {
         await buttonPressSound.current.setPositionAsync(0); // Reset to beginning
-        await buttonPressSound.current.setVolumeAsync(musicVolume);
+        await buttonPressSound.current.setVolumeAsync(audioSystem.musicVolume);
         await buttonPressSound.current.playAsync();
         console.log('🔊 Button press sound playing for UI interaction');
       }
@@ -2051,9 +2052,9 @@ function Game() {
 
   const playAsteroidBreakingSound = async () => {
     try {
-      if (asteroidBreakingSound.current && sfxEnabled) {
+      if (asteroidBreakingSound.current && audioSystem.sfxEnabled) {
         await asteroidBreakingSound.current.setPositionAsync(0); // Reset to beginning
-        await asteroidBreakingSound.current.setVolumeAsync(musicVolume);
+        await asteroidBreakingSound.current.setVolumeAsync(audioSystem.musicVolume);
         await asteroidBreakingSound.current.playAsync();
         console.log('🔊 Asteroid breaking sound playing for debris explosion');
       }
@@ -2064,9 +2065,9 @@ function Game() {
 
   const playGunCockingSound = async () => {
     try {
-      if (gunCockingSound.current && sfxEnabled) {
+      if (gunCockingSound.current && audioSystem.sfxEnabled) {
         await gunCockingSound.current.setPositionAsync(0); // Reset to beginning
-        await gunCockingSound.current.setVolumeAsync(musicVolume);
+        await gunCockingSound.current.setVolumeAsync(audioSystem.musicVolume);
         await gunCockingSound.current.playAsync();
         console.log('🔊 Gun cocking sound playing for weapon upgrade pickup');
       }
@@ -2077,9 +2078,9 @@ function Game() {
 
   const playRespawnSound = async () => {
     try {
-      if (respawnSound.current && sfxEnabled) {
+      if (respawnSound.current && audioSystem.sfxEnabled) {
         await respawnSound.current.setPositionAsync(0); // Reset to beginning
-        await respawnSound.current.setVolumeAsync(musicVolume);
+        await respawnSound.current.setVolumeAsync(audioSystem.musicVolume);
         await respawnSound.current.playAsync();
         console.log('🔊 Respawn sound playing for pod respawn');
       }
@@ -2090,9 +2091,9 @@ function Game() {
 
   const playWeaponFireSound = async () => {
     try {
-      if (weaponFireSound.current && sfxEnabled) {
+      if (weaponFireSound.current && audioSystem.sfxEnabled) {
         await weaponFireSound.current.setPositionAsync(0); // Reset to beginning
-        await weaponFireSound.current.setVolumeAsync(musicVolume);
+        await weaponFireSound.current.setVolumeAsync(audioSystem.musicVolume);
         await weaponFireSound.current.playAsync();
         console.log('🔊 Weapon fire sound playing for basic weapon');
       }
@@ -2103,9 +2104,9 @@ function Game() {
 
   const playUseItemSound = async () => {
     try {
-      if (useItemSound.current && sfxEnabled) {
+      if (useItemSound.current && audioSystem.sfxEnabled) {
         await useItemSound.current.setPositionAsync(0); // Reset to beginning
-        await useItemSound.current.setVolumeAsync(musicVolume);
+        await useItemSound.current.setVolumeAsync(audioSystem.musicVolume);
         await useItemSound.current.playAsync();
         console.log('🔊 Use item sound playing for inventory item usage');
       }
@@ -2116,9 +2117,9 @@ function Game() {
 
   const playLaserGunSound = async () => {
     try {
-      if (laserGunSound.current && sfxEnabled) {
+      if (laserGunSound.current && audioSystem.sfxEnabled) {
         await laserGunSound.current.setPositionAsync(0); // Reset to beginning
-        await laserGunSound.current.setVolumeAsync(musicVolume);
+        await laserGunSound.current.setVolumeAsync(audioSystem.musicVolume);
         await laserGunSound.current.playAsync();
         console.log('🔊 Laser gun sound playing for laser weapon fire');
       }
@@ -2129,9 +2130,9 @@ function Game() {
 
   const playHumanShipExplodeSound = async () => {
     try {
-      if (humanShipExplodeSound.current && sfxEnabled) {
+      if (humanShipExplodeSound.current && audioSystem.sfxEnabled) {
         await humanShipExplodeSound.current.setPositionAsync(0); // Reset to beginning
-        await humanShipExplodeSound.current.setVolumeAsync(musicVolume);
+        await humanShipExplodeSound.current.setVolumeAsync(audioSystem.musicVolume);
         await humanShipExplodeSound.current.playAsync();
         console.log('🔊 Human ship explode sound playing for ship/pod explosion');
       }
@@ -2142,9 +2143,9 @@ function Game() {
 
   const playMultiGunSound = async () => {
     try {
-      if (multiGunSound.current && sfxEnabled) {
+      if (multiGunSound.current && audioSystem.sfxEnabled) {
         await multiGunSound.current.setPositionAsync(0); // Reset to beginning
-        await multiGunSound.current.setVolumeAsync(musicVolume);
+        await multiGunSound.current.setVolumeAsync(audioSystem.musicVolume);
         await multiGunSound.current.playAsync();
         console.log('🔊 Multi gun sound playing for M weapon fire');
       }
@@ -2155,9 +2156,9 @@ function Game() {
 
   const playHomingMissilesGunSound = async () => {
     try {
-      if (homingMissilesGunSound.current && sfxEnabled) {
+      if (homingMissilesGunSound.current && audioSystem.sfxEnabled) {
         await homingMissilesGunSound.current.setPositionAsync(0); // Reset to beginning
-        await homingMissilesGunSound.current.setVolumeAsync(musicVolume);
+        await homingMissilesGunSound.current.setVolumeAsync(audioSystem.musicVolume);
         await homingMissilesGunSound.current.playAsync();
         console.log('🔊 Homing missiles gun sound playing for H weapon fire');
       }
@@ -2168,9 +2169,9 @@ function Game() {
 
   const playFireGunSound = async () => {
     try {
-      if (fireGunSound.current && sfxEnabled) {
+      if (fireGunSound.current && audioSystem.sfxEnabled) {
         await fireGunSound.current.setPositionAsync(0); // Reset to beginning
-        await fireGunSound.current.setVolumeAsync(musicVolume);
+        await fireGunSound.current.setVolumeAsync(audioSystem.musicVolume);
         await fireGunSound.current.playAsync();
         console.log('🔊 Fire gun sound playing for F weapon fire');
       }
@@ -2181,9 +2182,9 @@ function Game() {
 
   const playSpreadGunSound = async () => {
     try {
-      if (spreadGunSound.current && sfxEnabled) {
+      if (spreadGunSound.current && audioSystem.sfxEnabled) {
         await spreadGunSound.current.setPositionAsync(0); // Reset to beginning
-        await spreadGunSound.current.setVolumeAsync(musicVolume);
+        await spreadGunSound.current.setVolumeAsync(audioSystem.musicVolume);
         await spreadGunSound.current.playAsync();
         console.log('🔊 Spread gun sound playing for S weapon fire');
       }
@@ -4565,26 +4566,9 @@ function Game() {
     });
   };
   
-  const toggleMusic = async () => {
-    const newMusicEnabled = !musicEnabled;
-    setMusicEnabled(newMusicEnabled);
-    console.log(`Music toggled to: ${newMusicEnabled ? 'on' : 'off'}`);
-
-    // Immediately apply volume change
-    try {
-      if (titleMusic.current) {
-        await titleMusic.current.setVolumeAsync(newMusicEnabled ? musicVolume : 0);
-      }
-    } catch (error) {
-      console.log('❌ Failed to toggle music volume:', error);
-    }
-  };
-
-  const toggleSfx = () => {
-    const newSfxEnabled = !sfxEnabled;
-    setSfxEnabled(newSfxEnabled);
-    console.log(`Sound effects toggled to: ${newSfxEnabled ? 'on' : 'off'}`);
-  };
+  // Audio toggle functions now provided by audioSystem
+  const toggleMusic = audioSystem.toggleMusic;
+  const toggleSfx = audioSystem.toggleSfx;
 
 
   // Audio system initialization
@@ -4693,17 +4677,17 @@ function Game() {
   // Handle phase changes for audio
   useEffect(() => {
     const handlePhaseAudio = async () => {
-      if (!titleMusic.current || !gameplayMusic.current || !missionFailedMusic.current || !audioLoaded) return;
+      if (!titleMusic.current || !gameplayMusic.current || !missionFailedMusic.current || !audioSystem.audioLoaded) return;
 
       if (phase === "menu") {
         // Stop all music first
         await stopAllMusic();
 
         // Play title music if enabled (restart from beginning)
-        if (musicEnabled) {
+        if (audioSystem.musicEnabled) {
           try {
             await titleMusic.current.setPositionAsync(0); // Restart from beginning
-            await titleMusic.current.setVolumeAsync(musicVolume);
+            await titleMusic.current.setVolumeAsync(audioSystem.musicVolume);
             await titleMusic.current.playAsync();
             console.log('🎵 Title music started from beginning');
           } catch (error) {
@@ -4724,18 +4708,18 @@ function Game() {
         }
 
         // Play gameplay music if enabled and not already playing
-        if (musicEnabled) {
+        if (audioSystem.musicEnabled) {
           try {
             if (!gameplayMusicPlaying.current) {
               // Only restart from beginning if not already playing
               await gameplayMusic.current.setPositionAsync(0); // Restart from beginning
-              await gameplayMusic.current.setVolumeAsync(musicVolume);
+              await gameplayMusic.current.setVolumeAsync(audioSystem.musicVolume);
               await gameplayMusic.current.playAsync();
               gameplayMusicPlaying.current = true;
               console.log('🎵 Gameplay music started from beginning');
             } else {
               // Just ensure proper volume if already playing
-              await gameplayMusic.current.setVolumeAsync(musicVolume);
+              await gameplayMusic.current.setVolumeAsync(audioSystem.musicVolume);
               console.log('🎵 Gameplay music continues playing');
             }
           } catch (error) {
@@ -4754,10 +4738,10 @@ function Game() {
       } else if (phase === "respawning") {
         // Keep gameplay music playing during respawn screens
         // Only adjust volume based on music settings
-        if (musicEnabled) {
+        if (audioSystem.musicEnabled) {
           try {
             if (gameplayMusic.current) {
-              await gameplayMusic.current.setVolumeAsync(musicVolume);
+              await gameplayMusic.current.setVolumeAsync(audioSystem.musicVolume);
             }
             console.log('🎵 Gameplay music continues during respawn');
           } catch (error) {
@@ -4787,16 +4771,16 @@ function Game() {
     };
 
     handlePhaseAudio();
-  }, [phase, musicEnabled, musicVolume, audioLoaded]);
+  }, [phase, audioSystem.musicEnabled, audioSystem.musicVolume, audioSystem.audioLoaded]);
 
   // Auto-start music when user interacts with the page (browser autoplay policy)
   useEffect(() => {
     const startMusicOnInteraction = async () => {
-      if (audioLoaded && phase === "menu" && musicEnabled && titleMusic.current && !userInteracted.current) {
+      if (audioSystem.audioLoaded && phase === "menu" && audioSystem.musicEnabled && titleMusic.current && !userInteracted.current) {
         try {
           await titleMusic.current.stopAsync(); // Stop first to reset
           await titleMusic.current.setPositionAsync(0);
-          await titleMusic.current.setVolumeAsync(musicVolume);
+          await titleMusic.current.setVolumeAsync(audioSystem.musicVolume);
           await titleMusic.current.playAsync();
           userInteracted.current = true; // Mark as started
           console.log('🎵 Started title music after user interaction');
@@ -4807,7 +4791,7 @@ function Game() {
     };
 
     const handleUserInteraction = () => {
-      if (audioLoaded && !userInteracted.current) {
+      if (audioSystem.audioLoaded && !userInteracted.current) {
         // Enable music on first user interaction
         setMusicEnabled(true);
         userInteracted.current = true;
@@ -4816,7 +4800,7 @@ function Game() {
     };
 
     // Add global listeners for any user interaction
-    if (audioLoaded && !userInteracted.current) {
+    if (audioSystem.audioLoaded && !userInteracted.current) {
       document.addEventListener('click', handleUserInteraction, { once: true });
       document.addEventListener('touchstart', handleUserInteraction, { once: true });
       document.addEventListener('keydown', handleUserInteraction, { once: true });
@@ -4828,7 +4812,7 @@ function Game() {
       document.removeEventListener('touchstart', handleUserInteraction);
       document.removeEventListener('keydown', handleUserInteraction);
     };
-  }, [audioLoaded, phase, musicEnabled, musicVolume]);
+  }, [audioSystem.audioLoaded, phase, audioSystem.musicEnabled, audioSystem.musicVolume]);
 
   /* ----- Render ----- */
   const rNow = currentRingRadius();
@@ -5399,9 +5383,9 @@ function Game() {
             onStart={startGame}
             leftHandedMode={leftHandedMode}
             onToggleHandedness={toggleHandedness}
-            musicEnabled={musicEnabled}
+            audioSystem.musicEnabled={audioSystem.musicEnabled}
             onToggleMusic={toggleMusic}
-            sfxEnabled={sfxEnabled}
+            audioSystem.sfxEnabled={audioSystem.sfxEnabled}
             onToggleSfx={toggleSfx}
             onShowLeaderboard={() => setShowLeaderboard(true)}
           />}
