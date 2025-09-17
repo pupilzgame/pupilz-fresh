@@ -1467,7 +1467,7 @@ function Game() {
             const username = user.username || user.first_name || 'Player';
             console.log('🤖 Detected Telegram user:', username);
             setTelegramUsername(username);
-            setPlayerName(username.toUpperCase().slice(0, 8)); // Allow up to 8 chars for usernames
+            setPlayerName(username.toUpperCase().slice(0, 12)); // Allow up to 12 chars for usernames
           } else {
             console.log('🔍 No Telegram user data available');
           }
@@ -5706,7 +5706,7 @@ function Game() {
               </Pressable>
             </View>
 
-            <Text style={styles.nameEntryHint}>3 characters max • Will be shown in CAPS</Text>
+            <Text style={styles.nameEntryHint}>12 characters max • Will be shown in CAPS</Text>
           </View>
         </View>
       )}
