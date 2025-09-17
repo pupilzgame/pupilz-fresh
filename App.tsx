@@ -742,10 +742,12 @@ type EnhancedMenuProps = {
   onToggleHandedness: () => void;
   musicEnabled: boolean;
   onToggleMusic: () => void;
+  sfxEnabled: boolean;
+  onToggleSfx: () => void;
   onShowLeaderboard: () => void;
 };
 
-const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic, onShowLeaderboard }) => {
+const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic, sfxEnabled, onToggleSfx, onShowLeaderboard }) => {
   const [openId, setOpenId] = useState<string>("");
   const [animPhase, setAnimPhase] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
@@ -970,11 +972,11 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
                 </Text>
                 <View style={[
                   styles.settingToggle,
-                  leftHandedMode && styles.settingToggleActive
+                  !leftHandedMode && styles.settingToggleActive
                 ]}>
                   <View style={[
                     styles.settingToggleKnob,
-                    leftHandedMode && styles.settingToggleKnobActive
+                    !leftHandedMode && styles.settingToggleKnobActive
                   ]} />
                 </View>
               </Pressable>
@@ -996,6 +998,24 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
                   <View style={[
                     styles.settingToggleKnob,
                     musicEnabled && styles.settingToggleKnobActive
+                  ]} />
+                </View>
+              </Pressable>
+
+              <Pressable
+                onPress={onToggleSfx}
+                style={styles.settingItem}
+              >
+                <Text style={styles.settingText}>
+                  {sfxEnabled ? '🔊 Sound Effects' : '🔇 Sound Effects'}
+                </Text>
+                <View style={[
+                  styles.settingToggle,
+                  sfxEnabled && styles.settingToggleActive
+                ]}>
+                  <View style={[
+                    styles.settingToggleKnob,
+                    sfxEnabled && styles.settingToggleKnobActive
                   ]} />
                 </View>
               </Pressable>
@@ -1269,7 +1289,8 @@ function Game() {
   const isMobile = typeof window !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   const isLowEndDevice = false; // Disable for now to prevent crashes
 
-  const [musicEnabled, setMusicEnabled] = useState(true);
+  const [musicEnabled, setMusicEnabled] = useState(false); // Start disabled until user interaction
+  const [sfxEnabled, setSfxEnabled] = useState(true);
   const [musicVolume, setMusicVolume] = useState(0.7);
   const [audioLoaded, setAudioLoaded] = useState(false);
 
@@ -2070,7 +2091,7 @@ function Game() {
 
   const playSpaceBubblesSound = async () => {
     try {
-      if (spaceBubblesSound.current && musicEnabled) {
+      if (spaceBubblesSound.current && sfxEnabled) {
         await spaceBubblesSound.current.setPositionAsync(0); // Reset to beginning
         await spaceBubblesSound.current.setVolumeAsync(musicVolume);
         await spaceBubblesSound.current.playAsync();
@@ -2083,7 +2104,7 @@ function Game() {
 
   const playGetItemSound = async () => {
     try {
-      if (getItemSound.current && musicEnabled) {
+      if (getItemSound.current && sfxEnabled) {
         await getItemSound.current.setPositionAsync(0); // Reset to beginning
         await getItemSound.current.setVolumeAsync(musicVolume);
         await getItemSound.current.playAsync();
@@ -2096,7 +2117,7 @@ function Game() {
 
   const playClearLevelSound = async () => {
     try {
-      if (clearLevelSound.current && musicEnabled) {
+      if (clearLevelSound.current && sfxEnabled) {
         await clearLevelSound.current.setPositionAsync(0); // Reset to beginning
         await clearLevelSound.current.setVolumeAsync(musicVolume);
         await clearLevelSound.current.playAsync();
@@ -2109,7 +2130,7 @@ function Game() {
 
   const playButtonPressSound = async () => {
     try {
-      if (buttonPressSound.current && musicEnabled) {
+      if (buttonPressSound.current && sfxEnabled) {
         await buttonPressSound.current.setPositionAsync(0); // Reset to beginning
         await buttonPressSound.current.setVolumeAsync(musicVolume);
         await buttonPressSound.current.playAsync();
@@ -2122,7 +2143,7 @@ function Game() {
 
   const playAsteroidBreakingSound = async () => {
     try {
-      if (asteroidBreakingSound.current && musicEnabled) {
+      if (asteroidBreakingSound.current && sfxEnabled) {
         await asteroidBreakingSound.current.setPositionAsync(0); // Reset to beginning
         await asteroidBreakingSound.current.setVolumeAsync(musicVolume);
         await asteroidBreakingSound.current.playAsync();
@@ -2135,7 +2156,7 @@ function Game() {
 
   const playGunCockingSound = async () => {
     try {
-      if (gunCockingSound.current && musicEnabled) {
+      if (gunCockingSound.current && sfxEnabled) {
         await gunCockingSound.current.setPositionAsync(0); // Reset to beginning
         await gunCockingSound.current.setVolumeAsync(musicVolume);
         await gunCockingSound.current.playAsync();
@@ -2148,7 +2169,7 @@ function Game() {
 
   const playRespawnSound = async () => {
     try {
-      if (respawnSound.current && musicEnabled) {
+      if (respawnSound.current && sfxEnabled) {
         await respawnSound.current.setPositionAsync(0); // Reset to beginning
         await respawnSound.current.setVolumeAsync(musicVolume);
         await respawnSound.current.playAsync();
@@ -2161,7 +2182,7 @@ function Game() {
 
   const playWeaponFireSound = async () => {
     try {
-      if (weaponFireSound.current && musicEnabled) {
+      if (weaponFireSound.current && sfxEnabled) {
         await weaponFireSound.current.setPositionAsync(0); // Reset to beginning
         await weaponFireSound.current.setVolumeAsync(musicVolume);
         await weaponFireSound.current.playAsync();
@@ -2174,7 +2195,7 @@ function Game() {
 
   const playUseItemSound = async () => {
     try {
-      if (useItemSound.current && musicEnabled) {
+      if (useItemSound.current && sfxEnabled) {
         await useItemSound.current.setPositionAsync(0); // Reset to beginning
         await useItemSound.current.setVolumeAsync(musicVolume);
         await useItemSound.current.playAsync();
@@ -2187,7 +2208,7 @@ function Game() {
 
   const playLaserGunSound = async () => {
     try {
-      if (laserGunSound.current && musicEnabled) {
+      if (laserGunSound.current && sfxEnabled) {
         await laserGunSound.current.setPositionAsync(0); // Reset to beginning
         await laserGunSound.current.setVolumeAsync(musicVolume);
         await laserGunSound.current.playAsync();
@@ -2200,7 +2221,7 @@ function Game() {
 
   const playHumanShipExplodeSound = async () => {
     try {
-      if (humanShipExplodeSound.current && musicEnabled) {
+      if (humanShipExplodeSound.current && sfxEnabled) {
         await humanShipExplodeSound.current.setPositionAsync(0); // Reset to beginning
         await humanShipExplodeSound.current.setVolumeAsync(musicVolume);
         await humanShipExplodeSound.current.playAsync();
@@ -2213,7 +2234,7 @@ function Game() {
 
   const playMultiGunSound = async () => {
     try {
-      if (multiGunSound.current && musicEnabled) {
+      if (multiGunSound.current && sfxEnabled) {
         await multiGunSound.current.setPositionAsync(0); // Reset to beginning
         await multiGunSound.current.setVolumeAsync(musicVolume);
         await multiGunSound.current.playAsync();
@@ -2226,7 +2247,7 @@ function Game() {
 
   const playHomingMissilesGunSound = async () => {
     try {
-      if (homingMissilesGunSound.current && musicEnabled) {
+      if (homingMissilesGunSound.current && sfxEnabled) {
         await homingMissilesGunSound.current.setPositionAsync(0); // Reset to beginning
         await homingMissilesGunSound.current.setVolumeAsync(musicVolume);
         await homingMissilesGunSound.current.playAsync();
@@ -2239,7 +2260,7 @@ function Game() {
 
   const playFireGunSound = async () => {
     try {
-      if (fireGunSound.current && musicEnabled) {
+      if (fireGunSound.current && sfxEnabled) {
         await fireGunSound.current.setPositionAsync(0); // Reset to beginning
         await fireGunSound.current.setVolumeAsync(musicVolume);
         await fireGunSound.current.playAsync();
@@ -2252,7 +2273,7 @@ function Game() {
 
   const playSpreadGunSound = async () => {
     try {
-      if (spreadGunSound.current && musicEnabled) {
+      if (spreadGunSound.current && sfxEnabled) {
         await spreadGunSound.current.setPositionAsync(0); // Reset to beginning
         await spreadGunSound.current.setVolumeAsync(musicVolume);
         await spreadGunSound.current.playAsync();
@@ -4689,7 +4710,7 @@ function Game() {
     const newMusicEnabled = !musicEnabled;
     setMusicEnabled(newMusicEnabled);
     console.log(`Music toggled to: ${newMusicEnabled ? 'on' : 'off'}`);
-    
+
     // Immediately apply volume change
     try {
       if (titleMusic.current) {
@@ -4699,7 +4720,13 @@ function Game() {
       console.log('❌ Failed to toggle music volume:', error);
     }
   };
-  
+
+  const toggleSfx = () => {
+    const newSfxEnabled = !sfxEnabled;
+    setSfxEnabled(newSfxEnabled);
+    console.log(`Sound effects toggled to: ${newSfxEnabled ? 'on' : 'off'}`);
+  };
+
 
   // Audio system initialization
   useEffect(() => {
@@ -4922,7 +4949,10 @@ function Game() {
 
     const handleUserInteraction = () => {
       if (audioLoaded && !userInteracted.current) {
-        startMusicOnInteraction();
+        // Enable music on first user interaction
+        setMusicEnabled(true);
+        userInteracted.current = true;
+        console.log('🎵 Music enabled after first user interaction');
       }
     };
 
@@ -5512,6 +5542,8 @@ function Game() {
             onToggleHandedness={toggleHandedness}
             musicEnabled={musicEnabled}
             onToggleMusic={toggleMusic}
+            sfxEnabled={sfxEnabled}
+            onToggleSfx={toggleSfx}
             onShowLeaderboard={() => setShowLeaderboard(true)}
           />}
 
