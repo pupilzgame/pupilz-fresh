@@ -748,6 +748,8 @@ type EnhancedMenuProps = {
 const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic, onShowLeaderboard }) => {
   const [openId, setOpenId] = useState<string>("");
   const [animPhase, setAnimPhase] = useState(0);
+  const [showSettings, setShowSettings] = useState(false);
+  const settingsAnimValue = useRef(new Animated.Value(0)).current;
   const menuStarsRef = useRef<Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}>>([]);
   const { width, height } = useWindowDimensions();
 
@@ -794,6 +796,27 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
     setOpenId(current => current === id ? "" : id);
   };
 
+  const toggleSettings = () => {
+    if (showSettings) {
+      // Hide animation
+      Animated.timing(settingsAnimValue, {
+        toValue: 0,
+        duration: 200,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: false,
+      }).start(() => setShowSettings(false));
+    } else {
+      // Show animation
+      setShowSettings(true);
+      Animated.timing(settingsAnimValue, {
+        toValue: 1,
+        duration: 200,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: false,
+      }).start();
+    }
+  };
+
   const logoGlow = {
     textShadowColor: '#00FFFF',
     textShadowOffset: { width: 0, height: 0 },
@@ -823,25 +846,13 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
         ))}
       </View>
 
-      {/* Top Corner Settings */}
-      <View style={styles.topCornerSettings}>
-        <Pressable
-          onPress={onToggleHandedness}
-          style={[styles.topCornerButton, { opacity: subtleFade }]}
-        >
-          <Text style={styles.topCornerText}>
-            {leftHandedMode ? '👈' : '👉'}
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={onToggleMusic}
-          style={[styles.topCornerButton, { opacity: subtleFade }]}
-        >
-          <Text style={styles.topCornerText}>
-            {musicEnabled ? '🎵' : '🔇'}
-          </Text>
-        </Pressable>
-      </View>
+      {/* Settings Gear Icon */}
+      <Pressable
+        onPress={toggleSettings}
+        style={[styles.settingsGear, { opacity: subtleFade }]}
+      >
+        <Text style={styles.settingsGearText}>⚙️</Text>
+      </Pressable>
 
       {/* Logo treatment */}
       <View style={styles.logoContainer}>
@@ -930,6 +941,75 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
           <Text style={styles.menuCTAText}>INVADE EARTH!</Text>
         </Pressable>
       </ScrollView>
+
+      {/* Animated Settings Popup */}
+      {showSettings && (
+        <Animated.View style={[
+          styles.settingsPopup,
+          {
+            opacity: settingsAnimValue,
+            transform: [{
+              scale: settingsAnimValue.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.8, 1],
+              })
+            }]
+          }
+        ]}>
+          <View style={styles.settingsContent}>
+            <Text style={styles.settingsTitle}>SETTINGS</Text>
+
+            <View style={styles.settingsSection}>
+              <Text style={styles.settingLabel}>CONTROLS</Text>
+              <Pressable
+                onPress={onToggleHandedness}
+                style={styles.settingItem}
+              >
+                <Text style={styles.settingText}>
+                  {leftHandedMode ? '👈 Left-Handed Mode' : '👉 Right-Handed Mode'}
+                </Text>
+                <View style={[
+                  styles.settingToggle,
+                  leftHandedMode && styles.settingToggleActive
+                ]}>
+                  <View style={[
+                    styles.settingToggleKnob,
+                    leftHandedMode && styles.settingToggleKnobActive
+                  ]} />
+                </View>
+              </Pressable>
+            </View>
+
+            <View style={styles.settingsSection}>
+              <Text style={styles.settingLabel}>AUDIO</Text>
+              <Pressable
+                onPress={onToggleMusic}
+                style={styles.settingItem}
+              >
+                <Text style={styles.settingText}>
+                  {musicEnabled ? '🎵 Music' : '🔇 Music'}
+                </Text>
+                <View style={[
+                  styles.settingToggle,
+                  musicEnabled && styles.settingToggleActive
+                ]}>
+                  <View style={[
+                    styles.settingToggleKnob,
+                    musicEnabled && styles.settingToggleKnobActive
+                  ]} />
+                </View>
+              </Pressable>
+            </View>
+
+            <Pressable
+              onPress={toggleSettings}
+              style={styles.settingsCloseButton}
+            >
+              <Text style={styles.settingsCloseText}>CLOSE</Text>
+            </Pressable>
+          </View>
+        </Animated.View>
+      )}
     </View>
   );
 };
@@ -6955,32 +7035,132 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Top Corner Settings Styles
-  topCornerSettings: {
+  // Settings Gear Icon Styles
+  settingsGear: {
     position: "absolute",
     top: 10,
     right: 10,
-    flexDirection: "row",
-    gap: 8,
-    zIndex: 10,
-  },
-  topCornerButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.2)",
+    borderColor: "rgba(255, 255, 255, 0.3)",
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+    zIndex: 10,
+  },
+  settingsGearText: {
+    fontSize: 18,
+    textAlign: "center",
+  },
+
+  // Settings Popup Styles
+  settingsPopup: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
+  },
+  settingsContent: {
+    backgroundColor: "#1a1a2e",
+    borderRadius: 16,
+    padding: 24,
+    width: "80%",
+    maxWidth: 300,
+    borderWidth: 2,
+    borderColor: "#00FFFF",
+    shadowColor: "#00FFFF",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  settingsTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#00FFFF",
+    textAlign: "center",
+    marginBottom: 20,
+    textShadowColor: "rgba(0, 255, 255, 0.5)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  settingsSection: {
+    marginBottom: 20,
+  },
+  settingLabel: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: "#888",
+    textTransform: "uppercase",
+    marginBottom: 8,
+    letterSpacing: 1,
+  },
+  settingItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  settingText: {
+    fontSize: 16,
+    color: "#FFFFFF",
+    fontWeight: "600",
+  },
+  settingToggle: {
+    width: 50,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    paddingHorizontal: 2,
+  },
+  settingToggleActive: {
+    backgroundColor: "#00FFFF",
+  },
+  settingToggleKnob: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    alignSelf: "flex-start",
+  },
+  settingToggleKnobActive: {
+    alignSelf: "flex-end",
+  },
+  settingsCloseButton: {
+    backgroundColor: "#FF3366",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignSelf: "center",
+    marginTop: 8,
+    shadowColor: "#FF3366",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
     elevation: 3,
   },
-  topCornerText: {
-    fontSize: 16,
+  settingsCloseText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#FFFFFF",
     textAlign: "center",
   },
 });
