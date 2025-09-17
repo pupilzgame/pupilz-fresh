@@ -569,7 +569,7 @@ type SettingsAccordionProps = {
 
 const SettingsAccordion: React.FC<SettingsAccordionProps> = ({ 
   section, isOpen, onToggle, leftHandedMode, onToggleHandedness, 
-  audioSystem.musicEnabled, onToggleMusic 
+  musicEnabled, onToggleMusic 
 }) => {
   const contentAnim = useRef(new Animated.Value(isOpen ? 1 : 0)).current;
 
@@ -656,7 +656,7 @@ type EnhancedMenuProps = {
   onShowLeaderboard: () => void;
 };
 
-const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, audioSystem.musicEnabled, onToggleMusic, audioSystem.sfxEnabled, onToggleSfx, onShowLeaderboard }) => {
+const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic, sfxEnabled, onToggleSfx, onShowLeaderboard }) => {
   const [openId, setOpenId] = useState<string>("");
   const [animPhase, setAnimPhase] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
@@ -5383,9 +5383,9 @@ function Game() {
             onStart={startGame}
             leftHandedMode={leftHandedMode}
             onToggleHandedness={toggleHandedness}
-            audioSystem.musicEnabled={audioSystem.musicEnabled}
+            musicEnabled={audioSystem.musicEnabled}
             onToggleMusic={toggleMusic}
-            audioSystem.sfxEnabled={audioSystem.sfxEnabled}
+            sfxEnabled={audioSystem.sfxEnabled}
             onToggleSfx={toggleSfx}
             onShowLeaderboard={() => setShowLeaderboard(true)}
           />}
