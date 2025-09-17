@@ -193,6 +193,22 @@ Pupilz Pod Descent - A React Native Expo space shooter game with TypeScript supp
 - **Professional Implementation**: expo-av with proper volume controls and cleanup
 - **Browser Compliance**: User interaction requirement for autoplay policies
 
+### 🚀 Major Performance Optimization (September 2024)
+- **3x Frame Rate Improvement**: Removed artificial frame limiting (20 FPS → 60 FPS)
+- **Mobile Performance**: Optimized for Telegram WebView and mobile browsers
+- **Particle System Optimization**:
+  - Ring disintegration particles reduced by 40% (radius*0.5 → radius*0.3, max 20)
+  - Explosion particles halved (8 → 4 per blast)
+  - Hit effect particles capped at 5 maximum instead of unlimited scaling
+- **Code Cleanup**: Removed 52 lines of disabled confetti/fireworks code
+- **Lag Resolution**: Addresses reported gameplay lag in Telegram mini app
+
+### 🎨 UI Polish Updates (September 2024)
+- **Button Text**: "DESCEND TO EARTH!" with proper centering and exclamation mark
+- **Character Limits**: Fixed high score name input consistency (12 characters max)
+- **SFX Control**: Confirmed proper muting during gameplay when SFX disabled
+- **Hint Text**: Updated from misleading "3 characters max" to accurate "12 characters max"
+
 ### Previous Updates (December 2024)
 
 ### 🌐 Web & PWA Implementation
