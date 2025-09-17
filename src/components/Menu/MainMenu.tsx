@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Animated, Image } from 'react-native';
 
 export interface MainMenuProps {
   onStart: () => void;
@@ -28,10 +28,16 @@ export const MainMenu: React.FC<MainMenuProps> = ({
 }) => {
   return (
     <View style={styles.container}>
-      {/* Game Title */}
+      {/* Logo treatment */}
       <View style={styles.titleContainer}>
-        <Text style={styles.gameTitle}>PUPILZ</Text>
-        <Text style={styles.gameSubtitle}>POD DESCENT</Text>
+        <Image
+          source={require('../../../assets/pupilz-logo.png')}
+          style={[styles.logoImage, { opacity: subtleFade }]}
+          resizeMode="contain"
+        />
+        <Text style={styles.logoSub}>
+          ── POD DESCENT ──
+        </Text>
       </View>
 
       {/* Main CTA Button */}
@@ -98,32 +104,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 60,
   },
-  gameTitle: {
-    fontSize: 48,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    letterSpacing: 8,
-    textShadowColor: 'rgba(255,51,102,0.8)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 20,
+  logoImage: {
+    width: 250,
+    height: 80,
+    marginBottom: 5,
+    alignSelf: 'center',
   },
-  gameSubtitle: {
-    fontSize: 16,
-    fontWeight: '600',
+  logoSub: {
+    fontSize: 18,
+    fontWeight: '700',
     color: '#CCCCCC',
     textAlign: 'center',
-    letterSpacing: 3,
-    marginTop: 8,
+    letterSpacing: 2,
+    marginBottom: 10,
   },
   menuCTA: {
-    backgroundColor: '#FF3366',
+    backgroundColor: '#39D3FF',
     paddingHorizontal: 40,
     paddingVertical: 16,
     borderRadius: 30,
     marginBottom: 40,
     position: 'relative',
     overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#0AA3C2',
   },
   menuCTAGlow: {
     position: 'absolute',
@@ -131,18 +135,15 @@ const styles = StyleSheet.create({
     height: '120%',
     left: '-10%',
     top: '-10%',
-    backgroundColor: 'rgba(255,51,102,0.3)',
+    backgroundColor: 'rgba(57, 211, 255, 0.3)',
     borderRadius: 30,
     zIndex: -1,
   },
   menuCTAText: {
-    color: '#FFFFFF',
+    color: '#060913',
     fontSize: 20,
     fontWeight: '900',
     letterSpacing: 1.5,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
     textAlign: 'center',
   },
   controlsContainer: {

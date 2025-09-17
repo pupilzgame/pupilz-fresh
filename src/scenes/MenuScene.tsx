@@ -1,11 +1,13 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { View, StyleSheet, useWindowDimensions, Animated } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGameStore } from '../state/store';
 import { useAudioSystem } from '../systems/AudioSystem';
 import { MainMenu } from '../components/Menu/MainMenu';
 
 export default function MenuScene() {
   const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const {
     startGame,
     leftHandedMode,
@@ -17,34 +19,45 @@ export default function MenuScene() {
 
   // Animation state for the original menu
   const [animPhase, setAnimPhase] = useState(0);
-  const menuStarsRef = useRef<Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}>>([]);
 
-  // Initialize menu stars animation (from the original)
+  // Game world stars (same as GameScene for authentic background)
+  const gameStarsRef = useRef<Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}>>([]);
+
+  // Initialize game world stars (same as GameScene for authentic background)
   useEffect(() => {
-    const stars: Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}> = [];
-    const layers = [
-      { count: 15, parallax: 0.3, size: 2, opacity: 0.4 },
-      { count: 12, parallax: 0.6, size: 3, opacity: 0.6 },
-      { count: 8, parallax: 0.9, size: 4, opacity: 0.8 },
+    const initStars: Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}> = [];
+    const starLayers = [
+      { count: 25, parallax: 0.2, size: 1, opacity: 0.3 },
+      { count: 20, parallax: 0.5, size: 2, opacity: 0.5 },
+      { count: 15, parallax: 0.8, size: 3, opacity: 0.7 },
     ];
 
-    layers.forEach((layer, li) => {
+    starLayers.forEach((layer, li) => {
       for (let i = 0; i < layer.count; i++) {
-        stars.push({
-          id: `menu-L${li}-${i}`,
+        initStars.push({
+          id: `L${li}-${i}`,
           x: Math.random() * width,
           y: Math.random() * height,
           size: layer.size,
           parallax: layer.parallax,
-          opacity: layer.opacity
+          opacity: layer.opacity * 0.6 // Reduced opacity for "screened out" effect
         });
       }
     });
-    menuStarsRef.current = stars;
+    gameStarsRef.current = initStars;
 
-    // Animation loop for subtle effects
+    // Animation loop for subtle effects and star movement
     const interval = setInterval(() => {
       setAnimPhase(prev => prev + 1);
+
+      // Slowly animate stars for the "screened out" game world effect
+      for (const s of gameStarsRef.current) {
+        s.y += 0.3 * s.parallax; // Slow downward drift
+        if (s.y > height + 4) {
+          s.y = -4;
+          s.x = Math.random() * width;
+        }
+      }
     }, 100);
 
     return () => clearInterval(interval);
@@ -72,21 +85,17 @@ export default function MenuScene() {
 
   return (
     <View style={styles.container}>
-      {/* Smooth background stars */}
-      <View style={styles.menuParticles} pointerEvents="none">
-        {menuStarsRef.current.map((star) => (
+      {/* Screened out game world background - authentic stars from GameScene */}
+      <View style={styles.gameWorldBackground} pointerEvents="none">
+        {gameStarsRef.current.map((s) => (
           <View
-            key={star.id}
-            style={{
-              position: 'absolute',
-              left: star.x,
-              top: star.y,
-              width: star.size,
-              height: star.size,
-              backgroundColor: '#8FB7FF',
-              borderRadius: star.size / 2,
-              opacity: star.opacity * (0.7 + Math.sin((animPhase + star.x) * 0.02) * 0.3),
-            }}
+            key={s.id}
+            style={[styles.star, {
+              width: s.size,
+              height: s.size,
+              opacity: s.opacity,
+              transform: [{ translateX: s.x }, { translateY: s.y + insets.top }]
+            }]}
           />
         ))}
       </View>
@@ -112,6 +121,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#060913',
+  },
+  gameWorldBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 0,
+  },
+  star: {
+    position: 'absolute',
+    backgroundColor: '#8FB7FF',
+    borderRadius: 2,
+    zIndex: 0,
   },
   content: {
     flex: 1,
