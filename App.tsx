@@ -2352,7 +2352,7 @@ function Game() {
     }
     
     const typeData = getBarrierTypeData(selectedType);
-    const wv = rand(BAR_W_MIN, BAR_W_MAX);
+    const wv = rand(GameConfig.BAR_W_MIN, GameConfig.BAR_W_MAX);
     const baseHP = Math.max(2, Math.round((wv / 50) * 3));
     const hp = Math.round(baseHP * typeData.hpMult);
     
@@ -2362,8 +2362,8 @@ function Game() {
       y: worldY, 
       w: wv, 
       h: typeData.height, 
-      vx: Math.random() < 0.5 ? -BAR_VX : BAR_VX, 
-      vy: BAR_REL_VY * (Math.random() * 0.6 + 0.7),
+      vx: Math.random() < 0.5 ? -GameConfig.BAR_VX : GameConfig.BAR_VX, 
+      vy: GameConfig.BAR_REL_VY * (Math.random() * 0.6 + 0.7),
       type: selectedType,
       hp,
       maxHp: hp,
@@ -2446,7 +2446,7 @@ function Game() {
   };
 
   const resetSegment = (first = false) => {
-    const segLen = rand(LEVEL_MIN, LEVEL_MAX);
+    const segLen = rand(GameConfig.LEVEL_MIN, GameConfig.LEVEL_MAX);
     
     // Ring spawning now handled by ship quota system - no automatic spawning in resetSegment
 
@@ -2480,7 +2480,7 @@ function Game() {
       } else {
         // Single asteroid
         asteroids.current.push(seedAsteroid(id, y));
-        const aSpace = AST_BASE_SPACING * Math.max(0.7, 1 - 0.06 * (level.current - 1));
+        const aSpace = GameConfig.AST_BASE_SPACING * Math.max(0.7, 1 - 0.06 * (level.current - 1));
         nextAstY.current = y + rand(aSpace * 0.85, aSpace * 1.2);
       }
     }
@@ -2507,7 +2507,7 @@ function Game() {
       } else {
         // Single barrier
         barriers.current.push(seedBarrier(id, y));
-        const bSpace = BAR_BASE_SPACING * Math.max(0.75, 1 - 0.05 * (level.current - 1));
+        const bSpace = GameConfig.BAR_BASE_SPACING * Math.max(0.75, 1 - 0.05 * (level.current - 1));
         nextBarY.current = y + rand(bSpace * 0.9, bSpace * 1.25);
       }
     }
@@ -2516,7 +2516,7 @@ function Game() {
       const id = (powerups.current[powerups.current.length - 1]?.id ?? -1) + 1;
       const y = nextPwrY.current;
       powerups.current.push(seedPowerUp(id, y));
-      nextPwrY.current = y + rand(PWR_BASE_SPACING * 0.9, PWR_BASE_SPACING * 1.4);
+      nextPwrY.current = y + rand(GameConfig.PWR_BASE_SPACING * 0.9, GameConfig.PWR_BASE_SPACING * 1.4);
     }
 
     // Pause ship spawns if boss is active
@@ -2524,7 +2524,7 @@ function Game() {
       const id = (ships.current[ships.current.length - 1]?.id ?? -1) + 1;
       const y = nextShipY.current;
       ships.current.push(seedShip(id, y));
-      const sSpace = SHIP_BASE_SPACING * Math.max(0.8, 1 - 0.04 * (level.current - 1));
+      const sSpace = GameConfig.SHIP_BASE_SPACING * Math.max(0.8, 1 - 0.04 * (level.current - 1));
       nextShipY.current = y + rand(sSpace * 0.85, sSpace * 1.25);
     }
   };
@@ -2934,7 +2934,7 @@ function Game() {
   /* ----- Weapons & Actions ----- */
   const currentCooldown = () => {
     const base = CD[weapon.current.kind];
-    const mult = 1 - RAPID_FACTOR * rapidLevel.current;
+    const mult = 1 - GameConfig.RAPID_FACTOR * rapidLevel.current;
     const lvlBonus = 1 - 0.06 * (weapon.current.level - 1);
     return base * mult * lvlBonus;
   };
@@ -3042,7 +3042,7 @@ function Game() {
         // Homing progression: 1→2→3 missiles for smart targeting satisfaction
         const count = weapon.current.level; // 1/2/3 missiles
         for (let i = 0; i < count; i++) {
-          projs.current.push({ id: nextId(), kind: "homing", x: wX, y: wz + GameConfig.POD_RADIUS + 4, vx: 0, vy: HOMING_SPEED, r: 5, ttl: 3.0, turn: 1100 + 140 * (weapon.current.level - 1) });
+          projs.current.push({ id: nextId(), kind: "homing", x: wX, y: wz + GameConfig.POD_RADIUS + 4, vx: 0, vy: GameConfig.HOMING_SPEED, r: 5, ttl: 3.0, turn: 1100 + 140 * (weapon.current.level - 1) });
         }
         spawnMuzzle(wX, wz + GameConfig.POD_RADIUS + 2, "#FFE486");
         playHomingMissilesGunSound(); // Play homing missiles sound effect
@@ -3060,7 +3060,7 @@ function Game() {
     // start sweep from pod
     sweepActive.current = true;
     sweepR.current = 0;
-    flashTime.current = NUKE_FLASH_TIME;
+    flashTime.current = GameConfig.NUKE_FLASH_TIME;
   };
 
   const activateEnergyCell = () => {
@@ -3070,8 +3070,8 @@ function Game() {
     energyCells.current -= 1;
 
     // +3 shields (stacking) & 3s i-frames
-    shieldLives.current = Math.min(MAX_SHIELD_LIVES, shieldLives.current + ENERGY_SHIELD_GAIN);
-    invulnTime.current = Math.max(invulnTime.current, ENERGY_IFRAME_TIME);
+    shieldLives.current = Math.min(GameConfig.MAX_SHIELD_LIVES, shieldLives.current + GameConfig.ENERGY_SHIELD_GAIN);
+    invulnTime.current = Math.max(invulnTime.current, GameConfig.ENERGY_IFRAME_TIME);
 
     // sparkles
     const idBase = (particles.current[particles.current.length - 1]?.id ?? 0) + 1;
@@ -3332,11 +3332,11 @@ function Game() {
     if (level.current >= 2 && level.current <= 5) {
       // Deploy 3 drone reinforcements for each level milestone
       drones.current = [];
-      for (let i = 0; i < MAX_DRONES; i++) {
+      for (let i = 0; i < GameConfig.MAX_DRONES; i++) {
         const newDrone: Drone = {
           id: Date.now() + Math.random() + i,
-          angle: (i * 2 * Math.PI) / MAX_DRONES, // evenly spaced (0°, 120°, 240°)
-          orbitRadius: DRONE_ORBIT_RADIUS,
+          angle: (i * 2 * Math.PI) / GameConfig.MAX_DRONES, // evenly spaced (0°, 120°, 240°)
+          orbitRadius: GameConfig.DRONE_ORBIT_RADIUS,
           active: true,
           mode: "orbit",
           x: podX.current,
@@ -3383,7 +3383,7 @@ function Game() {
       // Remove one drone (first one)
       const sacrificedDrone = drones.current.shift()!;
       boom(sacrificedDrone.x, sacrificedDrone.y, 0.8, "#FFD700");
-      invulnTime.current = HIT_INVULN_TIME;
+      invulnTime.current = GameConfig.HIT_INVULN_TIME;
       return true; // Drone took the hit
     }
     return false; // No drones left
@@ -3491,7 +3491,7 @@ function Game() {
 
     // Calculate time slow factor for enemies/projectiles
     const isTimeSlowActive = timeSlowRemaining.current > 0;
-    const enemyDt = isTimeSlowActive ? dt * TIME_SLOW_FACTOR : dt;
+    const enemyDt = isTimeSlowActive ? dt * GameConfig.TIME_SLOW_FACTOR : dt;
 
     // Parallax stars + FX timers (smooth wrap on tall screens)
     for (const s of stars.current) {
@@ -3538,7 +3538,7 @@ function Game() {
     // First, check if any enemies are too close to the pod and deploy drones
     const podWorldY = scrollY.current + podY.current;
     let threatFound: { x: number; y: number; dist: number } | null = null;
-    let minThreatDist = DRONE_ACTIVATION_DISTANCE;
+    let minThreatDist = GameConfig.DRONE_ACTIVATION_DISTANCE;
     
     // Find closest threat to pod
     for (const ship of ships.current) {
@@ -3585,11 +3585,11 @@ function Game() {
         const dy = drone.targetY - drone.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > 0) {
-          drone.vx = (dx / dist) * DRONE_KAMIKAZE_SPEED;
-          drone.vy = (dy / dist) * DRONE_KAMIKAZE_SPEED;
+          drone.vx = (dx / dist) * GameConfig.DRONE_KAMIKAZE_SPEED;
+          drone.vy = (dy / dist) * GameConfig.DRONE_KAMIKAZE_SPEED;
         } else {
           drone.vx = 0;
-          drone.vy = -DRONE_KAMIKAZE_SPEED; // default upward movement
+          drone.vy = -GameConfig.DRONE_KAMIKAZE_SPEED; // default upward movement
         }
         droneDeployGameConfig.CD.current = 0.5; // 0.5 second cooldown between deployments
         
@@ -3605,7 +3605,7 @@ function Game() {
 
       if (drone.mode === "orbit") {
         // Orbital movement around pod
-        drone.angle += DRONE_ORBIT_SPEED * dt;
+        drone.angle += GameConfig.DRONE_ORBIT_SPEED * dt;
         drone.x = podX.current + Math.cos(drone.angle) * drone.orbitRadius;
         drone.y = podY.current + Math.sin(drone.angle) * drone.orbitRadius;
       } else if (drone.mode === "kamikaze") {
@@ -3633,8 +3633,8 @@ function Game() {
           const dy = drone.targetY - drone.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist > 0 && !isNaN(dist)) {
-            drone.vx = (dx / dist) * DRONE_KAMIKAZE_SPEED;
-            drone.vy = (dy / dist) * DRONE_KAMIKAZE_SPEED;
+            drone.vx = (dx / dist) * GameConfig.DRONE_KAMIKAZE_SPEED;
+            drone.vy = (dy / dist) * GameConfig.DRONE_KAMIKAZE_SPEED;
           } else {
             drone.vx = 0;
             drone.vy = 0;
@@ -3666,7 +3666,7 @@ function Game() {
     }
 
     // Keep world scrolling in all phases (menu/dead also animate)
-    worldV.current = clamp(lerp(worldV.current, GameConfig.FREE_FALL, 1 - Math.exp(-RETURN_TO_FF * dt)), MIN_DESCENT, MAX_DESCENT);
+    worldV.current = clamp(lerp(worldV.current, GameConfig.FREE_FALL, 1 - Math.exp(-GameConfig.RETURN_TO_FF * dt)), GameConfig.MIN_DESCENT, GameConfig.MAX_DESCENT);
     scrollY.current += worldV.current * dt;
 
     // Pod movement is now handled by direct touch controls
@@ -3675,7 +3675,7 @@ function Game() {
 
     // Nuke sweep expand & apply (no lag, spares powerups)
     if (sweepActive.current) {
-      sweepR.current += SWEEP_SPEED * dt;
+      sweepR.current += GameConfig.SWEEP_SPEED * dt;
       const cx = podX.current;
       const cy = scrollY.current + podY.current;
 
@@ -3725,7 +3725,7 @@ function Game() {
       // boss: heavy chunk (decoupled radius)
       if (boss.current.active) {
         const dx = boss.current.x - cx, dy = boss.current.y - cy;
-        const br = BOSS_COLLISION_RADIUS;
+        const br = GameConfig.BOSS_COLLISION_RADIUS;
         if (dx*dx + dy*dy <= (sweepR.current + br) * (sweepR.current + br)) {
           const chunk = Math.max(1, Math.floor(boss.current.hpMax * 0.25));
           boss.current.hp = Math.max(0, boss.current.hp - chunk);
@@ -3816,7 +3816,7 @@ function Game() {
         const targetY = scrollY.current + podY.current + rand(10, 40);
         const dx = targetX - s.x, dy = targetY - s.y;
         const len = Math.hypot(dx, dy) || 1;
-        const spd = s.kind === "scout" ? EN_MISSILE_SPEED : EN_PLASMA_SPEED;
+        const spd = s.kind === "scout" ? GameConfig.EN_MISSILE_SPEED : GameConfig.EN_PLASMA_SPEED;
         enemyProjs.current.push({
           id: (enemyProjs.current[enemyProjs.current.length - 1]?.id ?? -1) + 1,
           x: s.x, y: s.y,
@@ -3931,9 +3931,9 @@ function Game() {
         const axp = (dx / len) * (p.turn ?? 900);
         const ayp = (dy / len) * (p.turn ?? 900);
         p.vx += axp * simDt;
-        p.vy = Math.abs(p.vy) < HOMING_SPEED ? p.vy + ayp * simDt : p.vy;
+        p.vy = Math.abs(p.vy) < GameConfig.HOMING_SPEED ? p.vy + ayp * simDt : p.vy;
         const sp = Math.hypot(p.vx, p.vy);
-        if (sp > HOMING_SPEED) { p.vx *= HOMING_SPEED / sp; p.vy *= HOMING_SPEED / sp; }
+        if (sp > GameConfig.HOMING_SPEED) { p.vx *= GameConfig.HOMING_SPEED / sp; p.vy *= GameConfig.HOMING_SPEED / sp; }
       }
       p.x += p.vx * simDt;
       p.y += Math.abs(p.vy) * simDt;
@@ -4120,7 +4120,7 @@ function Game() {
         if (!hit && boss.current.active) {
           const b = boss.current;
           const dx = p.x - b.x, dy = p.y - b.y;
-          const rad = BOSS_COLLISION_RADIUS;
+          const rad = GameConfig.BOSS_COLLISION_RADIUS;
           if (dx * dx + dy * dy <= rad * rad) {
             let dmg = 1;
             if (p.kind === "laser") dmg = 4 + 2 * (weapon.current.level - 1);
@@ -4175,7 +4175,7 @@ function Game() {
               break;
             } else if (shieldLives.current > 0) {
               shieldLives.current -= 1;
-              invulnTime.current = HIT_INVULN_TIME;
+              invulnTime.current = GameConfig.HIT_INVULN_TIME;
               playAsteroidBreakingSound(); // Play SFX for asteroid destruction
               boom(a.x, a.y, 0.9, "#9FFFB7");
               asteroids.current.splice(i, 1);
@@ -4202,7 +4202,7 @@ function Game() {
               break;
             } else if (shieldLives.current > 0) {
               shieldLives.current -= 1;
-              invulnTime.current = HIT_INVULN_TIME;
+              invulnTime.current = GameConfig.HIT_INVULN_TIME;
               playAsteroidBreakingSound(); // Play SFX for barrier destruction
               boom(cx, cy, 0.9, "#9FFFB7");
               barriers.current.splice(i, 1);
@@ -4225,7 +4225,7 @@ function Game() {
               boom(ep.x, ep.y, 0.7, "#FFD700");
             } else if (shieldLives.current > 0) {
               shieldLives.current -= 1;
-              invulnTime.current = HIT_INVULN_TIME;
+              invulnTime.current = GameConfig.HIT_INVULN_TIME;
               boom(ep.x, ep.y, 0.7, "#9FFFB7");
             } else {
               killPlayer('enemy'); return;
@@ -4299,7 +4299,7 @@ function Game() {
               ships.current.splice(i, 1);
             } else if (shieldLives.current > 0) {
               shieldLives.current -= 1;
-              invulnTime.current = HIT_INVULN_TIME;
+              invulnTime.current = GameConfig.HIT_INVULN_TIME;
               playHumanShipExplodeSound(); // Play SFX for ship explosion
               boom(s.x, s.y, 1.0, "#9FFFB7");
               ships.current.splice(i, 1);
@@ -4321,7 +4321,7 @@ function Game() {
         if (dx * dx + dy * dy <= rr * rr) {
           if (p.kind === "B") {
             // Bubble shield +1 (cap at 6)
-            shieldLives.current = Math.min(MAX_SHIELD_LIVES, shieldLives.current + 1);
+            shieldLives.current = Math.min(GameConfig.MAX_SHIELD_LIVES, shieldLives.current + 1);
           } else if (p.kind === "E") {
             // Energy cell: store for later use (max 2)
             energyCells.current = Math.min(2, energyCells.current + 1);
@@ -4330,18 +4330,18 @@ function Game() {
             rapidLevel.current = Math.min(3, rapidLevel.current + 1) as 0 | 1 | 2 | 3;
           } else if (p.kind === "T") {
             // Time slow for 5 seconds
-            timeSlowRemaining.current = Math.max(timeSlowRemaining.current, TIME_SLOW_DURATION);
+            timeSlowRemaining.current = Math.max(timeSlowRemaining.current, GameConfig.TIME_SLOW_DURATION);
           } else if (p.kind === "N") {
             // Nuke pickup: store for later use (max 3)
             nukesLeft.current = Math.min(3, nukesLeft.current + 1);
           } else if (p.kind === "D") {
             // Spawn 3 drones evenly spaced around the pod (replace any existing)
             drones.current = [];
-            for (let i = 0; i < MAX_DRONES; i++) {
+            for (let i = 0; i < GameConfig.MAX_DRONES; i++) {
               const newDrone: Drone = {
                 id: Date.now() + Math.random() + i,
-                angle: (i * 2 * Math.PI) / MAX_DRONES, // evenly spaced (0°, 120°, 240°)
-                orbitRadius: DRONE_ORBIT_RADIUS,
+                angle: (i * 2 * Math.PI) / GameConfig.MAX_DRONES, // evenly spaced (0°, 120°, 240°)
+                orbitRadius: GameConfig.DRONE_ORBIT_RADIUS,
                 active: true,
                 mode: "orbit",
                 x: podX.current,
@@ -5324,7 +5324,7 @@ function Game() {
 
 
         {/* Flash for nuke (lower zIndex so overlays win) */}
-        {flashTime.current > 0 && <View style={[styles.flash, { opacity: flashTime.current / NUKE_FLASH_TIME }]} />}
+        {flashTime.current > 0 && <View style={[styles.flash, { opacity: flashTime.current / GameConfig.NUKE_FLASH_TIME }]} />}
         
         {/* Red flash for crashes */}
         {crashFlashTime.current > 0 && <View style={[styles.crashFlash, { opacity: crashFlashTime.current / 0.3 }]} />}
