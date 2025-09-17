@@ -211,6 +211,79 @@ export const findEnemiesInRange = (
   });
 };
 
+// Main CollisionSystem class for easy instantiation
+export class CollisionSystem {
+  private spatialGrid: SpatialGrid;
+
+  constructor(cellSize: number = 100, width: number = 800, height: number = 600) {
+    this.spatialGrid = new SpatialGrid(cellSize, width, height);
+  }
+
+  // Convenience method that wraps the existing functions
+  checkProjectileCollisions(projectiles: Projectile[], allEntities: { [key: string]: any[] }): Array<{ projectile: Projectile, target: any, targetCategory: string }> {
+    const hits: Array<{ projectile: Projectile, target: any, targetCategory: string }> = [];
+
+    // Check against asteroids
+    if (allEntities.asteroids) {
+      for (const projectile of projectiles) {
+        for (const asteroid of allEntities.asteroids) {
+          if (circleCollision(
+            projectile.x, projectile.y, projectile.r,
+            asteroid.x, asteroid.y, asteroid.r
+          )) {
+            hits.push({ projectile, target: asteroid, targetCategory: 'asteroids' });
+          }
+        }
+      }
+    }
+
+    // Check against barriers
+    if (allEntities.barriers) {
+      for (const projectile of projectiles) {
+        for (const barrier of allEntities.barriers) {
+          if (rectCircleCollision(
+            barrier.x, barrier.y, barrier.w, barrier.h,
+            projectile.x, projectile.y, projectile.r
+          )) {
+            hits.push({ projectile, target: barrier, targetCategory: 'barriers' });
+          }
+        }
+      }
+    }
+
+    // Check against ships
+    if (allEntities.ships) {
+      for (const projectile of projectiles) {
+        for (const ship of allEntities.ships) {
+          if (circleCollision(
+            projectile.x, projectile.y, projectile.r,
+            ship.x, ship.y, ship.r
+          )) {
+            hits.push({ projectile, target: ship, targetCategory: 'ships' });
+          }
+        }
+      }
+    }
+
+    return hits;
+  }
+
+  // Utility methods
+  checkPlayerCollisions(playerX: number, playerY: number, playerRadius: number, enemies: Enemy[]): Enemy[] {
+    const collisions: Enemy[] = [];
+    for (const enemy of enemies) {
+      if (circleCollision(playerX, playerY, playerRadius, enemy.x, enemy.y, enemy.r)) {
+        collisions.push(enemy);
+      }
+    }
+    return collisions;
+  }
+
+  checkRingCollision(playerX: number, playerY: number, playerRadius: number, ringX: number, ringY: number, ringRadius: number): boolean {
+    return circleCollision(playerX, playerY, playerRadius, ringX, ringY, ringRadius);
+  }
+}
+
 // Spatial partitioning for performance optimization
 export class SpatialGrid {
   private cellSize: number;
