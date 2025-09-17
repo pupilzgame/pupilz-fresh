@@ -831,7 +831,7 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
           resizeMode="contain"
         />
         <Text style={styles.logoSub}>
-          POD DESCENT
+          ── POD DESCENT ──
         </Text>
         <View style={styles.logoUnderline} />
       </View>
@@ -6352,7 +6352,7 @@ const styles = StyleSheet.create({
   menuContainer: {
     flex: 1,
     position: 'relative',
-    justifyContent: 'center', // Center content vertically
+    justifyContent: 'flex-start', // Allow proper scrolling
     paddingHorizontal: 20,
     paddingTop: 40, // Reduced from 80 for better centering
     paddingBottom: 40, // Match top padding for equal margins
@@ -6382,7 +6382,7 @@ const styles = StyleSheet.create({
   logoImage: {
     width: 330, // 1.5x bigger for better prominence
     height: 105,  // 1.5x bigger for better prominence
-    marginBottom: 8,
+    marginBottom: 4,
     alignSelf: 'center',
   },
   logoSub: {
@@ -6391,14 +6391,14 @@ const styles = StyleSheet.create({
     color: '#00FFFF',
     letterSpacing: 2,
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: 6,
   },
   logoUnderline: {
     width: 120,
     height: 3,
     backgroundColor: '#00FFFF',
     borderRadius: 2,
-    marginTop: 5,
+    marginTop: 3,
   },
   menuScrollView: {
     flex: 1,
