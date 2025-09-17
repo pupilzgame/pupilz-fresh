@@ -1406,6 +1406,19 @@ function Game() {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
+        {/* DEBUG: Test element to verify rendering */}
+        <View style={{
+          position: 'absolute',
+          top: 50,
+          left: 50,
+          width: 100,
+          height: 100,
+          backgroundColor: 'red',
+          zIndex: 1000
+        }}>
+          <Text style={{ color: 'white', fontSize: 16 }}>DEBUG</Text>
+        </View>
+
         {/* Background stars */}
         {stars.current.map((s) => (
           <View key={s.id} style={[styles.star, {
@@ -1533,6 +1546,19 @@ function Game() {
             nukesLeft={nukesLeft.current}
           />
         )}
+
+        {/* DEBUG: Phase info */}
+        <View style={{
+          position: 'absolute',
+          top: 10,
+          left: 10,
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          padding: 10,
+          zIndex: 1001
+        }}>
+          <Text style={{ color: 'white', fontSize: 12 }}>Phase: {phase}</Text>
+          <Text style={{ color: 'white', fontSize: 12 }}>Phase Manager: {phaseManager.getPhase()}</Text>
+        </View>
 
         {/* UI Overlays */}
         {phase === "menu" && (
