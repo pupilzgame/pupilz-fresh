@@ -166,13 +166,14 @@ class LeaderboardManager {
 
       console.log(`✅ Loaded ${data.entries.length} leaderboard entries from database`);
 
-      // Get personal best from localStorage (client-side only)
-      const personalBest = parseInt(localStorage.getItem('pupilz_personal_best') || '0');
+      // Get personal best and last rank from localStorage (client-side only)
+      const personalBest = typeof window !== 'undefined' ? parseInt(localStorage.getItem('pupilz_personal_best') || '0') : 0;
+      const lastRank = typeof window !== 'undefined' && localStorage.getItem('pupilz_last_rank') ? parseInt(localStorage.getItem('pupilz_last_rank')!) : null;
 
       return {
         entries: data.entries,
         personalBest,
-        lastRank: null,
+        lastRank,
         newHighScore: false
       };
     } catch (error) {
@@ -226,10 +227,13 @@ class LeaderboardManager {
 
       console.log(`✅ Score saved successfully! Rank: ${data.rank}`);
 
-      // Update personal best in localStorage
+      // Update personal best and last rank in localStorage
       const newPersonalBest = Math.max(state.personalBest, score);
       const isNewHighScore = score > state.personalBest;
-      localStorage.setItem('pupilz_personal_best', newPersonalBest.toString());
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('pupilz_personal_best', newPersonalBest.toString());
+        localStorage.setItem('pupilz_last_rank', data.rank.toString());
+      }
 
       // Reload leaderboard to get updated data
       const updatedState = await this.loadLeaderboard();
@@ -255,7 +259,7 @@ class LeaderboardManager {
   ): { newState: LeaderboardState; rank: number } {
     const newEntry: LeaderboardEntry = {
       id: Date.now().toString() + Math.random().toString(36),
-      playerName: playerName.toUpperCase().substring(0, 3),
+      playerName: playerName.toUpperCase().substring(0, 12),
       score,
       level,
       victory,
@@ -270,6 +274,12 @@ class LeaderboardManager {
     const rank = newEntries.findIndex(entry => entry.id === newEntry.id) + 1;
     const newPersonalBest = Math.max(state.personalBest, score);
     const isNewHighScore = score > state.personalBest;
+
+    // Save to localStorage for persistence
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('pupilz_personal_best', newPersonalBest.toString());
+      localStorage.setItem('pupilz_last_rank', rank.toString());
+    }
 
     return {
       newState: {
@@ -294,10 +304,12 @@ class LeaderboardManager {
 
   // Get default empty state
   static getDefaultState(): LeaderboardState {
+    const personalBest = typeof window !== 'undefined' ? parseInt(localStorage.getItem('pupilz_personal_best') || '0') : 0;
+    const lastRank = typeof window !== 'undefined' && localStorage.getItem('pupilz_last_rank') ? parseInt(localStorage.getItem('pupilz_last_rank')!) : null;
     return {
       entries: [],
-      personalBest: parseInt(localStorage.getItem('pupilz_personal_best') || '0'),
-      lastRank: null,
+      personalBest,
+      lastRank,
       newHighScore: false
     };
   }
@@ -579,16 +591,6 @@ const MENU_SECTIONS: MenuSection[] = [
       "🎒 Energy/Nuke — tap bottom icons to use stored items",
     ],
   },
-  {
-    id: "settings",
-    icon: "⚙️", 
-    title: "SETTINGS",
-    bullets: [
-      "Toggle handedness for comfortable controls",
-      "Adjust music and sound effects volume",
-      "All changes apply immediately",
-    ],
-  },
 ];
 
 type AccordionItemProps = {
@@ -740,12 +742,16 @@ type EnhancedMenuProps = {
   onToggleHandedness: () => void;
   musicEnabled: boolean;
   onToggleMusic: () => void;
+  sfxEnabled: boolean;
+  onToggleSfx: () => void;
   onShowLeaderboard: () => void;
 };
 
-const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic, onShowLeaderboard }) => {
+const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic, sfxEnabled, onToggleSfx, onShowLeaderboard }) => {
   const [openId, setOpenId] = useState<string>("");
   const [animPhase, setAnimPhase] = useState(0);
+  const [showSettings, setShowSettings] = useState(false);
+  const settingsAnimValue = useRef(new Animated.Value(0)).current;
   const menuStarsRef = useRef<Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}>>([]);
   const { width, height } = useWindowDimensions();
 
@@ -774,22 +780,43 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
 
     const interval = setInterval(() => {
       setAnimPhase(p => (p + 1) % 100);
-      
+
       // Update star positions smoothly
       menuStarsRef.current.forEach(star => {
-        star.y += star.parallax * 0.8; // Slow downward movement
+        star.y += star.parallax * 1.2; // Slightly faster movement to compensate for lower framerate
         if (star.y > height + 10) {
           star.y = -10;
           star.x = Math.random() * width;
         }
       });
-    }, 16); // 60fps for smooth movement
+    }, 50); // 20fps for all devices
     
     return () => clearInterval(interval);
   }, [width, height]);
 
   const handleToggle = (id: string) => {
     setOpenId(current => current === id ? "" : id);
+  };
+
+  const toggleSettings = () => {
+    if (showSettings) {
+      // Hide animation
+      Animated.timing(settingsAnimValue, {
+        toValue: 0,
+        duration: 200,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: false,
+      }).start(() => setShowSettings(false));
+    } else {
+      // Show animation
+      setShowSettings(true);
+      Animated.timing(settingsAnimValue, {
+        toValue: 1,
+        duration: 200,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: false,
+      }).start();
+    }
   };
 
   const logoGlow = {
@@ -821,6 +848,14 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
         ))}
       </View>
 
+      {/* Settings Gear Icon */}
+      <Pressable
+        onPress={toggleSettings}
+        style={[styles.settingsGear, { opacity: subtleFade }]}
+      >
+        <Text style={styles.settingsGearText}>⚙️</Text>
+      </Pressable>
+
       {/* Logo treatment */}
       <View style={styles.logoContainer}>
         <Image 
@@ -829,50 +864,72 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
           resizeMode="contain"
         />
         <Text style={styles.logoSub}>
-          POD DESCENT
+          ── POD DESCENT ──
         </Text>
-        <View style={styles.logoUnderline} />
       </View>
 
+      {/* Fixed Subtitle */}
+      <Text style={styles.menuSubtitle}>
+        • INFILTRATE EARTH'S ATMOSPHERE •{'\n'}• ESTABLISH DOMINANCE •
+      </Text>
+
       <ScrollView style={styles.menuScrollView} showsVerticalScrollIndicator={false}>
-        <Text style={styles.menuSubtitle}>
-          • INFILTRATE EARTH'S ATMOSPHERE •{'\n'}• ESTABLISH DOMINANCE •
-        </Text>
-        
         <View style={styles.menuSections}>
           {MENU_SECTIONS.map((section) => (
-            section.id === "settings" ? (
-              <SettingsAccordion
-                key={section.id}
-                section={section}
-                isOpen={openId === section.id}
-                onToggle={() => handleToggle(section.id)}
-                leftHandedMode={leftHandedMode}
-                onToggleHandedness={onToggleHandedness}
-                musicEnabled={musicEnabled}
-                onToggleMusic={onToggleMusic}
-              />
-            ) : (
-              <AccordionItem
-                key={section.id}
-                section={section}
-                isOpen={openId === section.id}
-                onToggle={() => handleToggle(section.id)}
-              />
-            )
+            <AccordionItem
+              key={section.id}
+              section={section}
+              isOpen={openId === section.id}
+              onToggle={() => handleToggle(section.id)}
+            />
           ))}
         </View>
 
-        <Pressable
-          onPress={onShowLeaderboard}
-          style={({ pressed }) => [
-            styles.leaderboardButton,
-            pressed && styles.leaderboardButtonPressed,
-            { opacity: subtleFade }
-          ]}
-        >
-          <Text style={styles.leaderboardButtonText}>🏆 TOP PILOTS</Text>
-        </Pressable>
+        <View style={styles.socialButtonContainer}>
+          <Pressable
+            onPress={onShowLeaderboard}
+            style={({ pressed }) => [
+              styles.smallButton,
+              styles.leaderboardButtonSmall,
+              pressed && styles.smallButtonPressed,
+              { opacity: subtleFade }
+            ]}
+          >
+            <Text style={styles.smallButtonText}>🏆 TOP PILOTS</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => {
+              if (typeof window !== 'undefined') {
+                window.open('https://pupilz.io/', '_blank');
+              }
+            }}
+            style={({ pressed }) => [
+              styles.smallButton,
+              styles.websiteButtonSmall,
+              pressed && styles.smallButtonPressed,
+              { opacity: subtleFade }
+            ]}
+          >
+            <Text style={styles.smallButtonText}>🌐 PUPILZ.IO</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => {
+              if (typeof window !== 'undefined') {
+                window.open('https://x.com/ThePupilz', '_blank');
+              }
+            }}
+            style={({ pressed }) => [
+              styles.smallButton,
+              styles.xButtonSmall,
+              pressed && styles.smallButtonPressed,
+              { opacity: subtleFade }
+            ]}
+          >
+            <Text style={styles.smallButtonText}>🐦 FOLLOW X</Text>
+          </Pressable>
+        </View>
 
         <Pressable
           onPress={onStart}
@@ -883,9 +940,96 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
           ]}
         >
           <View style={styles.menuCTAGlow} />
-          <Text style={styles.menuCTAText}>INVADE EARTH!</Text>
+          <Text style={styles.menuCTAText}>DESCEND TO EARTH</Text>
         </Pressable>
       </ScrollView>
+
+      {/* Animated Settings Popup */}
+      {showSettings && (
+        <Animated.View style={[
+          styles.settingsPopup,
+          {
+            opacity: settingsAnimValue,
+            transform: [{
+              scale: settingsAnimValue.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.8, 1],
+              })
+            }]
+          }
+        ]}>
+          <View style={styles.settingsContent}>
+            <Text style={styles.settingsTitle}>SETTINGS</Text>
+
+            <View style={styles.settingsSection}>
+              <Text style={styles.settingLabel}>CONTROLS</Text>
+              <Pressable
+                onPress={onToggleHandedness}
+                style={styles.settingItem}
+              >
+                <Text style={styles.settingText}>
+                  {leftHandedMode ? '👈 Left-Handed Mode' : '👉 Right-Handed Mode'}
+                </Text>
+                <View style={[
+                  styles.settingToggle,
+                  !leftHandedMode && styles.settingToggleActive
+                ]}>
+                  <View style={[
+                    styles.settingToggleKnob,
+                    !leftHandedMode && styles.settingToggleKnobActive
+                  ]} />
+                </View>
+              </Pressable>
+            </View>
+
+            <View style={styles.settingsSection}>
+              <Text style={styles.settingLabel}>AUDIO</Text>
+              <Pressable
+                onPress={onToggleMusic}
+                style={styles.settingItem}
+              >
+                <Text style={styles.settingText}>
+                  {musicEnabled ? '🎵 Music' : '🔇 Music'}
+                </Text>
+                <View style={[
+                  styles.settingToggle,
+                  musicEnabled && styles.settingToggleActive
+                ]}>
+                  <View style={[
+                    styles.settingToggleKnob,
+                    musicEnabled && styles.settingToggleKnobActive
+                  ]} />
+                </View>
+              </Pressable>
+
+              <Pressable
+                onPress={onToggleSfx}
+                style={styles.settingItem}
+              >
+                <Text style={styles.settingText}>
+                  {sfxEnabled ? '🔊 Sound Effects' : '🔇 Sound Effects'}
+                </Text>
+                <View style={[
+                  styles.settingToggle,
+                  sfxEnabled && styles.settingToggleActive
+                ]}>
+                  <View style={[
+                    styles.settingToggleKnob,
+                    sfxEnabled && styles.settingToggleKnobActive
+                  ]} />
+                </View>
+              </Pressable>
+            </View>
+
+            <Pressable
+              onPress={toggleSettings}
+              style={styles.settingsCloseButton}
+            >
+              <Text style={styles.settingsCloseText}>CLOSE</Text>
+            </Pressable>
+          </View>
+        </Animated.View>
+      )}
     </View>
   );
 };
@@ -1139,10 +1283,17 @@ function Game() {
   const spreadGunSound = useRef<Audio.Sound | null>(null);
   const gameplayMusicPlaying = useRef(false); // Track if gameplay music is currently playing
   const userInteracted = useRef(false); // Track if user has interacted with the page
-  const [musicEnabled, setMusicEnabled] = useState(true);
+  const tickCounter = useRef(0); // For mobile performance optimization
+
+  // Simple mobile detection for performance optimization
+  const isMobile = typeof window !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const isLowEndDevice = false; // Disable for now to prevent crashes
+
+  const [musicEnabled, setMusicEnabled] = useState(false); // Start disabled until user interaction
+  const [sfxEnabled, setSfxEnabled] = useState(true);
   const [musicVolume, setMusicVolume] = useState(0.7);
   const [audioLoaded, setAudioLoaded] = useState(false);
-  
+
 
   // Camera/world
   const scrollY = useRef(0);
@@ -1940,7 +2091,7 @@ function Game() {
 
   const playSpaceBubblesSound = async () => {
     try {
-      if (spaceBubblesSound.current && musicEnabled) {
+      if (spaceBubblesSound.current && sfxEnabled) {
         await spaceBubblesSound.current.setPositionAsync(0); // Reset to beginning
         await spaceBubblesSound.current.setVolumeAsync(musicVolume);
         await spaceBubblesSound.current.playAsync();
@@ -1953,7 +2104,7 @@ function Game() {
 
   const playGetItemSound = async () => {
     try {
-      if (getItemSound.current && musicEnabled) {
+      if (getItemSound.current && sfxEnabled) {
         await getItemSound.current.setPositionAsync(0); // Reset to beginning
         await getItemSound.current.setVolumeAsync(musicVolume);
         await getItemSound.current.playAsync();
@@ -1966,7 +2117,7 @@ function Game() {
 
   const playClearLevelSound = async () => {
     try {
-      if (clearLevelSound.current && musicEnabled) {
+      if (clearLevelSound.current && sfxEnabled) {
         await clearLevelSound.current.setPositionAsync(0); // Reset to beginning
         await clearLevelSound.current.setVolumeAsync(musicVolume);
         await clearLevelSound.current.playAsync();
@@ -1979,7 +2130,7 @@ function Game() {
 
   const playButtonPressSound = async () => {
     try {
-      if (buttonPressSound.current && musicEnabled) {
+      if (buttonPressSound.current && sfxEnabled) {
         await buttonPressSound.current.setPositionAsync(0); // Reset to beginning
         await buttonPressSound.current.setVolumeAsync(musicVolume);
         await buttonPressSound.current.playAsync();
@@ -1992,7 +2143,7 @@ function Game() {
 
   const playAsteroidBreakingSound = async () => {
     try {
-      if (asteroidBreakingSound.current && musicEnabled) {
+      if (asteroidBreakingSound.current && sfxEnabled) {
         await asteroidBreakingSound.current.setPositionAsync(0); // Reset to beginning
         await asteroidBreakingSound.current.setVolumeAsync(musicVolume);
         await asteroidBreakingSound.current.playAsync();
@@ -2005,7 +2156,7 @@ function Game() {
 
   const playGunCockingSound = async () => {
     try {
-      if (gunCockingSound.current && musicEnabled) {
+      if (gunCockingSound.current && sfxEnabled) {
         await gunCockingSound.current.setPositionAsync(0); // Reset to beginning
         await gunCockingSound.current.setVolumeAsync(musicVolume);
         await gunCockingSound.current.playAsync();
@@ -2018,7 +2169,7 @@ function Game() {
 
   const playRespawnSound = async () => {
     try {
-      if (respawnSound.current && musicEnabled) {
+      if (respawnSound.current && sfxEnabled) {
         await respawnSound.current.setPositionAsync(0); // Reset to beginning
         await respawnSound.current.setVolumeAsync(musicVolume);
         await respawnSound.current.playAsync();
@@ -2031,7 +2182,7 @@ function Game() {
 
   const playWeaponFireSound = async () => {
     try {
-      if (weaponFireSound.current && musicEnabled) {
+      if (weaponFireSound.current && sfxEnabled) {
         await weaponFireSound.current.setPositionAsync(0); // Reset to beginning
         await weaponFireSound.current.setVolumeAsync(musicVolume);
         await weaponFireSound.current.playAsync();
@@ -2044,7 +2195,7 @@ function Game() {
 
   const playUseItemSound = async () => {
     try {
-      if (useItemSound.current && musicEnabled) {
+      if (useItemSound.current && sfxEnabled) {
         await useItemSound.current.setPositionAsync(0); // Reset to beginning
         await useItemSound.current.setVolumeAsync(musicVolume);
         await useItemSound.current.playAsync();
@@ -2057,7 +2208,7 @@ function Game() {
 
   const playLaserGunSound = async () => {
     try {
-      if (laserGunSound.current && musicEnabled) {
+      if (laserGunSound.current && sfxEnabled) {
         await laserGunSound.current.setPositionAsync(0); // Reset to beginning
         await laserGunSound.current.setVolumeAsync(musicVolume);
         await laserGunSound.current.playAsync();
@@ -2070,7 +2221,7 @@ function Game() {
 
   const playHumanShipExplodeSound = async () => {
     try {
-      if (humanShipExplodeSound.current && musicEnabled) {
+      if (humanShipExplodeSound.current && sfxEnabled) {
         await humanShipExplodeSound.current.setPositionAsync(0); // Reset to beginning
         await humanShipExplodeSound.current.setVolumeAsync(musicVolume);
         await humanShipExplodeSound.current.playAsync();
@@ -2083,7 +2234,7 @@ function Game() {
 
   const playMultiGunSound = async () => {
     try {
-      if (multiGunSound.current && musicEnabled) {
+      if (multiGunSound.current && sfxEnabled) {
         await multiGunSound.current.setPositionAsync(0); // Reset to beginning
         await multiGunSound.current.setVolumeAsync(musicVolume);
         await multiGunSound.current.playAsync();
@@ -2096,7 +2247,7 @@ function Game() {
 
   const playHomingMissilesGunSound = async () => {
     try {
-      if (homingMissilesGunSound.current && musicEnabled) {
+      if (homingMissilesGunSound.current && sfxEnabled) {
         await homingMissilesGunSound.current.setPositionAsync(0); // Reset to beginning
         await homingMissilesGunSound.current.setVolumeAsync(musicVolume);
         await homingMissilesGunSound.current.playAsync();
@@ -2109,7 +2260,7 @@ function Game() {
 
   const playFireGunSound = async () => {
     try {
-      if (fireGunSound.current && musicEnabled) {
+      if (fireGunSound.current && sfxEnabled) {
         await fireGunSound.current.setPositionAsync(0); // Reset to beginning
         await fireGunSound.current.setVolumeAsync(musicVolume);
         await fireGunSound.current.playAsync();
@@ -2122,7 +2273,7 @@ function Game() {
 
   const playSpreadGunSound = async () => {
     try {
-      if (spreadGunSound.current && musicEnabled) {
+      if (spreadGunSound.current && sfxEnabled) {
         await spreadGunSound.current.setPositionAsync(0); // Reset to beginning
         await spreadGunSound.current.setVolumeAsync(musicVolume);
         await spreadGunSound.current.playAsync();
@@ -3194,72 +3345,10 @@ function Game() {
     console.log(`🎉 ACQUISITION: ${message}`);
   };
 
-  const createConfetti = () => {
-    const colors = ["#FFD700", "#FF6B35", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD", "#98D8C8"];
-    const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
-
-    // Create confetti pieces across the top of screen
-    for (let i = 0; i < 50; i++) {
-      particles.current.push({
-        id: idBase + i + 1,
-        x: Math.random() * width,
-        y: -20,
-        vx: rand(-30, 30),
-        vy: rand(100, 200),
-        r: rand(2, 5),
-        ttl: rand(3, 5),
-        color: colors[Math.floor(Math.random() * colors.length)]
-      });
-    }
-  };
-
-  const createFirework = (x: number, y: number) => {
-    const colors = ["#FFD700", "#FF1744", "#00E676", "#2196F3", "#FF9800", "#E91E63", "#9C27B0"];
-    const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
-    const particleCount = 25;
-
-    for (let i = 0; i < particleCount; i++) {
-      const angle = (i / particleCount) * Math.PI * 2;
-      const speed = rand(120, 250);
-      particles.current.push({
-        id: idBase + i + 1,
-        x, y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        r: rand(2, 4),
-        ttl: rand(1.5, 2.5),
-        color: colors[Math.floor(Math.random() * colors.length)]
-      });
-    }
-  };
-
-  const startVictoryCelebration = () => {
-    // Initial fireworks burst
-    setTimeout(() => createFirework(width * 0.2, height * 0.3), 100);
-    setTimeout(() => createFirework(width * 0.8, height * 0.4), 300);
-    setTimeout(() => createFirework(width * 0.5, height * 0.2), 500);
-
-    // Continuous confetti
-    createConfetti();
-    const confettiInterval = setInterval(() => {
-      createConfetti();
-    }, 1000);
-
-    // More fireworks over time
-    setTimeout(() => createFirework(width * 0.3, height * 0.5), 1200);
-    setTimeout(() => createFirework(width * 0.7, height * 0.3), 1800);
-    setTimeout(() => createFirework(width * 0.1, height * 0.6), 2400);
-    setTimeout(() => createFirework(width * 0.9, height * 0.2), 3000);
-
-    // Stop confetti after 8 seconds
-    setTimeout(() => {
-      clearInterval(confettiInterval);
-    }, 8000);
-  };
-
   const ringDisintegrate = (centerX: number, centerY: number, radius: number) => {
     const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
-    const particleCount = Math.floor(radius * 0.8); // More particles for bigger rings
+    // Optimized particle count for mobile performance
+    const particleCount = Math.min(Math.floor(radius * 0.3), 20);
     
     for (let i = 0; i < particleCount; i++) {
       // Create particles around the ring circumference
@@ -4006,8 +4095,8 @@ function Game() {
 
               // Create explosion effect
               boom(p.x, p.y, 1.5, "#FF4444");
-              for (let e = 0; e < 8; e++) {
-                const angle = (e / 8) * Math.PI * 2;
+              for (let e = 0; e < 4; e++) {
+                const angle = (e / 4) * Math.PI * 2;
                 const vx = Math.cos(angle) * 100;
                 const vy = Math.sin(angle) * 100;
                 particles.current.push({
@@ -4020,7 +4109,7 @@ function Game() {
             
             // Create hit effect particles
             const hitColor = p.kind === "laser" ? "#B1E1FF" : p.kind === "fire" ? "#FFB46B" : "#FFE486";
-            for (let k = 0; k < 3 + damage; k++) {
+            for (let k = 0; k < Math.min(2 + damage, 5); k++) {
               const angle = Math.random() * Math.PI * 2;
               const speed = rand(60, 120);
               particles.current.push({
@@ -4066,7 +4155,7 @@ function Game() {
               
               // Hit effect particles
               const hitColor = p.kind === "laser" ? "#B1E1FF" : p.kind === "fire" ? "#FFB46B" : "#FFE486";
-              for (let k = 0; k < 2 + damage; k++) {
+              for (let k = 0; k < Math.min(1 + damage, 4); k++) {
                 const angle = Math.random() * Math.PI * 2;
                 const speed = rand(50, 100);
                 particles.current.push({
@@ -4423,7 +4512,7 @@ function Game() {
               checkLeaderboardQualification(finalScore, level.current, true).catch(error => {
                 console.error('Failed to check leaderboard qualification:', error);
               });
-              startVictoryCelebration(); // 🎉 START THE PARTY! 🎉
+              // startVictoryCelebration(); // 🎉 DISABLED FOR PERFORMANCE 🎉
               setPhase("win");
             }, 2000);
             return;
@@ -4504,12 +4593,26 @@ function Game() {
       if (pa.ttl <= 0 || pa.y - scrollY.current < -80) particles.current.splice(i, 1);
     }
 
+    // Conservative particle limit for stability
+    if (particles.current.length > 100) {
+      particles.current.splice(0, particles.current.length - 100);
+    }
+
     // Score popup updates
     for (let i = scorePopups.current.length - 1; i >= 0; i--) {
       const popup = scorePopups.current[i];
       popup.ttl -= dt;
       popup.y -= 60 * dt; // Float upward at 60 pixels per second
       if (popup.ttl <= 0) scorePopups.current.splice(i, 1);
+    }
+
+    // Conservative limits for stability
+    if (scorePopups.current.length > 15) {
+      scorePopups.current.splice(0, scorePopups.current.length - 15);
+    }
+
+    if (enemyProjs.current.length > 30) {
+      enemyProjs.current.splice(0, enemyProjs.current.length - 30);
     }
 
     // Ring respawning now handled by ship-based progression system
@@ -4555,7 +4658,7 @@ function Game() {
     const newMusicEnabled = !musicEnabled;
     setMusicEnabled(newMusicEnabled);
     console.log(`Music toggled to: ${newMusicEnabled ? 'on' : 'off'}`);
-    
+
     // Immediately apply volume change
     try {
       if (titleMusic.current) {
@@ -4565,7 +4668,13 @@ function Game() {
       console.log('❌ Failed to toggle music volume:', error);
     }
   };
-  
+
+  const toggleSfx = () => {
+    const newSfxEnabled = !sfxEnabled;
+    setSfxEnabled(newSfxEnabled);
+    console.log(`Sound effects toggled to: ${newSfxEnabled ? 'on' : 'off'}`);
+  };
+
 
   // Audio system initialization
   useEffect(() => {
@@ -4788,7 +4897,10 @@ function Game() {
 
     const handleUserInteraction = () => {
       if (audioLoaded && !userInteracted.current) {
-        startMusicOnInteraction();
+        // Enable music on first user interaction
+        setMusicEnabled(true);
+        userInteracted.current = true;
+        console.log('🎵 Music enabled after first user interaction');
       }
     };
 
@@ -5378,6 +5490,8 @@ function Game() {
             onToggleHandedness={toggleHandedness}
             musicEnabled={musicEnabled}
             onToggleMusic={toggleMusic}
+            sfxEnabled={sfxEnabled}
+            onToggleSfx={toggleSfx}
             onShowLeaderboard={() => setShowLeaderboard(true)}
           />}
 
@@ -5542,13 +5656,13 @@ function Game() {
               value={playerName}
               onChangeText={(text) => {
                 // Auto-uppercase and limit based on source
-                const maxLength = telegramUsername ? 8 : 3;
+                const maxLength = telegramUsername ? 12 : 12;
                 const cleanText = text.toUpperCase().slice(0, maxLength);
                 setPlayerName(cleanText);
               }}
               placeholder={telegramUsername ? telegramUsername.toUpperCase() : "ACE"}
               placeholderTextColor={telegramUsername ? "#4CAF50" : "#888"}
-              maxLength={telegramUsername ? 8 : 3}
+              maxLength={telegramUsername ? 12 : 12}
               autoCapitalize="characters"
               autoCorrect={false}
               autoComplete="off"
@@ -6298,10 +6412,10 @@ const styles = StyleSheet.create({
   menuContainer: {
     flex: 1,
     position: 'relative',
-    justifyContent: 'flex-start', // Start from top but with padding
+    justifyContent: 'flex-start', // Allow proper scrolling
     paddingHorizontal: 20,
-    paddingTop: 80, // Increase top padding to push content down
-    paddingBottom: 20, // Keep bottom padding reasonable
+    paddingTop: 40, // Reduced from 80 for better centering
+    paddingBottom: 40, // Match top padding for equal margins
   },
   menuParticles: {
     position: 'absolute',
@@ -6326,9 +6440,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   logoImage: {
-    width: 220, // Reduced from 250 for better fit
-    height: 70,  // Reduced from 80 for better fit
-    marginBottom: 8,
+    width: 330, // 1.5x bigger for better prominence
+    height: 105,  // 1.5x bigger for better prominence
+    marginBottom: 4,
     alignSelf: 'center',
   },
   logoSub: {
@@ -6337,14 +6451,14 @@ const styles = StyleSheet.create({
     color: '#00FFFF',
     letterSpacing: 2,
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: 6,
   },
   logoUnderline: {
     width: 120,
     height: 3,
     backgroundColor: '#00FFFF',
     borderRadius: 2,
-    marginTop: 5,
+    marginTop: 3,
   },
   menuScrollView: {
     flex: 1,
@@ -6434,20 +6548,20 @@ const styles = StyleSheet.create({
     textAlign: "left", // Ensure left alignment
   },
   menuCTA: {
-    marginTop: 30,
-    marginHorizontal: 20,
-    marginBottom: 20,
+    marginTop: 20,
+    marginHorizontal: 30,
+    marginBottom: 15,
     backgroundColor: "#FF3366",
-    borderRadius: 25,
-    paddingVertical: 20,
-    paddingHorizontal: 40,
+    borderRadius: 20,
+    paddingVertical: 15,
+    paddingHorizontal: 30,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#FF3366",
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.6,
-    shadowRadius: 12,
-    elevation: 12,
+    shadowRadius: 8,
+    elevation: 8,
     borderWidth: 2,
     borderColor: "#FF6699",
     position: 'relative',
@@ -6781,7 +6895,7 @@ const styles = StyleSheet.create({
     width: 50,
   },
   leaderboardName: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "bold",
     color: "#FFFFFF",
     flex: 1,
@@ -6848,5 +6962,185 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(255, 215, 0, 0.5)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
+  },
+
+  // Social Button Container and Small Buttons
+  socialButtonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 16,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+    gap: 8,
+  },
+  smallButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  leaderboardButtonSmall: {
+    backgroundColor: "rgba(255, 215, 0, 0.15)",
+    borderWidth: 2,
+    borderColor: "#FFD700",
+    shadowColor: "#FFD700",
+  },
+  websiteButtonSmall: {
+    backgroundColor: "rgba(46, 125, 50, 0.15)",
+    borderWidth: 2,
+    borderColor: "#2E7D32",
+    shadowColor: "#2E7D32",
+  },
+  xButtonSmall: {
+    backgroundColor: "rgba(29, 161, 242, 0.15)",
+    borderWidth: 2,
+    borderColor: "#1DA1F2",
+    shadowColor: "#1DA1F2",
+  },
+  smallButtonPressed: {
+    transform: [{ scale: 0.96 }],
+    opacity: 0.8,
+  },
+  smallButtonText: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+    textAlign: "center",
+  },
+
+  // Settings Gear Icon Styles
+  settingsGear: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+    zIndex: 10,
+  },
+  settingsGearText: {
+    fontSize: 18,
+    textAlign: "center",
+  },
+
+  // Settings Popup Styles
+  settingsPopup: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
+  },
+  settingsContent: {
+    backgroundColor: "#1a1a2e",
+    borderRadius: 16,
+    padding: 24,
+    width: "80%",
+    maxWidth: 300,
+    borderWidth: 2,
+    borderColor: "#00FFFF",
+    shadowColor: "#00FFFF",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  settingsTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#00FFFF",
+    textAlign: "center",
+    marginBottom: 20,
+    textShadowColor: "rgba(0, 255, 255, 0.5)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  settingsSection: {
+    marginBottom: 20,
+  },
+  settingLabel: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: "#888",
+    textTransform: "uppercase",
+    marginBottom: 8,
+    letterSpacing: 1,
+  },
+  settingItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  settingText: {
+    fontSize: 16,
+    color: "#FFFFFF",
+    fontWeight: "600",
+  },
+  settingToggle: {
+    width: 50,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    paddingHorizontal: 2,
+  },
+  settingToggleActive: {
+    backgroundColor: "#00FFFF",
+  },
+  settingToggleKnob: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    alignSelf: "flex-start",
+  },
+  settingToggleKnobActive: {
+    alignSelf: "flex-end",
+  },
+  settingsCloseButton: {
+    backgroundColor: "#FF3366",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignSelf: "center",
+    marginTop: 8,
+    shadowColor: "#FF3366",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  settingsCloseText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    textAlign: "center",
   },
 });
