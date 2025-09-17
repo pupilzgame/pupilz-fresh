@@ -1205,7 +1205,7 @@ function Game() {
 
   // Camera/world
   const scrollY = useRef(0);
-  const worldV  = useRef(FREE_FALL);
+  const worldV  = useRef(GameConfig.FREE_FALL);
 
   // Ring/level
   const level = useRef(1);
@@ -1408,7 +1408,7 @@ function Game() {
   /* ----- Setup helpers ----- */
   const currentRingRadius = () => {
     const age = Math.max(0, timeSec - ringSpawnT.current);
-    const shrink = Math.max(RING_MIN_FRACTION, 1 - RING_SHRINK_RATE * age);
+    const shrink = Math.max(GameConfig.RING_MIN_FRACTION, 1 - GameConfig.RING_SHRINK_RATE * age);
     return ringBaseR.current * shrink;
   };
 
@@ -2302,7 +2302,7 @@ function Game() {
     }
     
     const typeData = getAsteroidTypeData(selectedType);
-    const baseRadius = rand(AST_MIN_R, AST_MAX_R);
+    const baseRadius = rand(GameConfig.AST_MIN_R, GameConfig.AST_MAX_R);
     const r = Math.round(baseRadius * typeData.sizeMult);
     const baseHP = Math.max(1, Math.round((r / 20) * 3)); // Scale with size
     const hp = Math.round(baseHP * typeData.hpMult);
@@ -2311,8 +2311,8 @@ function Game() {
       id, 
       x: rand(r + 10, width - r - 10), 
       y: worldY, 
-      vx: rand(-AST_MAX_VX, AST_MAX_VX) * typeData.speedMult, 
-      vy: AST_REL_VY * (Math.random() * 0.6 + 0.7) * typeData.speedMult,
+      vx: rand(-GameConfig.AST_MAX_VX, GameConfig.AST_MAX_VX) * typeData.speedMult, 
+      vy: GameConfig.AST_REL_VY * (Math.random() * 0.6 + 0.7) * typeData.speedMult,
       r,
       type: selectedType,
       hp,
@@ -2324,13 +2324,13 @@ function Game() {
   const getBarrierTypeData = (type: BarrierType) => {
     switch (type) {
       case "metal":
-        return { hpMult: 1.5, color: "#C04E4E", border: "#7A2F2F", height: BAR_H };
+        return { hpMult: 1.5, color: "#C04E4E", border: "#7A2F2F", height: GameConfig.BAR_H };
       case "energy":
-        return { hpMult: 1.0, color: "#9333EA", border: "#5B21B6", height: BAR_H * 1.2 };
+        return { hpMult: 1.0, color: "#9333EA", border: "#5B21B6", height: GameConfig.BAR_H * 1.2 };
       case "asteroid":
-        return { hpMult: 2.0, color: "#78716C", border: "#44403C", height: BAR_H * 0.8 };
+        return { hpMult: 2.0, color: "#78716C", border: "#44403C", height: GameConfig.BAR_H * 0.8 };
       case "debris":
-        return { hpMult: 0.8, color: "#EA580C", border: "#C2410C", height: BAR_H * 0.6 };
+        return { hpMult: 0.8, color: "#EA580C", border: "#C2410C", height: GameConfig.BAR_H * 0.6 };
     }
   };
 
@@ -2554,7 +2554,7 @@ function Game() {
   
   const hardResetWorld = () => {
     scrollY.current = 0;
-    worldV.current = FREE_FALL;
+    worldV.current = GameConfig.FREE_FALL;
 
     level.current = 1;
     console.log(`GAME RESET: Level set to ${level.current}`);
@@ -2994,7 +2994,7 @@ function Game() {
         const pierce = 3 + L * 2; // 5/7/9 pierce - dramatically more
         const laserCount = L; // 1/2/3 parallel lasers
         const radius = 2 + L; // 3/4/5 radius - thicker beams
-        const speed = LASER_SPEED + L * 50; // faster at higher levels
+        const speed = GameConfig.LASER_SPEED + L * 50; // faster at higher levels
         const ttl = 1.0 + L * 0.3; // longer range at higher levels
         
         // Create multiple parallel lasers for higher levels
@@ -3032,7 +3032,7 @@ function Game() {
         // Flame progression: 1→2→3 lanes for satisfying area coverage scaling
         const lanes = weapon.current.level === 3 ? [-1, 0, 1] : weapon.current.level === 2 ? [-0.5, 0.5] : [0];
         for (const lane of lanes) {
-          projs.current.push({ id: nextId(), kind: "fire", x: wX, y: wz + GameConfig.POD_RADIUS + 4, vx: lane * 50, vy: FIRE_SPEED, r: 4, ttl: 2.2, t: 0 });
+          projs.current.push({ id: nextId(), kind: "fire", x: wX, y: wz + GameConfig.POD_RADIUS + 4, vx: lane * 50, vy: GameConfig.FIRE_SPEED, r: 4, ttl: 2.2, t: 0 });
         }
         spawnMuzzle(wX, wz + GameConfig.POD_RADIUS + 2, "#FFB46B");
         playFireGunSound(); // Play fire gun sound effect
@@ -3666,7 +3666,7 @@ function Game() {
     }
 
     // Keep world scrolling in all phases (menu/dead also animate)
-    worldV.current = clamp(lerp(worldV.current, FREE_FALL, 1 - Math.exp(-RETURN_TO_FF * dt)), MIN_DESCENT, MAX_DESCENT);
+    worldV.current = clamp(lerp(worldV.current, GameConfig.FREE_FALL, 1 - Math.exp(-RETURN_TO_FF * dt)), MIN_DESCENT, MAX_DESCENT);
     scrollY.current += worldV.current * dt;
 
     // Pod movement is now handled by direct touch controls
