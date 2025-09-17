@@ -28,6 +28,7 @@ import { useFullScreenPWA } from './useFullScreenPWA';
 import './global.css';
 import { Audio } from 'expo-av';
 import { rand, clamp, lerp, distance, circleCollision, rectCircleCollision, normalize, degToRad, radToDeg } from './src/utils/math';
+import * as GameConfig from './src/config/gameConstants';
 
 /* ---------- CSS Hexagon Component ---------- */
 function HexagonAsteroid({ 
@@ -438,102 +439,9 @@ type LeaderboardState = {
 };
 
 /* ---------- Tunables ---------- */
-const POD_RADIUS = 18;
+// Game constants moved to src/config/gameConstants.ts
 
-// Descent feel
-const FREE_FALL = 220;
-const MIN_DESCENT = 140;
-const MAX_DESCENT = 520;
-const RETURN_TO_FF = 3.0;
-
-// Free-move handling
-const MAX_H   = 560;
-const MAX_V   = 520;
-
-// Gesture
-const GESTURE_VEL_GAIN = 28.0;
-const GESTURE_DEADZONE = 6;   // pixels, prevents micro jitter
-const GESTURE_PAD_DIV  = 60;
-
-// Distance between ring goals
-const LEVEL_MIN = 2000;
-const LEVEL_MAX = 2800;
-
-// Spawns
-const AST_BASE_SPACING = 280;
-const BAR_BASE_SPACING = 560;
-const PWR_BASE_SPACING = 800;
-const SHIP_BASE_SPACING = 1100;
-
-const AST_MIN_R = 14;
-const AST_MAX_R = 32;
-const AST_MAX_VX = 55;
-const AST_REL_VY = 30;
-
-const BAR_W_MIN = 90;
-const BAR_W_MAX = 170;
-const BAR_H = 16;
-const BAR_VX = 60;
-const BAR_REL_VY = 20;
-
-// Stars BG
-const STAR_LAYERS = [
-  { count: 28, parallax: 0.3, size: 2, opacity: 0.35 },
-  { count: 20, parallax: 0.55, size: 3, opacity: 0.55 },
-  { count: 14, parallax: 0.8, size: 4, opacity: 0.8 },
-];
-
-// Projectiles
-const BULLET_SPEED = 900;
-const LASER_SPEED  = 1250;
-const FIRE_SPEED   = 800;
-const HOMING_SPEED = 720;
-
-// Enemy projectiles
-const EN_MISSILE_SPEED = 360;
-const EN_PLASMA_SPEED  = 540;
-
-// Weapon cooldowns
-// Professional weapon balance: Trade-offs for strategic depth
-const CD = { 
-  basic: 0.22,  // Basic blaster - decent but makes pickups feel better
-  M: 0.16,  // Fast crowd control (was 0.18)
-  S: 0.32,  // Slower but devastating burst (was 0.26) 
-  L: 0.35,  // Slow but piercing precision (was 0.3)
-  F: 0.20,  // Steady sustained DPS (was 0.22)
-  H: 0.45   // Slowest but explosive smart targeting (was 0.38)
-} as const;
-const RAPID_FACTOR = 0.14;
-
-// Nuke sweep
-const SWEEP_SPEED = 2200; // px/sec
-const NUKE_FLASH_TIME = 0.12;
-
-// Ring difficulty/scaling
-const RING_SHRINK_RATE = 0.03;
-const RING_MIN_FRACTION = 0.55;
-
-// Shields
-const MAX_SHIELD_LIVES = 6;
-const HIT_INVULN_TIME = 1.0;
-
-// Time Slow
-const TIME_SLOW_DURATION = 5.0; // 5 seconds
-const TIME_SLOW_FACTOR = 0.3; // 30% speed (70% slower)
-
-// Drones
-const MAX_DRONES = 3;
-const DRONE_ORBIT_RADIUS = 35;
-const DRONE_ORBIT_SPEED = 2.0; // radians per second
-const DRONE_KAMIKAZE_SPEED = 400; // fast kamikaze attack speed
-const DRONE_ACTIVATION_DISTANCE = 190; // pixels - optimal game studio standard for mobile emergency response
-
-// Energy Cell
-const ENERGY_IFRAME_TIME = 3.0;  // 3 seconds
-const ENERGY_SHIELD_GAIN = 3;    // +3 rings
-
-// Boss (decoupled collision radius for consistency)
-const BOSS_COLLISION_RADIUS = 28; // matches 56px visual boss size
+// All game constants moved to src/config/gameConstants.ts
 
 /* ---------- Helpers ---------- */
 // Math utilities moved to src/utils/math.ts
@@ -2332,7 +2240,7 @@ function Game() {
 
   const seedStars = () => {
     const s: Star[] = [];
-    STAR_LAYERS.forEach((layer, li) => {
+    GameConfig.STAR_LAYERS.forEach((layer, li) => {
       for (let i = 0; i < layer.count; i++) {
         s.push({ id: `L${li}-${i}`, x: rand(0, width), y: rand(0, height), size: layer.size, parallax: layer.parallax, opacity: layer.opacity });
       }
@@ -3051,7 +2959,7 @@ function Game() {
       case "basic": {
         // Basic pod blaster - single weak shot to encourage pickup hunting
         playWeaponFireSound(); // Play SFX for basic weapon fire
-        projs.current.push({ id: nextId(), kind: "bullet", x: wX, y: wz + POD_RADIUS + 4, vx: 0, vy: BULLET_SPEED * 0.9, r: 3, ttl: 1.8 });
+        projs.current.push({ id: nextId(), kind: "bullet", x: wX, y: wz + GameConfig.POD_RADIUS + 4, vx: 0, vy: GameConfig.BULLET_SPEED * 0.9, r: 3, ttl: 1.8 });
         break;
       }
       case "M": {
@@ -3060,7 +2968,7 @@ function Game() {
         const spreadPx = 12;
         for (let i = 0; i < count; i++) {
           const offset = (i - (count - 1) / 2) * spreadPx;
-          projs.current.push({ id: nextId(), kind: "bullet", x: wX + offset, y: wz + POD_RADIUS + 4, vx: 0, vy: BULLET_SPEED, r: 4, ttl: 2.0 });
+          projs.current.push({ id: nextId(), kind: "bullet", x: wX + offset, y: wz + GameConfig.POD_RADIUS + 4, vx: 0, vy: GameConfig.BULLET_SPEED, r: 4, ttl: 2.0 });
         }
         playMultiGunSound(); // Play multi-gun sound effect
         break;
@@ -3072,9 +2980,9 @@ function Game() {
                        L === 2 ? [-0.35, -0.12, 0.12, 0.35] :
                        [-0.4, -0.2, 0, 0.2, 0.4]; // 3/4/5 pellets
         for (const a of angles) {
-          const vx = Math.sin(a) * BULLET_SPEED * 0.65;
-          const vy = Math.cos(a) * BULLET_SPEED;
-          projs.current.push({ id: nextId(), kind: "bullet", x: wX, y: wz + POD_RADIUS + 4, vx, vy: Math.abs(vy), r: 4, ttl: 1.8 });
+          const vx = Math.sin(a) * GameConfig.BULLET_SPEED * 0.65;
+          const vy = Math.cos(a) * GameConfig.BULLET_SPEED;
+          projs.current.push({ id: nextId(), kind: "bullet", x: wX, y: wz + GameConfig.POD_RADIUS + 4, vx, vy: Math.abs(vy), r: 4, ttl: 1.8 });
         }
         playSpreadGunSound(); // Play spread gun sound effect
         break;
@@ -3092,8 +3000,8 @@ function Game() {
         // Create multiple parallel lasers for higher levels
         if (L === 1) {
           // Level 1: Single powerful laser
-          projs.current.push({ id: nextId(), kind: "laser", x: wX, y: wz + POD_RADIUS + 4, vx: 0, vy: speed, r: radius, ttl, pierce });
-          spawnMuzzle(wX, wz + POD_RADIUS + 2, "#B1E1FF");
+          projs.current.push({ id: nextId(), kind: "laser", x: wX, y: wz + GameConfig.POD_RADIUS + 4, vx: 0, vy: speed, r: radius, ttl, pierce });
+          spawnMuzzle(wX, wz + GameConfig.POD_RADIUS + 2, "#B1E1FF");
           // Light screen shake for L1
           shakeT.current = 0.1;
           shakeMag.current = 2.0;
@@ -3101,8 +3009,8 @@ function Game() {
           // Level 2: Twin parallel lasers
           const spacing = 25;
           for (const offset of [-spacing, spacing]) {
-            projs.current.push({ id: nextId(), kind: "laser", x: wX + offset, y: wz + POD_RADIUS + 4, vx: 0, vy: speed, r: radius, ttl, pierce });
-            spawnMuzzle(wX + offset, wz + POD_RADIUS + 2, "#A0E0FF");
+            projs.current.push({ id: nextId(), kind: "laser", x: wX + offset, y: wz + GameConfig.POD_RADIUS + 4, vx: 0, vy: speed, r: radius, ttl, pierce });
+            spawnMuzzle(wX + offset, wz + GameConfig.POD_RADIUS + 2, "#A0E0FF");
           }
           // Medium screen shake for L2
           shakeT.current = 0.15;
@@ -3111,8 +3019,8 @@ function Game() {
           // Level 3: Triple laser array with center beam
           const spacing = 35;
           for (const offset of [-spacing, 0, spacing]) {
-            projs.current.push({ id: nextId(), kind: "laser", x: wX + offset, y: wz + POD_RADIUS + 4, vx: 0, vy: speed, r: radius, ttl, pierce });
-            spawnMuzzle(wX + offset, wz + POD_RADIUS + 2, "#80D0FF");
+            projs.current.push({ id: nextId(), kind: "laser", x: wX + offset, y: wz + GameConfig.POD_RADIUS + 4, vx: 0, vy: speed, r: radius, ttl, pierce });
+            spawnMuzzle(wX + offset, wz + GameConfig.POD_RADIUS + 2, "#80D0FF");
           }
           // Heavy screen shake for L3 - feels like a cannon
           shakeT.current = 0.2;
@@ -3124,9 +3032,9 @@ function Game() {
         // Flame progression: 1→2→3 lanes for satisfying area coverage scaling
         const lanes = weapon.current.level === 3 ? [-1, 0, 1] : weapon.current.level === 2 ? [-0.5, 0.5] : [0];
         for (const lane of lanes) {
-          projs.current.push({ id: nextId(), kind: "fire", x: wX, y: wz + POD_RADIUS + 4, vx: lane * 50, vy: FIRE_SPEED, r: 4, ttl: 2.2, t: 0 });
+          projs.current.push({ id: nextId(), kind: "fire", x: wX, y: wz + GameConfig.POD_RADIUS + 4, vx: lane * 50, vy: FIRE_SPEED, r: 4, ttl: 2.2, t: 0 });
         }
-        spawnMuzzle(wX, wz + POD_RADIUS + 2, "#FFB46B");
+        spawnMuzzle(wX, wz + GameConfig.POD_RADIUS + 2, "#FFB46B");
         playFireGunSound(); // Play fire gun sound effect
         break;
       }
@@ -3134,9 +3042,9 @@ function Game() {
         // Homing progression: 1→2→3 missiles for smart targeting satisfaction
         const count = weapon.current.level; // 1/2/3 missiles
         for (let i = 0; i < count; i++) {
-          projs.current.push({ id: nextId(), kind: "homing", x: wX, y: wz + POD_RADIUS + 4, vx: 0, vy: HOMING_SPEED, r: 5, ttl: 3.0, turn: 1100 + 140 * (weapon.current.level - 1) });
+          projs.current.push({ id: nextId(), kind: "homing", x: wX, y: wz + GameConfig.POD_RADIUS + 4, vx: 0, vy: HOMING_SPEED, r: 5, ttl: 3.0, turn: 1100 + 140 * (weapon.current.level - 1) });
         }
-        spawnMuzzle(wX, wz + POD_RADIUS + 2, "#FFE486");
+        spawnMuzzle(wX, wz + GameConfig.POD_RADIUS + 2, "#FFE486");
         playHomingMissilesGunSound(); // Play homing missiles sound effect
         break;
       }
@@ -3596,7 +3504,7 @@ function Game() {
     if (invulnTime.current > 0) invulnTime.current = Math.max(0, invulnTime.current - dt);
     if (hudFadeT.current > 0)  hudFadeT.current = Math.max(0, hudFadeT.current - dt);
     if (timeSlowRemaining.current > 0) timeSlowRemaining.current = Math.max(0, timeSlowRemaining.current - dt);
-    if (droneDeployCD.current > 0) droneDeployCD.current = Math.max(0, droneDeployCD.current - dt);
+    if (droneDeployGameConfig.CD.current > 0) droneDeployGameConfig.CD.current = Math.max(0, droneDeployGameConfig.CD.current - dt);
     
     // Victory beam-up animation (2-second duration)
     if (victoryBeamActive.current) {
@@ -3645,7 +3553,7 @@ function Game() {
     }
     
     // Deploy closest available drone if threat found (with cooldown to prevent spam)
-    if (threatFound && droneDeployCD.current <= 0) {
+    if (threatFound && droneDeployGameConfig.CD.current <= 0) {
       let closestDrone: { drone: typeof drones.current[0]; index: number } | null = null;
       let minDroneDist = Infinity;
       
@@ -3683,7 +3591,7 @@ function Game() {
           drone.vx = 0;
           drone.vy = -DRONE_KAMIKAZE_SPEED; // default upward movement
         }
-        droneDeployCD.current = 0.5; // 0.5 second cooldown between deployments
+        droneDeployGameConfig.CD.current = 0.5; // 0.5 second cooldown between deployments
         
         // Add visual feedback - screen shake when drone deploys
         shakeT.current = 0.3;
@@ -4255,7 +4163,7 @@ function Game() {
         // Asteroids
         for (let i = asteroids.current.length - 1; i >= 0; i--) {
           const a = asteroids.current[i];
-          const dx = a.x - podX.current, dy = a.y - podWorldY, rr = a.r + POD_RADIUS;
+          const dx = a.x - podX.current, dy = a.y - podWorldY, rr = a.r + GameConfig.POD_RADIUS;
           if (dx * dx + dy * dy <= rr * rr) {
             if (drones.current.length > 0) {
               // Drone sacrifices itself
@@ -4283,7 +4191,7 @@ function Game() {
           const cx = clamp(podX.current, br.x, br.x + br.w);
           const cy = clamp(podWorldY, br.y, br.y + br.h);
           const dx = podX.current - cx, dy = podWorldY - cy;
-          if (dx * dx + dy * dy <= POD_RADIUS * POD_RADIUS) {
+          if (dx * dx + dy * dy <= GameConfig.POD_RADIUS * GameConfig.POD_RADIUS) {
             if (drones.current.length > 0) {
               // Drone sacrifices itself
               sacrificeDrone(cx, cy);
@@ -4308,7 +4216,7 @@ function Game() {
         for (let i = enemyProjs.current.length - 1; i >= 0; i--) {
           const ep = enemyProjs.current[i];
           const dx = ep.x - podX.current, dy = ep.y - podWorldY;
-          const rr = ep.r + POD_RADIUS;
+          const rr = ep.r + GameConfig.POD_RADIUS;
           if (dx * dx + dy * dy <= rr * rr) {
             enemyProjs.current.splice(i, 1);
             if (drones.current.length > 0) {
@@ -4380,7 +4288,7 @@ function Game() {
         for (let i = ships.current.length - 1; i >= 0; i--) {
           const s = ships.current[i];
           const dx = s.x - podX.current, dy = s.y - podWorldY;
-          const rr = POD_RADIUS + 14;
+          const rr = GameConfig.POD_RADIUS + 14;
           if (dx * dx + dy * dy <= rr * rr) {
             if (drones.current.length > 0) {
               // Drone sacrifices itself
@@ -4409,7 +4317,7 @@ function Game() {
         // pod in world coords
         const dx = podX.current - p.x;
         const dy = (scrollY.current + podY.current) - p.y;
-        const rr = POD_RADIUS + 16; // a hair more generous for feel
+        const rr = GameConfig.POD_RADIUS + 16; // a hair more generous for feel
         if (dx * dx + dy * dy <= rr * rr) {
           if (p.kind === "B") {
             // Bubble shield +1 (cap at 6)
@@ -4470,7 +4378,7 @@ function Game() {
         const distanceToCenter = Math.sqrt(dxRing*dxRing + dyRing*dyRing);
         
         // Check if pod is touching the ring edge (within pod radius of the ring border)
-        const ringEdgeHit = Math.abs(distanceToCenter - rNow) <= POD_RADIUS;
+        const ringEdgeHit = Math.abs(distanceToCenter - rNow) <= GameConfig.POD_RADIUS;
       
 
       // Boss-gated on level 5
@@ -5218,8 +5126,8 @@ function Game() {
               invulnBlink ? { opacity: 0.4 } : null,
               { 
                 transform: [
-                  { translateX: podX.current - POD_RADIUS }, 
-                  { translateY: (victoryBeamActive.current ? podVictoryY.current : podY.current) - POD_RADIUS },
+                  { translateX: podX.current - GameConfig.POD_RADIUS }, 
+                  { translateY: (victoryBeamActive.current ? podVictoryY.current : podY.current) - GameConfig.POD_RADIUS },
                   { scaleX: victoryBeamActive.current ? podVictoryScale.current : 1 },
                   { scaleY: victoryBeamActive.current ? podVictoryScale.current : 1 }
                 ] 
@@ -5228,7 +5136,7 @@ function Game() {
           />
           {/* Shield rings */}
           {Array.from({ length: shieldLives.current }).map((_, i) => {
-            const r = POD_RADIUS + 8 + i * 6;
+            const r = GameConfig.POD_RADIUS + 8 + i * 6;
             return (
               <View
                 key={`SR-${i}`}
@@ -5400,8 +5308,8 @@ function Game() {
             return; // Skip this movement frame
           }
 
-          const newX = clamp(podStartX.current + deltaX, POD_RADIUS, width - POD_RADIUS);
-          const newY = clamp(podStartY.current + deltaY, POD_RADIUS, height - POD_RADIUS);
+          const newX = clamp(podStartX.current + deltaX, GameConfig.POD_RADIUS, width - GameConfig.POD_RADIUS);
+          const newY = clamp(podStartY.current + deltaY, GameConfig.POD_RADIUS, height - GameConfig.POD_RADIUS);
 
           podX.current = newX;
           podY.current = newY;
