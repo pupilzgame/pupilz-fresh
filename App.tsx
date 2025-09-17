@@ -1234,7 +1234,7 @@ function Game() {
 
   // Weapons & toggles
   const nukesLeft = useRef(1);
-  const leftHandedMode = useRef(false); // Accessibility: left-handed player support
+  const [leftHandedMode, setLeftHandedMode] = useState(false); // Accessibility: left-handed player support
   type Weapon = { kind: Exclude<PUKind,"R"|"B"|"E"|"T"|"D"|"N"> | "basic"; level: 1|2|3 };
   const weapon = useRef<Weapon>({ kind: "basic", level: 1 });
   const rapidLevel = useRef<0|1|2|3>(0);
@@ -4558,8 +4558,11 @@ function Game() {
     // Audio handled by phase useEffect
   };
   const toggleHandedness = () => {
-    leftHandedMode.current = !leftHandedMode.current;
-    console.log(`Handedness toggled to: ${leftHandedMode.current ? 'left' : 'right'}`);
+    setLeftHandedMode(prev => {
+      const newValue = !prev;
+      console.log(`Handedness toggled to: ${newValue ? 'left' : 'right'}`);
+      return newValue;
+    });
   };
   
   const toggleMusic = async () => {
@@ -5335,7 +5338,7 @@ function Game() {
         <View style={{
           position: 'absolute',
           bottom: insets.bottom + 20, 
-          [leftHandedMode.current ? 'left' : 'right']: 20,
+          [leftHandedMode ? 'left' : 'right']: 20,
           zIndex: 50,
           backgroundColor: 'rgba(0,0,0,0.6)', 
           paddingVertical: 12,
@@ -5394,7 +5397,7 @@ function Game() {
 
           {phase === "menu" && <EnhancedMenu
             onStart={startGame}
-            leftHandedMode={leftHandedMode.current}
+            leftHandedMode={leftHandedMode}
             onToggleHandedness={toggleHandedness}
             musicEnabled={musicEnabled}
             onToggleMusic={toggleMusic}
@@ -5465,15 +5468,15 @@ function Game() {
                   style={styles.respawnHandednessToggle}
                 >
                   <Text style={styles.respawnHandednessLabel}>
-                    🎮 {leftHandedMode.current ? '👈' : '👉'}
+                    🎮 {leftHandedMode ? '👈' : '👉'}
                   </Text>
                   <View style={[
                     styles.respawnToggleSwitch,
-                    !leftHandedMode.current && styles.respawnToggleSwitchActive
+                    !leftHandedMode && styles.respawnToggleSwitchActive
                   ]}>
                     <View style={[
                       styles.respawnToggleKnob,
-                      !leftHandedMode.current && styles.respawnToggleKnobActive
+                      !leftHandedMode && styles.respawnToggleKnobActive
                     ]} />
                   </View>
                 </Pressable>
