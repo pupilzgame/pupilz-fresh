@@ -1290,7 +1290,13 @@ function Game() {
   const isLowEndDevice = false; // Disable for now to prevent crashes
 
   const [musicEnabled, setMusicEnabled] = useState(false); // Start disabled until user interaction
-  const [sfxEnabled, setSfxEnabled] = useState(true);
+  const [sfxEnabled, setSfxEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('pupilz_sfx_enabled');
+      return saved !== null ? JSON.parse(saved) : true;
+    }
+    return true;
+  });
   const [musicVolume, setMusicVolume] = useState(0.7);
   const [audioLoaded, setAudioLoaded] = useState(false);
 
@@ -4672,6 +4678,9 @@ function Game() {
   const toggleSfx = () => {
     const newSfxEnabled = !sfxEnabled;
     setSfxEnabled(newSfxEnabled);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('pupilz_sfx_enabled', JSON.stringify(newSfxEnabled));
+    }
     console.log(`Sound effects toggled to: ${newSfxEnabled ? 'on' : 'off'}`);
   };
 
