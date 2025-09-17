@@ -833,7 +833,6 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
         <Text style={styles.logoSub}>
           ── POD DESCENT ──
         </Text>
-        <View style={styles.logoUnderline} />
       </View>
 
       {/* Compact Settings */}
@@ -856,11 +855,12 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
         </Pressable>
       </View>
 
+      {/* Fixed Subtitle */}
+      <Text style={styles.menuSubtitle}>
+        • INFILTRATE EARTH'S ATMOSPHERE •{'\n'}• ESTABLISH DOMINANCE •
+      </Text>
+
       <ScrollView style={styles.menuScrollView} showsVerticalScrollIndicator={false}>
-        <Text style={styles.menuSubtitle}>
-          • INFILTRATE EARTH'S ATMOSPHERE •{'\n'}• ESTABLISH DOMINANCE •
-        </Text>
-        
         <View style={styles.menuSections}>
           {MENU_SECTIONS.map((section) => (
             <AccordionItem
