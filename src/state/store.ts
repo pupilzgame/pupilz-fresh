@@ -61,14 +61,21 @@ export const useGameStore = create<GameState>((set, get) => ({
   leftHandedMode: false,
 
   // Phase management
-  startGame: () => set({
-    gamePhase: "game",
-    score: 0,
-    level: 1,
-    lives: 3,
-    scrollY: 0,
-    worldV: 95
-  }),
+  startGame: () => {
+    console.log('📦 STORE: startGame called');
+    console.log('📦 STORE: Setting gamePhase to "game"');
+    set({
+      gamePhase: "game",
+      score: 0,
+      level: 1,
+      lives: 3,
+      scrollY: 0,
+      worldV: 95,
+      showLeaderboard: false,
+      showNameEntry: false
+    });
+    console.log('📦 STORE: Game state updated');
+  },
 
   endGame: (victory = false) => set({
     gamePhase: "results"

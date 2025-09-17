@@ -18,8 +18,12 @@ export default function MenuScene() {
   const audio = useAudioSystem();
 
   const handleStartGame = () => {
+    console.log('🚀 DESCEND TO EARTH button pressed!');
+    console.log('🎮 Calling startGame()...');
     startGame();
+    console.log('🎵 Playing gameplay music...');
     audio.playGameplayMusic();
+    console.log('✅ Button handler complete');
   };
 
   const toggleMusic = () => {

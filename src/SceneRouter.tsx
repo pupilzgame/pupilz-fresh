@@ -7,6 +7,8 @@ import ResultsScene from './scenes/ResultsScene';
 export default function SceneRouter() {
   const gamePhase = useGameStore(s => s.gamePhase);
 
+  console.log('🎯 SCENE ROUTER: Current gamePhase =', gamePhase);
+
   switch (gamePhase) {
     case "menu":
       return <MenuScene />;
