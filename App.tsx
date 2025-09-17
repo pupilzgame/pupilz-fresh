@@ -2757,11 +2757,7 @@ function Game() {
 
       update(dt);
 
-      // Conservative frame skipping for stability
-      tickCounter.current = (tickCounter.current || 0) + 1;
-      if (tickCounter.current % 3 === 0 || tickCounter.current === 1) {
-        setTick((n) => n + 1);
-      }
+      setTick((n) => n + 1);
       raf.current = requestAnimationFrame(tick);
     };
 
@@ -3349,58 +3345,10 @@ function Game() {
     console.log(`🎉 ACQUISITION: ${message}`);
   };
 
-  // DISABLED FOR PERFORMANCE - const createConfetti = () => {
-  //   const colors = ["#FFD700", "#FF6B35", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD", "#98D8C8"];
-  //   const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
-
-  //   // Conservative confetti count for stability
-  //   for (let i = 0; i < 15; i++) {
-  //     particles.current.push({
-  //       id: idBase + i + 1,
-  //       x: Math.random() * width,
-  //       y: -20,
-  //       vx: rand(-30, 30),
-  //       vy: rand(100, 200),
-  //       r: rand(2, 5),
-  //       ttl: rand(3, 5),
-  //       color: colors[Math.floor(Math.random() * colors.length)]
-  //     });
-  //   }
-  // };
-
-  // DISABLED FOR PERFORMANCE - const createFirework = (x: number, y: number) => {
-  //   const colors = ["#FFD700", "#FF1744", "#00E676", "#2196F3", "#FF9800", "#E91E63", "#9C27B0"];
-  //   const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
-  //   const particleCount = 12; // Conservative count for stability
-
-  //   for (let i = 0; i < particleCount; i++) {
-  //     const angle = (i / particleCount) * Math.PI * 2;
-  //     const speed = rand(120, 250);
-  //     particles.current.push({
-  //       id: idBase + i + 1,
-  //       x, y,
-  //       vx: Math.cos(angle) * speed,
-  //       vy: Math.sin(angle) * speed,
-  //       r: rand(2, 4),
-  //       ttl: rand(1.5, 2.5),
-  //       color: colors[Math.floor(Math.random() * colors.length)]
-  //     });
-  //   }
-  // };
-
-  // DISABLED FOR PERFORMANCE - const startVictoryCelebration = () => {
-  //   // Simple celebration for all devices
-  //   setTimeout(() => createFirework(width * 0.4, height * 0.4), 500);
-  //   setTimeout(() => createFirework(width * 0.6, height * 0.3), 1200);
-
-  //   createConfetti();
-  //   setTimeout(() => createConfetti(), 2000);
-  // };
-
   const ringDisintegrate = (centerX: number, centerY: number, radius: number) => {
     const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
-    // Conservative particle count for stability
-    const particleCount = Math.floor(radius * 0.5);
+    // Optimized particle count for mobile performance
+    const particleCount = Math.min(Math.floor(radius * 0.3), 20);
     
     for (let i = 0; i < particleCount; i++) {
       // Create particles around the ring circumference
@@ -4147,8 +4095,8 @@ function Game() {
 
               // Create explosion effect
               boom(p.x, p.y, 1.5, "#FF4444");
-              for (let e = 0; e < 8; e++) {
-                const angle = (e / 8) * Math.PI * 2;
+              for (let e = 0; e < 4; e++) {
+                const angle = (e / 4) * Math.PI * 2;
                 const vx = Math.cos(angle) * 100;
                 const vy = Math.sin(angle) * 100;
                 particles.current.push({
@@ -4161,7 +4109,7 @@ function Game() {
             
             // Create hit effect particles
             const hitColor = p.kind === "laser" ? "#B1E1FF" : p.kind === "fire" ? "#FFB46B" : "#FFE486";
-            for (let k = 0; k < 3 + damage; k++) {
+            for (let k = 0; k < Math.min(2 + damage, 5); k++) {
               const angle = Math.random() * Math.PI * 2;
               const speed = rand(60, 120);
               particles.current.push({
@@ -4207,7 +4155,7 @@ function Game() {
               
               // Hit effect particles
               const hitColor = p.kind === "laser" ? "#B1E1FF" : p.kind === "fire" ? "#FFB46B" : "#FFE486";
-              for (let k = 0; k < 2 + damage; k++) {
+              for (let k = 0; k < Math.min(1 + damage, 4); k++) {
                 const angle = Math.random() * Math.PI * 2;
                 const speed = rand(50, 100);
                 particles.current.push({
