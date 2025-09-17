@@ -359,13 +359,12 @@ export default function GameScene() {
           level={level}
           score={score}
           lives={lives}
-          maxLives={3}
-          shipsKilled={levelManager.getShipsKilled()}
-          shipQuota={levelManager.getShipQuota()}
-          progressText={levelManager.getProgressText()}
-          weaponInfo={weaponSystem.getWeaponInfo()}
-          energyCells={0}
-          nukesLeft={0}
+          shieldLives={0}
+          shipProgress={levelManager.getProgressText()}
+          scorePopups={scoringSystem.getScorePopups()}
+          width={width}
+          height={height}
+          scrollY={scrollY}
         />
       </View>
     </View>
