@@ -26,7 +26,14 @@ import {
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFullScreenPWA } from './useFullScreenPWA';
 import './global.css';
-import { Audio } from 'expo-av';
+import { useAudioSystem } from './src/systems/AudioSystem';
+import { rand, clamp, distance, circleCollision, rectCircleCollision } from './src/utils/math';
+import {
+  POD_RADIUS, GLOW_RADIUS, FREE_FALL, HORIZONTAL_SPEED, VERTICAL_SPEED,
+  HIT_INVULN_TIME, RESPAWN_DELAY, NUKE_RANGE, SWEEP_SPEED,
+  PROJECTILE_SPEED, LASER_SPEED, FIRE_SPEED, HOMING_SPEED,
+  SHIP_QUOTAS, BOSS_LEVEL, MIN_SCORE_THRESHOLD, COLORS
+} from './src/utils/constants';
 /* ---------- CSS Hexagon Component ---------- */
 function HexagonAsteroid({ 
   size, 
@@ -1262,43 +1269,13 @@ function Game() {
   const [, setTick] = useState(0);
   
   // Audio system
-  const titleMusic = useRef<Audio.Sound | null>(null);
-  const gameplayMusic = useRef<Audio.Sound | null>(null);
-  const missionFailedMusic = useRef<Audio.Sound | null>(null);
-  const earthReachedMusic = useRef<Audio.Sound | null>(null);
-  const spaceBubblesSound = useRef<Audio.Sound | null>(null);
-  const getItemSound = useRef<Audio.Sound | null>(null);
-  const clearLevelSound = useRef<Audio.Sound | null>(null);
-  const buttonPressSound = useRef<Audio.Sound | null>(null);
-  const asteroidBreakingSound = useRef<Audio.Sound | null>(null);
-  const gunCockingSound = useRef<Audio.Sound | null>(null);
-  const respawnSound = useRef<Audio.Sound | null>(null);
-  const weaponFireSound = useRef<Audio.Sound | null>(null);
-  const useItemSound = useRef<Audio.Sound | null>(null);
-  const laserGunSound = useRef<Audio.Sound | null>(null);
-  const humanShipExplodeSound = useRef<Audio.Sound | null>(null);
-  const multiGunSound = useRef<Audio.Sound | null>(null);
-  const homingMissilesGunSound = useRef<Audio.Sound | null>(null);
-  const fireGunSound = useRef<Audio.Sound | null>(null);
-  const spreadGunSound = useRef<Audio.Sound | null>(null);
+  const audio = useAudioSystem();
   const gameplayMusicPlaying = useRef(false); // Track if gameplay music is currently playing
   const userInteracted = useRef(false); // Track if user has interacted with the page
-  const tickCounter = useRef(0); // For mobile performance optimization
 
   // Simple mobile detection for performance optimization
   const isMobile = typeof window !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   const isLowEndDevice = false; // Disable for now to prevent crashes
-
-  const [musicEnabled, setMusicEnabled] = useState(false); // Start disabled until user interaction
-  const [sfxEnabled, setSfxEnabled] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('pupilz_sfx_enabled');
-      return saved !== null ? JSON.parse(saved) : true;
-    }
-    return true;
-  });
-  const [musicVolume, setMusicVolume] = useState(0.7);
-  const [audioLoaded, setAudioLoaded] = useState(false);
 
 
   // Camera/world
@@ -1653,25 +1630,7 @@ function Game() {
     setGameResultData(null);
   };
 
-  // Audio system functions
-  const loadTitleMusic = async () => {
-    try {
-      if (titleMusic.current) {
-        await titleMusic.current.unloadAsync();
-      }
-      const { sound } = await Audio.Sound.createAsync(
-        require('./assets/audio/Title-Track.wav'),
-        {
-          isLooping: true,
-          volume: musicVolume,
-        }
-      );
-      titleMusic.current = sound;
-      console.log('🎵 Title music loaded');
-    } catch (error) {
-      console.log('❌ Failed to load title music:', error);
-    }
-  };
+  // Audio wrapper functions for backward compatibility
 
   const loadGameplayMusic = async () => {
     try {
@@ -2640,7 +2599,7 @@ function Game() {
     invulnTime.current = 2.5; // Generous invulnerability
     hudFadeT.current = 4.0; // Extended HUD visibility
     canSkipCountdown.current = false;
-    playRespawnSound(); // Play SFX for pod respawn
+    audio.playRespawnSound(); // Play SFX for pod respawn
     console.log('🎮 TELEGRAM DEBUG - Setting phase to "playing" from respawnPlayer');
     setPhase("playing");
   };
@@ -3062,7 +3021,7 @@ function Game() {
     switch (weapon.current.kind) {
       case "basic": {
         // Basic pod blaster - single weak shot to encourage pickup hunting
-        playWeaponFireSound(); // Play SFX for basic weapon fire
+        audio.playWeaponFireSound(); // Play SFX for basic weapon fire
         projs.current.push({ id: nextId(), kind: "bullet", x: wX, y: wz + POD_RADIUS + 4, vx: 0, vy: BULLET_SPEED * 0.9, r: 3, ttl: 1.8 });
         break;
       }
@@ -3093,7 +3052,7 @@ function Game() {
       }
       case "L": {
         // Laser progression: Increasingly powerful and visually impressive
-        playLaserGunSound(); // Play SFX for laser weapon fire
+        audio.playLaserGunSound(); // Play SFX for laser weapon fire
         const L = weapon.current.level;
         const pierce = 3 + L * 2; // 5/7/9 pierce - dramatically more
         const laserCount = L; // 1/2/3 parallel lasers
@@ -3502,7 +3461,7 @@ function Game() {
     deathStats.current[cause] += 1;
 
     // Play pod explosion sound
-    playHumanShipExplodeSound();
+    audio.playHumanShipExplodeSound();
     
     // Generate tip once for this death
     currentDeathTip.current = getContextualTip();
@@ -3789,7 +3748,7 @@ function Game() {
         const dx = a.x - cx, dy = a.y - cy;
         if (dx*dx + dy*dy <= (sweepR.current + a.r) * (sweepR.current + a.r)) {
           scoreAsteroidKill(a);
-          playAsteroidBreakingSound(); // Play SFX for asteroid destruction
+          audio.playAsteroidBreakingSound(); // Play SFX for asteroid destruction
           asteroids.current.splice(i, 1);
           boom(a.x, a.y, 0.9 + a.r * 0.02, getAsteroidTypeData(a.type).color);
         }
@@ -3802,7 +3761,7 @@ function Game() {
         const dx = bx - cx, dy = by - cy;
         if (dx*dx + dy*dy <= sweepR.current * sweepR.current) {
           scoreBarrierKill(b);
-          playAsteroidBreakingSound(); // Play SFX for barrier destruction
+          audio.playAsteroidBreakingSound(); // Play SFX for barrier destruction
           barriers.current.splice(i, 1);
           boom(bx, by, 1.0, getBarrierTypeData(b.type).color);
         }
@@ -3813,7 +3772,7 @@ function Game() {
         const dx = s.x - cx, dy = s.y - cy;
         if (dx*dx + dy*dy <= (sweepR.current + 14) * (sweepR.current + 14)) {
           onShipKilled(s);
-          playHumanShipExplodeSound(); // Play SFX for ship explosion
+          audio.playHumanShipExplodeSound(); // Play SFX for ship explosion
           ships.current.splice(i, 1);
           boom(s.x, s.y, 1.2, "#FFD890");
         }
@@ -4082,7 +4041,7 @@ function Game() {
                   other.hp = Math.max(0, other.hp - explosionDamage);
                   if (other.hp <= 0) {
                     scoreAsteroidKill(other);
-                    playAsteroidBreakingSound(); // Play SFX for asteroid destruction
+                    audio.playAsteroidBreakingSound(); // Play SFX for asteroid destruction
                     boom(other.x, other.y, 1.0, "#FF6B35");
                     asteroids.current.splice(k, 1);
                     if (k < j) j--; // Adjust index if we removed an earlier element
@@ -4098,7 +4057,7 @@ function Game() {
                 const edx = bcx - p.x, edy = bcy - p.y;
                 const dist = Math.sqrt(edx * edx + edy * edy);
                 if (dist <= explosionRadius) {
-                  playAsteroidBreakingSound(); // Play SFX for barrier destruction
+                  audio.playAsteroidBreakingSound(); // Play SFX for barrier destruction
                   boom(bcx, bcy, 1.2, "#FF4444");
                   barriers.current.splice(k, 1);
                   killsBar.current += 1;
@@ -4138,7 +4097,7 @@ function Game() {
             if (a.hp <= 0) {
               // Asteroid destroyed
               scoreAsteroidKill(a);
-              playAsteroidBreakingSound(); // Play SFX for asteroid destruction
+              audio.playAsteroidBreakingSound(); // Play SFX for asteroid destruction
               asteroids.current.splice(j, 1);
               boom(a.x, a.y, 0.8 + a.r * 0.02, getAsteroidTypeData(a.type).color);
             }
@@ -4183,7 +4142,7 @@ function Game() {
               
               if (br.hp <= 0) {
                 scoreBarrierKill(br);
-                playAsteroidBreakingSound(); // Play SFX for barrier destruction
+                audio.playAsteroidBreakingSound(); // Play SFX for barrier destruction
                 barriers.current.splice(j, 1);
                 boom(cx, cy, 1.0, getBarrierTypeData(br.type).color);
               }
@@ -4210,7 +4169,7 @@ function Game() {
               boom(p.x, p.y, 0.7, "#FFD890");
               if (s.hp <= 0) {
                 onShipKilled(s);
-                playHumanShipExplodeSound(); // Play SFX for ship explosion
+                audio.playHumanShipExplodeSound(); // Play SFX for ship explosion
                 ships.current.splice(j, 1);
                 boom(s.x, s.y, 1.1, "#FFB46B");
               }
@@ -4273,14 +4232,14 @@ function Game() {
               // Drone sacrifices itself
               sacrificeDrone(a.x, a.y);
               scoreAsteroidKill(a); // Award points and show popup for drone kill
-              playAsteroidBreakingSound(); // Play SFX for asteroid destruction
+              audio.playAsteroidBreakingSound(); // Play SFX for asteroid destruction
               boom(a.x, a.y, 0.9, "#FFD700");
               asteroids.current.splice(i, 1);
               break;
             } else if (shieldLives.current > 0) {
               shieldLives.current -= 1;
               invulnTime.current = HIT_INVULN_TIME;
-              playAsteroidBreakingSound(); // Play SFX for asteroid destruction
+              audio.playAsteroidBreakingSound(); // Play SFX for asteroid destruction
               boom(a.x, a.y, 0.9, "#9FFFB7");
               asteroids.current.splice(i, 1);
               break;
@@ -4300,14 +4259,14 @@ function Game() {
               // Drone sacrifices itself
               sacrificeDrone(cx, cy);
               scoreBarrierKill(br); // Award points and show popup for drone kill
-              playAsteroidBreakingSound(); // Play SFX for barrier destruction
+              audio.playAsteroidBreakingSound(); // Play SFX for barrier destruction
               boom(cx, cy, 0.9, "#FFD700");
               barriers.current.splice(i, 1);
               break;
             } else if (shieldLives.current > 0) {
               shieldLives.current -= 1;
               invulnTime.current = HIT_INVULN_TIME;
-              playAsteroidBreakingSound(); // Play SFX for barrier destruction
+              audio.playAsteroidBreakingSound(); // Play SFX for barrier destruction
               boom(cx, cy, 0.9, "#9FFFB7");
               barriers.current.splice(i, 1);
               break;
@@ -4375,7 +4334,7 @@ function Game() {
               boom(drone.x, drone.y, 1.4, "#FFD700"); // Large gold explosion for drone impact
               boom(ship.x, shipScreenY, 1.0, "#FF6B35"); // Ship impact explosion
               if (ship.hp <= 0) {
-                playHumanShipExplodeSound(); // Play SFX for ship explosion
+                audio.playHumanShipExplodeSound(); // Play SFX for ship explosion
                 ships.current.splice(j, 1);
                 onShipKilled(ship); // Pass ship data for proper scoring and popup
                 boom(ship.x, ship.y, 1.5, "#FFD890"); // Larger ship destruction explosion
@@ -4398,13 +4357,13 @@ function Game() {
               // Drone sacrifices itself
               sacrificeDrone(s.x, s.y);
               scoreShipKill(s); // Award points and show popup for drone kill
-              playHumanShipExplodeSound(); // Play SFX for ship explosion
+              audio.playHumanShipExplodeSound(); // Play SFX for ship explosion
               boom(s.x, s.y, 1.0, "#FFD700");
               ships.current.splice(i, 1);
             } else if (shieldLives.current > 0) {
               shieldLives.current -= 1;
               invulnTime.current = HIT_INVULN_TIME;
-              playHumanShipExplodeSound(); // Play SFX for ship explosion
+              audio.playHumanShipExplodeSound(); // Play SFX for ship explosion
               boom(s.x, s.y, 1.0, "#9FFFB7");
               ships.current.splice(i, 1);
             } else {
@@ -4458,7 +4417,7 @@ function Game() {
           } else {
             // Weapon pickup (S/M/L/F/H): swap or level up (cap at 3)
             const newKind = p.kind as Weapon["kind"];
-            playGunCockingSound(); // Play SFX for weapon upgrade pickup
+            audio.playGunCockingSound(); // Play SFX for weapon upgrade pickup
             if (weapon.current.kind === newKind) {
               weapon.current.level = Math.min(3, weapon.current.level + 1) as 1 | 2 | 3;
             } else {
@@ -4467,7 +4426,7 @@ function Game() {
           }
 
           // pickup feedback
-          playGetItemSound(); // Play SFX for item pickup
+          audio.playGetItemSound(); // Play SFX for item pickup
           boom(p.x, p.y, 0.6, "#CFFFD1");
           powerups.current.splice(i, 1);
           hudFadeT.current = 2.0; // briefly keep HUD visible
@@ -4532,7 +4491,7 @@ function Game() {
             // Boss not cleared yet - trigger boss fight
             if (!levelUpProcessed.current) {
               levelUpProcessed.current = true;
-              playClearLevelSound(); // Play SFX for level ring pop
+              audio.playClearLevelSound(); // Play SFX for level ring pop
               levelUp();
             }
             return;
@@ -4554,7 +4513,7 @@ function Game() {
               showAcquisitionMessage("FINAL APPROACH • BOSS ENCOUNTER IMMINENT");
             }
 
-            playClearLevelSound(); // Play SFX for level ring pop
+            audio.playClearLevelSound(); // Play SFX for level ring pop
             levelUp();
           }
           return;
@@ -4633,7 +4592,7 @@ function Game() {
 
   /* ----- Start / Restart ----- */
   const startGame = () => {
-    playButtonPressSound(); // Play button press SFX
+    audio.playButtonPressSound(); // Play button press SFX
     console.log('🚀 GAME START: Simple dispatch message');
 
     hardResetWorld();
@@ -4656,7 +4615,7 @@ function Game() {
     // Audio handled by phase useEffect
   };
   const goMenu = () => {
-    playButtonPressSound(); // Play button press SFX
+    audio.playButtonPressSound(); // Play button press SFX
     setPhase("menu");
     hardResetWorld();
     // Audio handled by phase useEffect
@@ -4666,28 +4625,12 @@ function Game() {
     console.log(`Handedness toggled to: ${leftHandedMode.current ? 'left' : 'right'}`);
   };
   
-  const toggleMusic = async () => {
-    const newMusicEnabled = !musicEnabled;
-    setMusicEnabled(newMusicEnabled);
-    console.log(`Music toggled to: ${newMusicEnabled ? 'on' : 'off'}`);
-
-    // Immediately apply volume change
-    try {
-      if (titleMusic.current) {
-        await titleMusic.current.setVolumeAsync(newMusicEnabled ? musicVolume : 0);
-      }
-    } catch (error) {
-      console.log('❌ Failed to toggle music volume:', error);
-    }
+  const toggleMusic = () => {
+    audio.toggleMusic();
   };
 
   const toggleSfx = () => {
-    const newSfxEnabled = !sfxEnabled;
-    setSfxEnabled(newSfxEnabled);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('pupilz_sfx_enabled', JSON.stringify(newSfxEnabled));
-    }
-    console.log(`Sound effects toggled to: ${newSfxEnabled ? 'on' : 'off'}`);
+    audio.toggleSfx();
   };
 
 
@@ -5503,9 +5446,9 @@ function Game() {
             onStart={startGame}
             leftHandedMode={leftHandedMode.current}
             onToggleHandedness={toggleHandedness}
-            musicEnabled={musicEnabled}
+            musicEnabled={audio.musicEnabled}
             onToggleMusic={toggleMusic}
-            sfxEnabled={sfxEnabled}
+            sfxEnabled={audio.sfxEnabled}
             onToggleSfx={toggleSfx}
             onShowLeaderboard={() => setShowLeaderboard(true)}
           />}
