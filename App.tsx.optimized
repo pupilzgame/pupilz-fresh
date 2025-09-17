@@ -27,8 +27,6 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { useFullScreenPWA } from './useFullScreenPWA';
 import './global.css';
 import { Audio } from 'expo-av';
-import { rand, clamp, lerp, distance, circleCollision, rectCircleCollision, normalize, degToRad, radToDeg } from './src/utils/math';
-
 /* ---------- CSS Hexagon Component ---------- */
 function HexagonAsteroid({ 
   size, 
@@ -536,7 +534,9 @@ const ENERGY_SHIELD_GAIN = 3;    // +3 rings
 const BOSS_COLLISION_RADIUS = 28; // matches 56px visual boss size
 
 /* ---------- Helpers ---------- */
-// Math utilities moved to src/utils/math.ts
+const rand = (min: number, max: number) => Math.random() * (max - min) + min;
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 /* ---------- Small UI: Accordion ---------- */
 function Accordion({

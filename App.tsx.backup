@@ -19,14 +19,14 @@ import {
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     useWindowDimensions,
     View,
 } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFullScreenPWA } from './useFullScreenPWA';
 import './global.css';
-// Web compatibility: Disable audio for now
-// import { Audio } from 'expo-av';
+import { Audio } from 'expo-av';
 /* ---------- CSS Hexagon Component ---------- */
 function HexagonAsteroid({ 
   size, 
@@ -110,6 +110,247 @@ type Phase    = "menu" | "playing" | "dead" | "win" | "respawning";
 
 type PUKind = "S" | "M" | "L" | "F" | "H" | "R" | "B" | "E" | "T" | "D" | "N";
 
+// Scalable AAA Scoring System Configuration
+const SCORING_CONFIG = {
+  basePoints: {
+    asteroid: 10,
+    barrier: 20,
+    ship: 100,
+    boss: 1000,
+    // Future extensibility: drone: 75, mothership: 5000, etc.
+  },
+
+  typeMultipliers: {
+    debris: 0.5,
+    crystal: 0.7,
+    rock: 1.0,
+    energy: 1.0,
+    metal: 1.5,
+    asteroid: 2.0,
+    wreckage: 1.8,
+    // Future extensibility: plasma: 2.5, quantum: 3.0, etc.
+  },
+
+  // Scales infinitely for future levels
+  levelMultipliers: [1.0, 1.0, 1.5, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0],
+
+  bonuses: {
+    survival: 2,        // per second survived
+    levelComplete: 200, // × level number
+    lifeBonus: 300,     // × remaining lives
+    victoryBonus: 2000, // complete game victory
+  }
+} as const;
+
+// AAA Leaderboard Management System with Vercel KV
+class LeaderboardManager {
+  private static readonly MIN_SCORE_THRESHOLD = 100;
+
+  // Load leaderboard from Vercel KV
+  static async loadLeaderboard(): Promise<LeaderboardState> {
+    try {
+      console.log('🗄️ Loading leaderboard from database...');
+      const response = await fetch('/api/leaderboard');
+      if (!response.ok) {
+        console.error(`❌ Leaderboard API failed: ${response.status} ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('Error details:', errorText);
+        return this.getDefaultState();
+      }
+
+      const data = await response.json();
+      if (!data.success || !Array.isArray(data.entries)) {
+        console.error('❌ Invalid leaderboard data format:', data);
+        return this.getDefaultState();
+      }
+
+      console.log(`✅ Loaded ${data.entries.length} leaderboard entries from database`);
+
+      // Get personal best from localStorage (client-side only)
+      const personalBest = parseInt(localStorage.getItem('pupilz_personal_best') || '0');
+
+      return {
+        entries: data.entries,
+        personalBest,
+        lastRank: null,
+        newHighScore: false
+      };
+    } catch (error) {
+      console.warn('Failed to load leaderboard:', error);
+      return this.getDefaultState();
+    }
+  }
+
+  // Check if a score qualifies for the leaderboard
+  static qualifiesForLeaderboard(score: number, currentEntries: LeaderboardEntry[]): boolean {
+    if (score < this.MIN_SCORE_THRESHOLD) return false;
+    if (currentEntries.length < 10) return true;
+    const lowestScore = Math.min(...currentEntries.map(e => e.score));
+    return score > lowestScore;
+  }
+
+  // Add a new entry to the leaderboard via API
+  static async addEntry(
+    state: LeaderboardState,
+    playerName: string,
+    score: number,
+    level: number,
+    victory: boolean
+  ): Promise<{ newState: LeaderboardState; rank: number }> {
+    try {
+      console.log(`💾 Saving score to database: ${playerName} - ${score} points`);
+      const response = await fetch('/api/leaderboard', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          playerName,
+          score,
+          level,
+          victory
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ Failed to save score: ${response.status} ${response.statusText}`, errorText);
+        throw new Error('Failed to add entry to leaderboard');
+      }
+
+      const data = await response.json();
+      if (!data.success) {
+        console.error('❌ Server rejected score entry:', data.error);
+        throw new Error(data.error || 'Failed to add entry');
+      }
+
+      console.log(`✅ Score saved successfully! Rank: ${data.rank}`);
+
+      // Update personal best in localStorage
+      const newPersonalBest = Math.max(state.personalBest, score);
+      const isNewHighScore = score > state.personalBest;
+      localStorage.setItem('pupilz_personal_best', newPersonalBest.toString());
+
+      // Reload leaderboard to get updated data
+      const updatedState = await this.loadLeaderboard();
+      updatedState.personalBest = newPersonalBest;
+      updatedState.lastRank = data.rank;
+      updatedState.newHighScore = isNewHighScore;
+
+      return { newState: updatedState, rank: data.rank };
+    } catch (error) {
+      console.error('Failed to add leaderboard entry:', error);
+      // Fallback to local state update
+      return this.addEntryLocal(state, playerName, score, level, victory);
+    }
+  }
+
+  // Fallback local method for offline functionality
+  private static addEntryLocal(
+    state: LeaderboardState,
+    playerName: string,
+    score: number,
+    level: number,
+    victory: boolean
+  ): { newState: LeaderboardState; rank: number } {
+    const newEntry: LeaderboardEntry = {
+      id: Date.now().toString() + Math.random().toString(36),
+      playerName: playerName.toUpperCase().substring(0, 3),
+      score,
+      level,
+      victory,
+      timestamp: Date.now(),
+      achievements: this.calculateAchievements(score, level, victory)
+    };
+
+    const newEntries = [...state.entries, newEntry]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+
+    const rank = newEntries.findIndex(entry => entry.id === newEntry.id) + 1;
+    const newPersonalBest = Math.max(state.personalBest, score);
+    const isNewHighScore = score > state.personalBest;
+
+    return {
+      newState: {
+        entries: newEntries,
+        personalBest: newPersonalBest,
+        lastRank: rank,
+        newHighScore: isNewHighScore
+      },
+      rank
+    };
+  }
+
+  // Calculate achievements for a score
+  private static calculateAchievements(score: number, level: number, victory: boolean): string[] {
+    const achievements: string[] = [];
+    if (victory) achievements.push('EARTH_REACHED');
+    if (score >= 100000) achievements.push('CENTURION');
+    if (score >= 250000) achievements.push('ELITE_PILOT');
+    if (level >= 5) achievements.push('BOSS_FIGHTER');
+    return achievements;
+  }
+
+  // Get default empty state
+  static getDefaultState(): LeaderboardState {
+    return {
+      entries: [],
+      personalBest: parseInt(localStorage.getItem('pupilz_personal_best') || '0'),
+      lastRank: null,
+      newHighScore: false
+    };
+  }
+
+  // Get rank suffix (1st, 2nd, 3rd, 4th, etc.)
+  static getRankSuffix(rank: number): string {
+    const lastDigit = rank % 10;
+    const lastTwoDigits = rank % 100;
+
+    if (lastTwoDigits >= 11 && lastTwoDigits <= 13) {
+      return `${rank}th`;
+    }
+
+    switch (lastDigit) {
+      case 1: return `${rank}st`;
+      case 2: return `${rank}nd`;
+      case 3: return `${rank}rd`;
+      default: return `${rank}th`;
+    }
+  }
+
+  // Format score for display
+  static formatScore(score: number): string {
+    return score.toLocaleString();
+  }
+
+  // Get achievement display name
+  static getAchievementName(achievement: string): string {
+    const names: Record<string, string> = {
+      'EARTH_REACHED': '🌍 Earth Reached',
+      'CENTURION': '💯 Centurion',
+      'ELITE_PILOT': '⭐ Elite Pilot',
+      'BOSS_FIGHTER': '👾 Boss Fighter'
+    };
+    return names[achievement] || achievement;
+  }
+}
+
+// Universal scoring function for any enemy type
+const calculateEnemyScore = (
+  enemyType: 'asteroid' | 'barrier' | 'ship' | 'boss',
+  subType: string,
+  radius: number = 20,
+  level: number = 1
+): number => {
+  const basePoints = SCORING_CONFIG.basePoints[enemyType] || 10;
+  const typeMultiplier = SCORING_CONFIG.typeMultipliers[subType as keyof typeof SCORING_CONFIG.typeMultipliers] || 1.0;
+  const sizeMultiplier = Math.max(0.5, radius / 20);
+  const levelMultiplier = SCORING_CONFIG.levelMultipliers[level - 1] || (level * 0.5);
+
+  return Math.round(basePoints * typeMultiplier * sizeMultiplier * levelMultiplier);
+};
+
 type ProjKind = "bullet" | "laser" | "fire" | "homing";
 type Projectile = {
   id: number; kind: ProjKind;
@@ -154,6 +395,33 @@ type Boss = {
 };
 
 type Particle = { id: number; x: number; y: number; vx: number; vy: number; r: number; ttl: number; color: string };
+
+type ScorePopup = {
+  id: number;
+  x: number;
+  y: number;
+  score: number;
+  ttl: number;
+  maxTtl: number;
+};
+
+// AAA Leaderboard System Types
+type LeaderboardEntry = {
+  id: string;
+  playerName: string;
+  score: number;
+  level: number;
+  victory: boolean;
+  timestamp: number;
+  achievements: string[];
+};
+
+type LeaderboardState = {
+  entries: LeaderboardEntry[];
+  personalBest: number;
+  lastRank: number | null;
+  newHighScore: boolean;
+};
 
 /* ---------- Tunables ---------- */
 const POD_RADIUS = 18;
@@ -472,9 +740,10 @@ type EnhancedMenuProps = {
   onToggleHandedness: () => void;
   musicEnabled: boolean;
   onToggleMusic: () => void;
+  onShowLeaderboard: () => void;
 };
 
-const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic }) => {
+const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic, onShowLeaderboard }) => {
   const [openId, setOpenId] = useState<string>("");
   const [animPhase, setAnimPhase] = useState(0);
   const menuStarsRef = useRef<Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}>>([]);
@@ -593,9 +862,20 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
             )
           ))}
         </View>
-        
-        <Pressable 
-          onPress={onStart} 
+
+        <Pressable
+          onPress={onShowLeaderboard}
+          style={({ pressed }) => [
+            styles.leaderboardButton,
+            pressed && styles.leaderboardButtonPressed,
+            { opacity: subtleFade }
+          ]}
+        >
+          <Text style={styles.leaderboardButtonText}>🏆 TOP PILOTS</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={onStart}
           style={({ pressed }) => [
             styles.menuCTA,
             pressed && styles.menuCTAPressed,
@@ -613,8 +893,29 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
 function Game() {
   // PWA and Telegram WebApp integration
   useFullScreenPWA();
-  
+
   const { width, height } = useWindowDimensions();
+
+  // TELEGRAM DEBUG: Add comprehensive logging for debugging
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      console.log('🔍 TELEGRAM DEBUG - Environment Check:');
+      console.log('  - Window dimensions:', width, 'x', height);
+      console.log('  - User agent:', navigator.userAgent);
+      console.log('  - Is Telegram WebApp:', !!(window as any).Telegram?.WebApp);
+
+      if ((window as any).Telegram?.WebApp) {
+        const tg = (window as any).Telegram.WebApp;
+        console.log('  - Telegram version:', tg.version);
+        console.log('  - Is expanded:', tg.isExpanded);
+        console.log('  - Viewport height:', tg.viewportHeight);
+        console.log('  - Viewport stable height:', tg.viewportStableHeight);
+        console.log('  - Platform:', tg.platform);
+        console.log('  - Color scheme:', tg.colorScheme);
+        console.log('  - Theme params:', tg.themeParams);
+      }
+    }
+  }, [width, height]);
   const rawInsets = useSafeAreaInsets();
   // Safety fallback for insets to prevent undefined errors
   const insets = {
@@ -817,9 +1118,30 @@ function Game() {
   const [, setTick] = useState(0);
   
   // Audio system
-  const titleMusic = useRef<any>(null);
+  const titleMusic = useRef<Audio.Sound | null>(null);
+  const gameplayMusic = useRef<Audio.Sound | null>(null);
+  const missionFailedMusic = useRef<Audio.Sound | null>(null);
+  const earthReachedMusic = useRef<Audio.Sound | null>(null);
+  const spaceBubblesSound = useRef<Audio.Sound | null>(null);
+  const getItemSound = useRef<Audio.Sound | null>(null);
+  const clearLevelSound = useRef<Audio.Sound | null>(null);
+  const buttonPressSound = useRef<Audio.Sound | null>(null);
+  const asteroidBreakingSound = useRef<Audio.Sound | null>(null);
+  const gunCockingSound = useRef<Audio.Sound | null>(null);
+  const respawnSound = useRef<Audio.Sound | null>(null);
+  const weaponFireSound = useRef<Audio.Sound | null>(null);
+  const useItemSound = useRef<Audio.Sound | null>(null);
+  const laserGunSound = useRef<Audio.Sound | null>(null);
+  const humanShipExplodeSound = useRef<Audio.Sound | null>(null);
+  const multiGunSound = useRef<Audio.Sound | null>(null);
+  const homingMissilesGunSound = useRef<Audio.Sound | null>(null);
+  const fireGunSound = useRef<Audio.Sound | null>(null);
+  const spreadGunSound = useRef<Audio.Sound | null>(null);
+  const gameplayMusicPlaying = useRef(false); // Track if gameplay music is currently playing
+  const userInteracted = useRef(false); // Track if user has interacted with the page
   const [musicEnabled, setMusicEnabled] = useState(true);
   const [musicVolume, setMusicVolume] = useState(0.7);
+  const [audioLoaded, setAudioLoaded] = useState(false);
   
 
   // Camera/world
@@ -917,6 +1239,7 @@ function Game() {
   const stars     = useRef<Star[]>([]);
   const projs     = useRef<Projectile[]>([]);
   const particles = useRef<Particle[]>([]);
+  const scorePopups = useRef<ScorePopup[]>([]);
 
   // Enemies
   const ships = useRef<EnemyShip[]>([]);
@@ -934,6 +1257,7 @@ function Game() {
   const victoryBeamProgress = useRef(0); // 0 to 1 over 2 seconds
   const podVictoryY = useRef(0); // Pod Y during beam-up
   const podVictoryScale = useRef(1); // Pod scale during beam-up
+  const finalDeathSequence = useRef(false); // Track final death to hide pod
   
   // Simple game start messaging
   const gameStartMessageTimer = useRef(0);
@@ -950,7 +1274,70 @@ function Game() {
   const nextPwrY = useRef(0);
   const nextShipY = useRef(0);
 
-  // Score / Kills (kept for fun)
+  // AAA Scoring System
+  const currentScore = useRef(0);
+  const sessionStartTime = useRef(0);
+
+  // AAA Leaderboard System State
+  const [leaderboardState, setLeaderboardState] = useState<LeaderboardState>(() => LeaderboardManager.getDefaultState());
+  const [leaderboardLoaded, setLeaderboardLoaded] = useState(false);
+  const [showNameEntry, setShowNameEntry] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [playerName, setPlayerName] = useState("");
+  const [telegramUsername, setTelegramUsername] = useState<string | null>(null);
+  const [gameResultData, setGameResultData] = useState<{score: number; level: number; victory: boolean} | null>(null);
+
+  // Load leaderboard and detect Telegram user on component mount
+  useEffect(() => {
+    const loadLeaderboard = async () => {
+      try {
+        const state = await LeaderboardManager.loadLeaderboard();
+        setLeaderboardState(state);
+        setLeaderboardLoaded(true);
+      } catch (error) {
+        console.warn('Failed to load leaderboard:', error);
+        setLeaderboardLoaded(true); // Still set loaded to prevent infinite loading
+      }
+    };
+
+    const detectTelegramUser = () => {
+      try {
+        // Check if running in Telegram WebApp
+        if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
+          const tg = (window as any).Telegram.WebApp;
+          console.log('🔍 Telegram WebApp detected, checking user data...');
+
+          // Don't call ready() here - useFullScreenPWA hook already handles Telegram initialization
+
+          const user = tg.initDataUnsafe?.user;
+
+          if (user && (user.username || user.first_name)) {
+            // Use username if available, otherwise use first_name
+            const username = user.username || user.first_name || 'Player';
+            console.log('🤖 Detected Telegram user:', username);
+            setTelegramUsername(username);
+            setPlayerName(username.toUpperCase().slice(0, 8)); // Allow up to 8 chars for usernames
+          } else {
+            console.log('🔍 No Telegram user data available');
+          }
+        } else {
+          console.log('🌐 Not running in Telegram WebApp');
+        }
+      } catch (error) {
+        console.error('❌ Error detecting Telegram user:', error);
+        // Don't let Telegram detection errors break the app
+      }
+    };
+
+    loadLeaderboard();
+
+    // Delay Telegram detection to ensure WebApp is fully initialized by useFullScreenPWA
+    setTimeout(() => {
+      detectTelegramUser();
+    }, 500); // Increased delay to let useFullScreenPWA complete initialization
+  }, []);
+
+  // Legacy kill counters (for stats/debugging)
   const killsAst = useRef(0);
   const killsBar = useRef(0);
   const killsShip = useRef(0);
@@ -966,18 +1353,150 @@ function Game() {
     return ringBaseR.current * shrink;
   };
 
+  // AAA Scoring System Functions
+  const addScore = (points: number, source?: string) => {
+    console.log(`🎯 Adding ${points} points from ${source} (Before: ${currentScore.current})`);
+    currentScore.current += points;
+    console.log(`🎯 Score now: ${currentScore.current}`);
+    if (points < 0) {
+      console.warn(`⚠️ NEGATIVE POINTS DETECTED! ${points} from ${source}`);
+      console.trace(); // Show stack trace for negative scores
+    }
+  };
+
+  const scoreAsteroidKill = (asteroid: Asteroid) => {
+    const points = calculateEnemyScore('asteroid', asteroid.type, asteroid.r, level.current);
+    addScore(points, `${asteroid.type} asteroid`);
+    spawnScorePopup(asteroid.x, asteroid.y, points);
+    killsAst.current += 1;
+  };
+
+  const scoreBarrierKill = (barrier: Barrier) => {
+    const points = calculateEnemyScore('barrier', barrier.type, Math.max(barrier.w, barrier.h), level.current);
+    addScore(points, `${barrier.type} barrier`);
+    spawnScorePopup(barrier.x + barrier.w/2, barrier.y + barrier.h/2, points);
+    killsBar.current += 1;
+  };
+
+  const scoreShipKill = (ship: EnemyShip) => {
+    const points = calculateEnemyScore('ship', ship.kind, 20, level.current);
+    addScore(points, `${ship.kind} ship`);
+    spawnScorePopup(ship.x, ship.y, points);
+    killsShip.current += 1;
+  };
+
+  const scoreBossKill = () => {
+    const points = calculateEnemyScore('boss', 'boss', 50, level.current);
+    addScore(points, 'boss defeated');
+    spawnScorePopup(boss.current.x, boss.current.y, points);
+  };
+
+  const scoreLevelComplete = () => {
+    const points = SCORING_CONFIG.bonuses.levelComplete * level.current;
+    addScore(points, `level ${level.current} complete`);
+    // Show score popup at ring center
+    spawnScorePopup(ringCenterX.current, ringCenterY.current, points);
+  };
+
+  const calculateFinalScore = () => {
+    console.log(`🔍 FINAL SCORE DEBUG - Starting score: ${currentScore.current}`);
+    console.log(`🔍 Time: ${timeSec}, SessionStart: ${sessionStartTime.current}, Lives: ${lives.current}, Level: ${level.current}`);
+
+    // Add survival bonus
+    const survivalTime = Math.floor(timeSec - sessionStartTime.current);
+    const survivalPoints = survivalTime * SCORING_CONFIG.bonuses.survival;
+    console.log(`🔍 Survival: ${survivalTime}s * ${SCORING_CONFIG.bonuses.survival} = ${survivalPoints}`);
+    addScore(survivalPoints, `${survivalTime}s survival`);
+
+    // Add life bonus
+    const lifePoints = lives.current * SCORING_CONFIG.bonuses.lifeBonus;
+    console.log(`🔍 Life bonus: ${lives.current} lives * ${SCORING_CONFIG.bonuses.lifeBonus} = ${lifePoints}`);
+    if (lifePoints > 0) {
+      addScore(lifePoints, `${lives.current} lives remaining`);
+    }
+
+    // Add victory bonus if won
+    if (level.current >= 5) {
+      console.log(`🔍 Victory bonus: ${SCORING_CONFIG.bonuses.victoryBonus}`);
+      addScore(SCORING_CONFIG.bonuses.victoryBonus, 'victory bonus');
+    }
+
+    console.log(`🔍 FINAL SCORE DEBUG - End score: ${currentScore.current}`);
+    return currentScore.current;
+  };
+
+  // AAA Leaderboard Integration Functions
+  const checkLeaderboardQualification = async (score: number, level: number, victory: boolean) => {
+    if (LeaderboardManager.qualifiesForLeaderboard(score, leaderboardState.entries)) {
+      console.log(`🏆 Score ${score} qualifies for leaderboard!`);
+
+      // If we have Telegram username, auto-submit without showing name entry
+      if (telegramUsername && playerName) {
+        console.log(`🤖 Auto-submitting with Telegram username: ${playerName}`);
+        try {
+          const { newState, rank } = await LeaderboardManager.addEntry(
+            leaderboardState,
+            playerName,
+            score,
+            level,
+            victory
+          );
+          setLeaderboardState(newState);
+          console.log(`🎯 Auto-added "${playerName}" to leaderboard at rank ${rank}!`);
+        } catch (error) {
+          console.error('Failed to auto-submit score:', error);
+          // Fall back to manual entry
+          setGameResultData({ score, level, victory });
+          setShowNameEntry(true);
+        }
+      } else {
+        // No Telegram username, show manual entry
+        setGameResultData({ score, level, victory });
+        setShowNameEntry(true);
+      }
+    } else {
+      console.log(`📊 Score ${score} doesn't qualify for leaderboard (minimum: 100)`);
+    }
+  };
+
+  const handleNameSubmit = async () => {
+    const trimmedName = playerName.trim();
+    if (!gameResultData || !trimmedName) return;
+
+    try {
+      const { newState, rank } = await LeaderboardManager.addEntry(
+        leaderboardState,
+        trimmedName,
+        gameResultData.score,
+        gameResultData.level,
+        gameResultData.victory
+      );
+
+      setLeaderboardState(newState);
+      setShowNameEntry(false);
+      setPlayerName("");
+      setGameResultData(null);
+
+      console.log(`🎯 Added "${trimmedName}" to leaderboard at rank ${rank}!`);
+    } catch (error) {
+      console.error('Failed to submit score:', error);
+      // Could show error message to user here
+    }
+  };
+
+  const handleSkipLeaderboard = () => {
+    setShowNameEntry(false);
+    setPlayerName("");
+    setGameResultData(null);
+  };
+
   // Audio system functions
   const loadTitleMusic = async () => {
     try {
       if (titleMusic.current) {
         await titleMusic.current.unloadAsync();
       }
-      // Web: Skip audio loading
-      if (Platform.OS === 'web') {
-        console.log('🌐 Web platform detected - audio disabled');
-        return;
-      }
-      /*const { sound } = await Audio.Sound.createAsync(
+      const { sound } = await Audio.Sound.createAsync(
         require('./assets/audio/Title-Track.wav'),
         {
           isLooping: true,
@@ -985,17 +1504,355 @@ function Game() {
         }
       );
       titleMusic.current = sound;
-      console.log('🎵 Title music loaded');*/
+      console.log('🎵 Title music loaded');
     } catch (error) {
       console.log('❌ Failed to load title music:', error);
     }
   };
 
-  const playTitleMusic = async () => {
-    if (Platform.OS === 'web') {
-      console.log('🌐 Web: Audio playback disabled');
-      return;
+  const loadGameplayMusic = async () => {
+    try {
+      if (gameplayMusic.current) {
+        await gameplayMusic.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz_gameplay_Loopedx4.mp3'),
+        {
+          isLooping: true,
+          volume: musicVolume,
+        }
+      );
+      gameplayMusic.current = sound;
+      console.log('🎵 Gameplay music loaded');
+    } catch (error) {
+      console.log('❌ Failed to load gameplay music:', error);
     }
+  };
+
+  const loadMissionFailedMusic = async () => {
+    try {
+      if (missionFailedMusic.current) {
+        await missionFailedMusic.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz_mission_failed.mp3'),
+        {
+          isLooping: true,
+          volume: musicVolume,
+        }
+      );
+      missionFailedMusic.current = sound;
+      console.log('🎵 Mission failed music loaded');
+    } catch (error) {
+      console.log('❌ Failed to load mission failed music:', error);
+    }
+  };
+
+  const loadEarthReachedMusic = async () => {
+    try {
+      if (earthReachedMusic.current) {
+        await earthReachedMusic.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz_earth_reached.mp3'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      earthReachedMusic.current = sound;
+      console.log('🎵 Earth reached music loaded');
+    } catch (error) {
+      console.log('❌ Failed to load earth reached music:', error);
+    }
+  };
+
+  const loadSpaceBubblesSound = async () => {
+    try {
+      if (spaceBubblesSound.current) {
+        await spaceBubblesSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/space-bubbles.mp3'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      spaceBubblesSound.current = sound;
+      console.log('🔊 Space bubbles sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load space bubbles sound:', error);
+    }
+  };
+
+  const loadGetItemSound = async () => {
+    try {
+      if (getItemSound.current) {
+        await getItemSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-get-item.mp3'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      getItemSound.current = sound;
+      console.log('🔊 Get item sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load get item sound:', error);
+    }
+  };
+
+  const loadClearLevelSound = async () => {
+    try {
+      if (clearLevelSound.current) {
+        await clearLevelSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-clear-level.mp3'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      clearLevelSound.current = sound;
+      console.log('🔊 Clear level sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load clear level sound:', error);
+    }
+  };
+
+  const loadButtonPressSound = async () => {
+    try {
+      if (buttonPressSound.current) {
+        await buttonPressSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-Button-Press.mp3'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      buttonPressSound.current = sound;
+      console.log('🔊 Button press sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load button press sound:', error);
+    }
+  };
+
+  const loadAsteroidBreakingSound = async () => {
+    try {
+      if (asteroidBreakingSound.current) {
+        await asteroidBreakingSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-astroid-breaking.mp3'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      asteroidBreakingSound.current = sound;
+      console.log('🔊 Asteroid breaking sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load asteroid breaking sound:', error);
+    }
+  };
+
+  const loadGunCockingSound = async () => {
+    try {
+      if (gunCockingSound.current) {
+        await gunCockingSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-gun-cocking.mp3'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      gunCockingSound.current = sound;
+      console.log('🔊 Gun cocking sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load gun cocking sound:', error);
+    }
+  };
+
+  const loadRespawnSound = async () => {
+    try {
+      if (respawnSound.current) {
+        await respawnSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz_respawn.mp3'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      respawnSound.current = sound;
+      console.log('🔊 Respawn sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load respawn sound:', error);
+    }
+  };
+
+  const loadWeaponFireSound = async () => {
+    try {
+      if (weaponFireSound.current) {
+        await weaponFireSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/weapon-fire.wav'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      weaponFireSound.current = sound;
+      console.log('🔊 Weapon fire sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load weapon fire sound:', error);
+    }
+  };
+
+  const loadUseItemSound = async () => {
+    try {
+      if (useItemSound.current) {
+        await useItemSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-use-item.mp3'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      useItemSound.current = sound;
+      console.log('🔊 Use item sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load use item sound:', error);
+    }
+  };
+
+  const loadLaserGunSound = async () => {
+    try {
+      if (laserGunSound.current) {
+        await laserGunSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-Laser-gun.mp3'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      laserGunSound.current = sound;
+      console.log('🔊 Laser gun sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load laser gun sound:', error);
+    }
+  };
+
+  const loadHumanShipExplodeSound = async () => {
+    try {
+      if (humanShipExplodeSound.current) {
+        await humanShipExplodeSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-human-ship-explode.wav'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      humanShipExplodeSound.current = sound;
+      console.log('🔊 Human ship explode sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load human ship explode sound:', error);
+    }
+  };
+
+  const loadMultiGunSound = async () => {
+    try {
+      if (multiGunSound.current) {
+        await multiGunSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-multi-gun.wav'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      multiGunSound.current = sound;
+      console.log('🔊 Multi gun sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load multi gun sound:', error);
+    }
+  };
+
+  const loadHomingMissilesGunSound = async () => {
+    try {
+      if (homingMissilesGunSound.current) {
+        await homingMissilesGunSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-homing-missles-gun.wav'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      homingMissilesGunSound.current = sound;
+      console.log('🔊 Homing missiles gun sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load homing missiles gun sound:', error);
+    }
+  };
+
+  const loadFireGunSound = async () => {
+    try {
+      if (fireGunSound.current) {
+        await fireGunSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-fire-gun.wav'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      fireGunSound.current = sound;
+      console.log('🔊 Fire gun sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load fire gun sound:', error);
+    }
+  };
+
+  const loadSpreadGunSound = async () => {
+    try {
+      if (spreadGunSound.current) {
+        await spreadGunSound.current.unloadAsync();
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('./assets/audio/Pupilz-spread-gun.wav'),
+        {
+          isLooping: false,
+          volume: musicVolume,
+        }
+      );
+      spreadGunSound.current = sound;
+      console.log('🔊 Spread gun sound loaded');
+    } catch (error) {
+      console.log('❌ Failed to load spread gun sound:', error);
+    }
+  };
+
+  const playTitleMusic = async () => {
     try {
       if (titleMusic.current && musicEnabled) {
         await titleMusic.current.setVolumeAsync(musicVolume);
@@ -1008,10 +1865,6 @@ function Game() {
   };
 
   const stopTitleMusic = async () => {
-    if (Platform.OS === 'web') {
-      console.log('🌐 Web: Audio stop disabled');
-      return;
-    }
     try {
       if (titleMusic.current) {
         await titleMusic.current.pauseAsync();
@@ -1032,6 +1885,253 @@ function Game() {
     }
   };
 
+  const stopAllMusic = async () => {
+    try {
+      if (titleMusic.current) {
+        await titleMusic.current.pauseAsync();
+      }
+      if (gameplayMusic.current) {
+        await gameplayMusic.current.pauseAsync();
+      }
+      if (missionFailedMusic.current) {
+        await missionFailedMusic.current.pauseAsync();
+      }
+      if (earthReachedMusic.current) {
+        await earthReachedMusic.current.pauseAsync();
+      }
+      gameplayMusicPlaying.current = false; // Track that gameplay music stopped
+      console.log('🎵 All music stopped');
+    } catch (error) {
+      console.log('❌ Failed to stop all music:', error);
+    }
+  };
+
+  const playMissionFailedMusic = async () => {
+    try {
+      // First stop all other music
+      await stopAllMusic();
+
+      if (missionFailedMusic.current && musicEnabled) {
+        await missionFailedMusic.current.setPositionAsync(0); // Reset to beginning
+        await missionFailedMusic.current.setVolumeAsync(musicVolume);
+        await missionFailedMusic.current.playAsync();
+        console.log('🎵 Mission failed music playing');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play mission failed music:', error);
+    }
+  };
+
+  const playEarthReachedMusic = async () => {
+    try {
+      // First stop all other music
+      await stopAllMusic();
+
+      if (earthReachedMusic.current && musicEnabled) {
+        await earthReachedMusic.current.setPositionAsync(0); // Reset to beginning
+        await earthReachedMusic.current.setVolumeAsync(musicVolume);
+        await earthReachedMusic.current.playAsync();
+        console.log('🎵 Earth reached music playing');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play earth reached music:', error);
+    }
+  };
+
+  const playSpaceBubblesSound = async () => {
+    try {
+      if (spaceBubblesSound.current && musicEnabled) {
+        await spaceBubblesSound.current.setPositionAsync(0); // Reset to beginning
+        await spaceBubblesSound.current.setVolumeAsync(musicVolume);
+        await spaceBubblesSound.current.playAsync();
+        console.log('🔊 Space bubbles sound playing for mothership beam-up');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play space bubbles sound:', error);
+    }
+  };
+
+  const playGetItemSound = async () => {
+    try {
+      if (getItemSound.current && musicEnabled) {
+        await getItemSound.current.setPositionAsync(0); // Reset to beginning
+        await getItemSound.current.setVolumeAsync(musicVolume);
+        await getItemSound.current.playAsync();
+        console.log('🔊 Get item sound playing for inventory pickup');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play get item sound:', error);
+    }
+  };
+
+  const playClearLevelSound = async () => {
+    try {
+      if (clearLevelSound.current && musicEnabled) {
+        await clearLevelSound.current.setPositionAsync(0); // Reset to beginning
+        await clearLevelSound.current.setVolumeAsync(musicVolume);
+        await clearLevelSound.current.playAsync();
+        console.log('🔊 Clear level sound playing for level ring pop');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play clear level sound:', error);
+    }
+  };
+
+  const playButtonPressSound = async () => {
+    try {
+      if (buttonPressSound.current && musicEnabled) {
+        await buttonPressSound.current.setPositionAsync(0); // Reset to beginning
+        await buttonPressSound.current.setVolumeAsync(musicVolume);
+        await buttonPressSound.current.playAsync();
+        console.log('🔊 Button press sound playing for UI interaction');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play button press sound:', error);
+    }
+  };
+
+  const playAsteroidBreakingSound = async () => {
+    try {
+      if (asteroidBreakingSound.current && musicEnabled) {
+        await asteroidBreakingSound.current.setPositionAsync(0); // Reset to beginning
+        await asteroidBreakingSound.current.setVolumeAsync(musicVolume);
+        await asteroidBreakingSound.current.playAsync();
+        console.log('🔊 Asteroid breaking sound playing for debris explosion');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play asteroid breaking sound:', error);
+    }
+  };
+
+  const playGunCockingSound = async () => {
+    try {
+      if (gunCockingSound.current && musicEnabled) {
+        await gunCockingSound.current.setPositionAsync(0); // Reset to beginning
+        await gunCockingSound.current.setVolumeAsync(musicVolume);
+        await gunCockingSound.current.playAsync();
+        console.log('🔊 Gun cocking sound playing for weapon upgrade pickup');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play gun cocking sound:', error);
+    }
+  };
+
+  const playRespawnSound = async () => {
+    try {
+      if (respawnSound.current && musicEnabled) {
+        await respawnSound.current.setPositionAsync(0); // Reset to beginning
+        await respawnSound.current.setVolumeAsync(musicVolume);
+        await respawnSound.current.playAsync();
+        console.log('🔊 Respawn sound playing for pod respawn');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play respawn sound:', error);
+    }
+  };
+
+  const playWeaponFireSound = async () => {
+    try {
+      if (weaponFireSound.current && musicEnabled) {
+        await weaponFireSound.current.setPositionAsync(0); // Reset to beginning
+        await weaponFireSound.current.setVolumeAsync(musicVolume);
+        await weaponFireSound.current.playAsync();
+        console.log('🔊 Weapon fire sound playing for basic weapon');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play weapon fire sound:', error);
+    }
+  };
+
+  const playUseItemSound = async () => {
+    try {
+      if (useItemSound.current && musicEnabled) {
+        await useItemSound.current.setPositionAsync(0); // Reset to beginning
+        await useItemSound.current.setVolumeAsync(musicVolume);
+        await useItemSound.current.playAsync();
+        console.log('🔊 Use item sound playing for inventory item usage');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play use item sound:', error);
+    }
+  };
+
+  const playLaserGunSound = async () => {
+    try {
+      if (laserGunSound.current && musicEnabled) {
+        await laserGunSound.current.setPositionAsync(0); // Reset to beginning
+        await laserGunSound.current.setVolumeAsync(musicVolume);
+        await laserGunSound.current.playAsync();
+        console.log('🔊 Laser gun sound playing for laser weapon fire');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play laser gun sound:', error);
+    }
+  };
+
+  const playHumanShipExplodeSound = async () => {
+    try {
+      if (humanShipExplodeSound.current && musicEnabled) {
+        await humanShipExplodeSound.current.setPositionAsync(0); // Reset to beginning
+        await humanShipExplodeSound.current.setVolumeAsync(musicVolume);
+        await humanShipExplodeSound.current.playAsync();
+        console.log('🔊 Human ship explode sound playing for ship/pod explosion');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play human ship explode sound:', error);
+    }
+  };
+
+  const playMultiGunSound = async () => {
+    try {
+      if (multiGunSound.current && musicEnabled) {
+        await multiGunSound.current.setPositionAsync(0); // Reset to beginning
+        await multiGunSound.current.setVolumeAsync(musicVolume);
+        await multiGunSound.current.playAsync();
+        console.log('🔊 Multi gun sound playing for M weapon fire');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play multi gun sound:', error);
+    }
+  };
+
+  const playHomingMissilesGunSound = async () => {
+    try {
+      if (homingMissilesGunSound.current && musicEnabled) {
+        await homingMissilesGunSound.current.setPositionAsync(0); // Reset to beginning
+        await homingMissilesGunSound.current.setVolumeAsync(musicVolume);
+        await homingMissilesGunSound.current.playAsync();
+        console.log('🔊 Homing missiles gun sound playing for H weapon fire');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play homing missiles gun sound:', error);
+    }
+  };
+
+  const playFireGunSound = async () => {
+    try {
+      if (fireGunSound.current && musicEnabled) {
+        await fireGunSound.current.setPositionAsync(0); // Reset to beginning
+        await fireGunSound.current.setVolumeAsync(musicVolume);
+        await fireGunSound.current.playAsync();
+        console.log('🔊 Fire gun sound playing for F weapon fire');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play fire gun sound:', error);
+    }
+  };
+
+  const playSpreadGunSound = async () => {
+    try {
+      if (spreadGunSound.current && musicEnabled) {
+        await spreadGunSound.current.setPositionAsync(0); // Reset to beginning
+        await spreadGunSound.current.setVolumeAsync(musicVolume);
+        await spreadGunSound.current.playAsync();
+        console.log('🔊 Spread gun sound playing for S weapon fire');
+      }
+    } catch (error) {
+      console.log('❌ Failed to play spread gun sound:', error);
+    }
+  };
 
   // Check if EARTH ring has fallen off top of screen - MISSION FAILURE
   const checkEarthRingFailure = () => {
@@ -1377,6 +2477,8 @@ function Game() {
     invulnTime.current = 2.5; // Generous invulnerability
     hudFadeT.current = 4.0; // Extended HUD visibility
     canSkipCountdown.current = false;
+    playRespawnSound(); // Play SFX for pod respawn
+    console.log('🎮 TELEGRAM DEBUG - Setting phase to "playing" from respawnPlayer');
     setPhase("playing");
   };
   
@@ -1400,6 +2502,10 @@ function Game() {
     lives.current = maxLives; // Reset lives for new mission
     livesLostThisSession.current = 0; // Reset session tracking
     respawnCountdown.current = 0;
+
+    // Reset scoring system
+    currentScore.current = 0;
+    sessionStartTime.current = timeSec;
     
     // Reset ship-based progression
     shipsKilledThisLevel.current = 0;
@@ -1450,6 +2556,7 @@ function Game() {
     powerups.current = [];
     projs.current = [];
     particles.current = [];
+    scorePopups.current = [];
     ships.current = [];
     enemyProjs.current = [];
     boss.current.active = false;
@@ -1473,6 +2580,7 @@ function Game() {
     victoryBeamProgress.current = 0;
     podVictoryY.current = 0;
     podVictoryScale.current = 1;
+    finalDeathSequence.current = false; // Reset final death sequence flag
     
     // Reset game start messaging
     gameStartMessageTimer.current = 0;
@@ -1487,6 +2595,7 @@ function Game() {
 
   /* ----- Loop (always running) ----- */
   useEffect(() => {
+    console.log('🎮 TELEGRAM DEBUG - Starting game loop with dimensions:', width, 'x', height);
     hardResetWorld();
     last.current = null;
 
@@ -1775,8 +2884,8 @@ function Game() {
   useEffect(() => { timeSecRef.current = timeSec; }, [timeSec]);
 
   const tryShoot = () => {
-    // Don't shoot during victory beam-up sequence
-    if (victoryBeamActive.current) return;
+    // Don't shoot during victory beam-up sequence or final death
+    if (victoryBeamActive.current || finalDeathSequence.current) return;
     
     const now = timeSecRef.current;
     if (now - lastShotTime.current < currentCooldown()) return;
@@ -1790,6 +2899,7 @@ function Game() {
     switch (weapon.current.kind) {
       case "basic": {
         // Basic pod blaster - single weak shot to encourage pickup hunting
+        playWeaponFireSound(); // Play SFX for basic weapon fire
         projs.current.push({ id: nextId(), kind: "bullet", x: wX, y: wz + POD_RADIUS + 4, vx: 0, vy: BULLET_SPEED * 0.9, r: 3, ttl: 1.8 });
         break;
       }
@@ -1801,23 +2911,26 @@ function Game() {
           const offset = (i - (count - 1) / 2) * spreadPx;
           projs.current.push({ id: nextId(), kind: "bullet", x: wX + offset, y: wz + POD_RADIUS + 4, vx: 0, vy: BULLET_SPEED, r: 4, ttl: 2.0 });
         }
+        playMultiGunSound(); // Play multi-gun sound effect
         break;
       }
       case "S": {
         // Spread shot progression: 3→4→5 pellets for satisfying scaling
         const L = weapon.current.level;
-        const angles = L === 1 ? [-0.25, 0, 0.25] : 
-                       L === 2 ? [-0.35, -0.12, 0.12, 0.35] : 
+        const angles = L === 1 ? [-0.25, 0, 0.25] :
+                       L === 2 ? [-0.35, -0.12, 0.12, 0.35] :
                        [-0.4, -0.2, 0, 0.2, 0.4]; // 3/4/5 pellets
         for (const a of angles) {
           const vx = Math.sin(a) * BULLET_SPEED * 0.65;
           const vy = Math.cos(a) * BULLET_SPEED;
           projs.current.push({ id: nextId(), kind: "bullet", x: wX, y: wz + POD_RADIUS + 4, vx, vy: Math.abs(vy), r: 4, ttl: 1.8 });
         }
+        playSpreadGunSound(); // Play spread gun sound effect
         break;
       }
       case "L": {
         // Laser progression: Increasingly powerful and visually impressive
+        playLaserGunSound(); // Play SFX for laser weapon fire
         const L = weapon.current.level;
         const pierce = 3 + L * 2; // 5/7/9 pierce - dramatically more
         const laserCount = L; // 1/2/3 parallel lasers
@@ -1863,6 +2976,7 @@ function Game() {
           projs.current.push({ id: nextId(), kind: "fire", x: wX, y: wz + POD_RADIUS + 4, vx: lane * 50, vy: FIRE_SPEED, r: 4, ttl: 2.2, t: 0 });
         }
         spawnMuzzle(wX, wz + POD_RADIUS + 2, "#FFB46B");
+        playFireGunSound(); // Play fire gun sound effect
         break;
       }
       case "H": {
@@ -1872,6 +2986,7 @@ function Game() {
           projs.current.push({ id: nextId(), kind: "homing", x: wX, y: wz + POD_RADIUS + 4, vx: 0, vy: HOMING_SPEED, r: 5, ttl: 3.0, turn: 1100 + 140 * (weapon.current.level - 1) });
         }
         spawnMuzzle(wX, wz + POD_RADIUS + 2, "#FFE486");
+        playHomingMissilesGunSound(); // Play homing missiles sound effect
         break;
       }
     }
@@ -1880,6 +2995,7 @@ function Game() {
   const tryNuke = () => {
     if (phaseRef.current !== "playing") return;
     if (nukesLeft.current <= 0) return;
+    playUseItemSound(); // Play SFX for nuke usage
     nukesLeft.current -= 1;
 
     // start sweep from pod
@@ -1891,6 +3007,7 @@ function Game() {
   const activateEnergyCell = () => {
     if (phaseRef.current !== "playing") return;
     if (energyCells.current <= 0) return;
+    playUseItemSound(); // Play SFX for energy cell usage
     energyCells.current -= 1;
 
     // +3 shields (stacking) & 3s i-frames
@@ -1996,14 +3113,23 @@ function Game() {
     }
   };
   
-  const onShipKilled = () => {
+  const onShipKilled = (ship?: EnemyShip) => {
+    // Score the ship kill if ship data available
+    if (ship) {
+      scoreShipKill(ship);
+    } else {
+      // Fallback scoring for legacy calls
+      killsShip.current += 1;
+      const points = calculateEnemyScore('ship', 'fighter', 20, level.current);
+      addScore(points, 'ship');
+    }
+
     // Only count ships toward level progression if quota hasn't been met yet
     if (!quotaJustMet.current) {
       shipsKilledThisLevel.current += 1;
     }
-    killsShip.current += 1;
     console.log(`SHIP KILLED: ${shipsKilledThisLevel.current}/${shipsRequiredForLevel.current} at level ${level.current} (QuotaMet: ${quotaJustMet.current})`);
-    
+
     // Check if this kill triggers the celebration sequence
     checkShipQuota();
   };
@@ -2047,11 +3173,88 @@ function Game() {
     shakeT.current = Math.max(shakeT.current, 0.10 + power * 0.05);
   };
 
+  const spawnScorePopup = (x: number, y: number, score: number) => {
+    const id = (scorePopups.current[scorePopups.current.length - 1]?.id ?? 0) + 1;
+    const maxTtl = 1.5; // 1.5 seconds duration
+
+    scorePopups.current.push({
+      id,
+      x: x + rand(-10, 10), // Small random horizontal offset for variety
+      y,
+      score,
+      ttl: maxTtl,
+      maxTtl
+    });
+  };
+
   const showAcquisitionMessage = (message: string) => {
     acquisitionMessageText.current = message;
     acquisitionMessageTimer.current = 3.0; // Show for 3 seconds
     acquisitionMessageOpacity.current = 1.0; // Start fully visible
     console.log(`🎉 ACQUISITION: ${message}`);
+  };
+
+  const createConfetti = () => {
+    const colors = ["#FFD700", "#FF6B35", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD", "#98D8C8"];
+    const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
+
+    // Create confetti pieces across the top of screen
+    for (let i = 0; i < 50; i++) {
+      particles.current.push({
+        id: idBase + i + 1,
+        x: Math.random() * width,
+        y: -20,
+        vx: rand(-30, 30),
+        vy: rand(100, 200),
+        r: rand(2, 5),
+        ttl: rand(3, 5),
+        color: colors[Math.floor(Math.random() * colors.length)]
+      });
+    }
+  };
+
+  const createFirework = (x: number, y: number) => {
+    const colors = ["#FFD700", "#FF1744", "#00E676", "#2196F3", "#FF9800", "#E91E63", "#9C27B0"];
+    const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
+    const particleCount = 25;
+
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (i / particleCount) * Math.PI * 2;
+      const speed = rand(120, 250);
+      particles.current.push({
+        id: idBase + i + 1,
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        r: rand(2, 4),
+        ttl: rand(1.5, 2.5),
+        color: colors[Math.floor(Math.random() * colors.length)]
+      });
+    }
+  };
+
+  const startVictoryCelebration = () => {
+    // Initial fireworks burst
+    setTimeout(() => createFirework(width * 0.2, height * 0.3), 100);
+    setTimeout(() => createFirework(width * 0.8, height * 0.4), 300);
+    setTimeout(() => createFirework(width * 0.5, height * 0.2), 500);
+
+    // Continuous confetti
+    createConfetti();
+    const confettiInterval = setInterval(() => {
+      createConfetti();
+    }, 1000);
+
+    // More fireworks over time
+    setTimeout(() => createFirework(width * 0.3, height * 0.5), 1200);
+    setTimeout(() => createFirework(width * 0.7, height * 0.3), 1800);
+    setTimeout(() => createFirework(width * 0.1, height * 0.6), 2400);
+    setTimeout(() => createFirework(width * 0.9, height * 0.2), 3000);
+
+    // Stop confetti after 8 seconds
+    setTimeout(() => {
+      clearInterval(confettiInterval);
+    }, 8000);
   };
 
   const ringDisintegrate = (centerX: number, centerY: number, radius: number) => {
@@ -2105,9 +3308,12 @@ function Game() {
     const oldLevel = level.current;
     level.current += 1;
     console.log(`LEVEL UP: ${oldLevel} → ${level.current}`);
-    
+
+    // Award level completion score
+    scoreLevelComplete();
+
     // Play level up sound
-    
+
     hudFadeT.current = 3.0;
 
     if (level.current > 5) {
@@ -2187,9 +3393,15 @@ function Game() {
   };
 
   const killPlayer = (cause: 'asteroid' | 'barrier' | 'enemy' | 'boss' | 'ship' | 'earth_ring_missed' = 'enemy') => {
+    // Prevent multiple deaths during final death sequence
+    if (finalDeathSequence.current) return;
+
     // Track death cause for contextual tips
     lastDeathCause.current = cause;
     deathStats.current[cause] += 1;
+
+    // Play pod explosion sound
+    playHumanShipExplodeSound();
     
     // Generate tip once for this death
     currentDeathTip.current = getContextualTip();
@@ -2230,20 +3442,20 @@ function Game() {
       // Still have lives - enhanced respawn system
       setPhase("respawning");
       livesLostThisSession.current += 1;
-      
+
       // Emergency nuke system: Give player a nuke if down to last life and has none
       if (lives.current === 1 && nukesLeft.current === 0) {
         nukesLeft.current = 1;
         console.log('🚨 EMERGENCY NUKE: Last life safety net activated!');
       }
-      
+
       // Smart countdown based on user preferences
       const isFirstLoss = livesLostThisSession.current === 1;
       const baseTime = isFirstLoss ? 4.0 : 3.0;
       const countdownTime = quickRespawn ? 1.5 : baseTime;
       respawnCountdown.current = countdownTime;
       canSkipCountdown.current = true;
-      
+
       const countdownInterval = setInterval(() => {
         respawnCountdown.current -= 0.1;
         if (respawnCountdown.current <= 0) {
@@ -2251,12 +3463,25 @@ function Game() {
           respawnPlayer();
         }
       }, 100);
-      
+
       // Store interval ID for skip functionality
       (window as any).currentRespawnInterval = countdownInterval;
     } else {
-      // No lives left - true game over
-      setPhase("dead");
+      // No lives left - true game over with dramatic pause
+      finalDeathSequence.current = true; // Hide pod during final death
+      projs.current = []; // Clear all player projectiles immediately
+      const finalScore = calculateFinalScore(); // Calculate final score with bonuses
+      console.log(`💀 GAME OVER! Final score: ${finalScore}, Level: ${level.current}`);
+      // Check for leaderboard entry (don't await to avoid blocking)
+      checkLeaderboardQualification(finalScore, level.current, false).catch(error => {
+        console.error('Failed to check leaderboard qualification:', error);
+      });
+
+      // Add 2.5-second delay to let pod explosion sink in
+      setTimeout(() => {
+        setPhase("dead");
+        console.log('🎮 Mission failed screen shown after dramatic pause');
+      }, 2500); // 2.5 second delay for emotional impact
     }
   };
 
@@ -2462,8 +3687,9 @@ function Game() {
         const a = asteroids.current[i];
         const dx = a.x - cx, dy = a.y - cy;
         if (dx*dx + dy*dy <= (sweepR.current + a.r) * (sweepR.current + a.r)) {
+          scoreAsteroidKill(a);
+          playAsteroidBreakingSound(); // Play SFX for asteroid destruction
           asteroids.current.splice(i, 1);
-          killsAst.current += 1;
           boom(a.x, a.y, 0.9 + a.r * 0.02, getAsteroidTypeData(a.type).color);
         }
       }
@@ -2474,8 +3700,9 @@ function Game() {
         const by = clamp(cy, b.y, b.y + b.h);
         const dx = bx - cx, dy = by - cy;
         if (dx*dx + dy*dy <= sweepR.current * sweepR.current) {
+          scoreBarrierKill(b);
+          playAsteroidBreakingSound(); // Play SFX for barrier destruction
           barriers.current.splice(i, 1);
-          killsBar.current += 1;
           boom(bx, by, 1.0, getBarrierTypeData(b.type).color);
         }
       }
@@ -2484,8 +3711,9 @@ function Game() {
         const s = ships.current[i];
         const dx = s.x - cx, dy = s.y - cy;
         if (dx*dx + dy*dy <= (sweepR.current + 14) * (sweepR.current + 14)) {
+          onShipKilled(s);
+          playHumanShipExplodeSound(); // Play SFX for ship explosion
           ships.current.splice(i, 1);
-          onShipKilled();
           boom(s.x, s.y, 1.2, "#FFD890");
         }
       }
@@ -2509,6 +3737,7 @@ function Game() {
             boss.current.active = false;
             bossGateCleared.current = true;
             console.log('BOSS DEFEATED - bossGateCleared set to TRUE');
+            scoreBossKill(); // Award points and show score popup
             boom(boss.current.x, boss.current.y, 1.8, "#FFE486");
             
             // Dramatic EARTH ring entrance effects (no distracting white flash)
@@ -2751,9 +3980,10 @@ function Game() {
                 if (dist <= explosionRadius) {
                   other.hp = Math.max(0, other.hp - explosionDamage);
                   if (other.hp <= 0) {
+                    scoreAsteroidKill(other);
+                    playAsteroidBreakingSound(); // Play SFX for asteroid destruction
                     boom(other.x, other.y, 1.0, "#FF6B35");
                     asteroids.current.splice(k, 1);
-                    killsAst.current += 1;
                     if (k < j) j--; // Adjust index if we removed an earlier element
                   }
                 }
@@ -2767,6 +3997,7 @@ function Game() {
                 const edx = bcx - p.x, edy = bcy - p.y;
                 const dist = Math.sqrt(edx * edx + edy * edy);
                 if (dist <= explosionRadius) {
+                  playAsteroidBreakingSound(); // Play SFX for barrier destruction
                   boom(bcx, bcy, 1.2, "#FF4444");
                   barriers.current.splice(k, 1);
                   killsBar.current += 1;
@@ -2805,8 +4036,9 @@ function Game() {
             
             if (a.hp <= 0) {
               // Asteroid destroyed
+              scoreAsteroidKill(a);
+              playAsteroidBreakingSound(); // Play SFX for asteroid destruction
               asteroids.current.splice(j, 1);
-              killsAst.current += 1;
               boom(a.x, a.y, 0.8 + a.r * 0.02, getAsteroidTypeData(a.type).color);
             }
             
@@ -2849,8 +4081,9 @@ function Game() {
               }
               
               if (br.hp <= 0) {
+                scoreBarrierKill(br);
+                playAsteroidBreakingSound(); // Play SFX for barrier destruction
                 barriers.current.splice(j, 1);
-                killsBar.current += 1;
                 boom(cx, cy, 1.0, getBarrierTypeData(br.type).color);
               }
               
@@ -2875,8 +4108,9 @@ function Game() {
               s.hp -= dmg;
               boom(p.x, p.y, 0.7, "#FFD890");
               if (s.hp <= 0) {
+                onShipKilled(s);
+                playHumanShipExplodeSound(); // Play SFX for ship explosion
                 ships.current.splice(j, 1);
-                onShipKilled();
                 boom(s.x, s.y, 1.1, "#FFB46B");
               }
               if (p.kind === "laser" && (p.pierce ?? 0) > 1) { p.pierce!--; hit = false; }
@@ -2902,6 +4136,7 @@ function Game() {
               b.active = false;
               bossGateCleared.current = true;
               console.log('BOSS DEFEATED (projectile) - bossGateCleared set to TRUE');
+              scoreBossKill(); // Award points and show score popup
               boom(b.x, b.y, 1.6, "#FFE486");
               
               // Dramatic EARTH ring entrance effects (no distracting white flash)
@@ -2936,12 +4171,15 @@ function Game() {
             if (drones.current.length > 0) {
               // Drone sacrifices itself
               sacrificeDrone(a.x, a.y);
+              scoreAsteroidKill(a); // Award points and show popup for drone kill
+              playAsteroidBreakingSound(); // Play SFX for asteroid destruction
               boom(a.x, a.y, 0.9, "#FFD700");
               asteroids.current.splice(i, 1);
               break;
             } else if (shieldLives.current > 0) {
               shieldLives.current -= 1;
               invulnTime.current = HIT_INVULN_TIME;
+              playAsteroidBreakingSound(); // Play SFX for asteroid destruction
               boom(a.x, a.y, 0.9, "#9FFFB7");
               asteroids.current.splice(i, 1);
               break;
@@ -2960,12 +4198,15 @@ function Game() {
             if (drones.current.length > 0) {
               // Drone sacrifices itself
               sacrificeDrone(cx, cy);
+              scoreBarrierKill(br); // Award points and show popup for drone kill
+              playAsteroidBreakingSound(); // Play SFX for barrier destruction
               boom(cx, cy, 0.9, "#FFD700");
               barriers.current.splice(i, 1);
               break;
             } else if (shieldLives.current > 0) {
               shieldLives.current -= 1;
               invulnTime.current = HIT_INVULN_TIME;
+              playAsteroidBreakingSound(); // Play SFX for barrier destruction
               boom(cx, cy, 0.9, "#9FFFB7");
               barriers.current.splice(i, 1);
               break;
@@ -3033,8 +4274,9 @@ function Game() {
               boom(drone.x, drone.y, 1.4, "#FFD700"); // Large gold explosion for drone impact
               boom(ship.x, shipScreenY, 1.0, "#FF6B35"); // Ship impact explosion
               if (ship.hp <= 0) {
+                playHumanShipExplodeSound(); // Play SFX for ship explosion
                 ships.current.splice(j, 1);
-                onShipKilled();
+                onShipKilled(ship); // Pass ship data for proper scoring and popup
                 boom(ship.x, ship.y, 1.5, "#FFD890"); // Larger ship destruction explosion
               } else {
                 // Even if ship survives, create dramatic explosion effect
@@ -3054,11 +4296,14 @@ function Game() {
             if (drones.current.length > 0) {
               // Drone sacrifices itself
               sacrificeDrone(s.x, s.y);
+              scoreShipKill(s); // Award points and show popup for drone kill
+              playHumanShipExplodeSound(); // Play SFX for ship explosion
               boom(s.x, s.y, 1.0, "#FFD700");
               ships.current.splice(i, 1);
             } else if (shieldLives.current > 0) {
               shieldLives.current -= 1;
               invulnTime.current = HIT_INVULN_TIME;
+              playHumanShipExplodeSound(); // Play SFX for ship explosion
               boom(s.x, s.y, 1.0, "#9FFFB7");
               ships.current.splice(i, 1);
             } else {
@@ -3112,6 +4357,7 @@ function Game() {
           } else {
             // Weapon pickup (S/M/L/F/H): swap or level up (cap at 3)
             const newKind = p.kind as Weapon["kind"];
+            playGunCockingSound(); // Play SFX for weapon upgrade pickup
             if (weapon.current.kind === newKind) {
               weapon.current.level = Math.min(3, weapon.current.level + 1) as 1 | 2 | 3;
             } else {
@@ -3120,6 +4366,7 @@ function Game() {
           }
 
           // pickup feedback
+          playGetItemSound(); // Play SFX for item pickup
           boom(p.x, p.y, 0.6, "#CFFFD1");
           powerups.current.splice(i, 1);
           hudFadeT.current = 2.0; // briefly keep HUD visible
@@ -3159,10 +4406,24 @@ function Game() {
             podVictoryY.current = podY.current; // Save starting position
             podVictoryScale.current = 1;
             console.log('🛸 MOTHERSHIP BEAM-UP SEQUENCE INITIATED');
+
+            // Recall all drones to mothership during beam-up
+            drones.current = [];
+            console.log('🤖 All drones recalled to mothership for victory sequence');
+
+            // Play space bubbles SFX for mothership beam-up
+            playSpaceBubblesSound();
             
             // 2-second delay for dramatic effect after ring disintegrates
             setTimeout(() => {
               console.log('VICTORY SEQUENCE - Showing EARTH REACHED message');
+              const finalScore = calculateFinalScore(); // Calculate final score with victory bonus
+              console.log(`🎉 VICTORY! Final score: ${finalScore}, Level: ${level.current}`);
+              // Check for leaderboard entry (don't await to avoid blocking)
+              checkLeaderboardQualification(finalScore, level.current, true).catch(error => {
+                console.error('Failed to check leaderboard qualification:', error);
+              });
+              startVictoryCelebration(); // 🎉 START THE PARTY! 🎉
               setPhase("win");
             }, 2000);
             return;
@@ -3170,6 +4431,7 @@ function Game() {
             // Boss not cleared yet - trigger boss fight
             if (!levelUpProcessed.current) {
               levelUpProcessed.current = true;
+              playClearLevelSound(); // Play SFX for level ring pop
               levelUp();
             }
             return;
@@ -3190,7 +4452,8 @@ function Game() {
             } else if (currentLevel === 4) {
               showAcquisitionMessage("FINAL APPROACH • BOSS ENCOUNTER IMMINENT");
             }
-            
+
+            playClearLevelSound(); // Play SFX for level ring pop
             levelUp();
           }
           return;
@@ -3241,15 +4504,27 @@ function Game() {
       if (pa.ttl <= 0 || pa.y - scrollY.current < -80) particles.current.splice(i, 1);
     }
 
+    // Score popup updates
+    for (let i = scorePopups.current.length - 1; i >= 0; i--) {
+      const popup = scorePopups.current[i];
+      popup.ttl -= dt;
+      popup.y -= 60 * dt; // Float upward at 60 pixels per second
+      if (popup.ttl <= 0) scorePopups.current.splice(i, 1);
+    }
+
     // Ring respawning now handled by ship-based progression system
     // No automatic ring respawning needed
   };
 
   /* ----- Start / Restart ----- */
-  const startGame = () => { 
+  const startGame = () => {
+    playButtonPressSound(); // Play button press SFX
     console.log('🚀 GAME START: Simple dispatch message');
-    
+
     hardResetWorld();
+
+    // Reset gameplay music flag so it starts fresh
+    gameplayMusicPlaying.current = false;
     
     // Show simple dispatch message
     gameStartMessageText.current = "🚁 MOTHERSHIP DISPATCH: Pod deployed - Begin descent!";
@@ -3260,13 +4535,15 @@ function Game() {
     podX.current = width / 2;
     
     console.log('🛸 MOTHERSHIP ARRIVAL: Drop-off sequence initiated');
-    
+    console.log('🎮 TELEGRAM DEBUG - Setting phase to "playing" from startGame');
+
     setPhase("playing"); 
     // Audio handled by phase useEffect
   };
-  const goMenu = () => { 
-    setPhase("menu"); 
-    hardResetWorld(); 
+  const goMenu = () => {
+    playButtonPressSound(); // Play button press SFX
+    setPhase("menu");
+    hardResetWorld();
     // Audio handled by phase useEffect
   };
   const toggleHandedness = () => {
@@ -3295,23 +4572,35 @@ function Game() {
     const initAudio = async () => {
       try {
         // Set up audio mode for iOS
-        // Web: Skip audio mode setup
-        if (Platform.OS === 'web') return;
-        /*await Audio.setAudioModeAsync({
+        await Audio.setAudioModeAsync({
           allowsRecordingIOS: false,
           playsInSilentModeIOS: true,
           staysActiveInBackground: false,
           shouldDuckAndroid: false,
-        });*/
+        });
         
-        // Load title music
+        // Load all music tracks
         await loadTitleMusic();
-        
-        
-        // Play title music if on menu
-        if (phase === "menu") {
-          await playTitleMusic();
-        }
+        await loadGameplayMusic();
+        await loadMissionFailedMusic();
+        await loadEarthReachedMusic();
+        await loadSpaceBubblesSound();
+        await loadGetItemSound();
+        await loadClearLevelSound();
+        await loadButtonPressSound();
+        await loadAsteroidBreakingSound();
+        await loadGunCockingSound();
+        await loadRespawnSound();
+        await loadWeaponFireSound();
+        await loadUseItemSound();
+        await loadLaserGunSound();
+        await loadHumanShipExplodeSound();
+        await loadMultiGunSound();
+        await loadHomingMissilesGunSound();
+        await loadFireGunSound();
+        await loadSpreadGunSound();
+        setAudioLoaded(true);
+        console.log('🎵 Audio system fully loaded and ready');
       } catch (error) {
         console.log('❌ Audio initialization error:', error);
       }
@@ -3324,40 +4613,199 @@ function Game() {
       if (titleMusic.current) {
         titleMusic.current.unloadAsync();
       }
+      if (gameplayMusic.current) {
+        gameplayMusic.current.unloadAsync();
+      }
+      if (missionFailedMusic.current) {
+        missionFailedMusic.current.unloadAsync();
+      }
+      if (earthReachedMusic.current) {
+        earthReachedMusic.current.unloadAsync();
+      }
+      if (spaceBubblesSound.current) {
+        spaceBubblesSound.current.unloadAsync();
+      }
+      if (getItemSound.current) {
+        getItemSound.current.unloadAsync();
+      }
+      if (clearLevelSound.current) {
+        clearLevelSound.current.unloadAsync();
+      }
+      if (buttonPressSound.current) {
+        buttonPressSound.current.unloadAsync();
+      }
+      if (asteroidBreakingSound.current) {
+        asteroidBreakingSound.current.unloadAsync();
+      }
+      if (gunCockingSound.current) {
+        gunCockingSound.current.unloadAsync();
+      }
+      if (respawnSound.current) {
+        respawnSound.current.unloadAsync();
+      }
+      if (weaponFireSound.current) {
+        weaponFireSound.current.unloadAsync();
+      }
+      if (useItemSound.current) {
+        useItemSound.current.unloadAsync();
+      }
+      if (laserGunSound.current) {
+        laserGunSound.current.unloadAsync();
+      }
+      if (humanShipExplodeSound.current) {
+        humanShipExplodeSound.current.unloadAsync();
+      }
+      if (multiGunSound.current) {
+        multiGunSound.current.unloadAsync();
+      }
+      if (homingMissilesGunSound.current) {
+        homingMissilesGunSound.current.unloadAsync();
+      }
+      if (fireGunSound.current) {
+        fireGunSound.current.unloadAsync();
+      }
+      if (spreadGunSound.current) {
+        spreadGunSound.current.unloadAsync();
+      }
     };
   }, []);
 
   // Handle phase changes for audio
   useEffect(() => {
     const handlePhaseAudio = async () => {
-      if (!titleMusic.current) return;
-      
+      if (!titleMusic.current || !gameplayMusic.current || !missionFailedMusic.current || !audioLoaded) return;
+
       if (phase === "menu") {
-        // On menu: play music if enabled
+        // Stop all music first
+        await stopAllMusic();
+
+        // Play title music if enabled (restart from beginning)
         if (musicEnabled) {
           try {
+            await titleMusic.current.setPositionAsync(0); // Restart from beginning
             await titleMusic.current.setVolumeAsync(musicVolume);
             await titleMusic.current.playAsync();
-            console.log('🎵 Menu music started');
+            console.log('🎵 Title music started from beginning');
           } catch (error) {
-            console.log('❌ Failed to start menu music:', error);
+            console.log('❌ Failed to start title music:', error);
+          }
+        }
+      } else if (phase === "playing") {
+        // Stop title and mission failed music only
+        try {
+          if (titleMusic.current) {
+            await titleMusic.current.pauseAsync();
+          }
+          if (missionFailedMusic.current) {
+            await missionFailedMusic.current.pauseAsync();
+          }
+        } catch (error) {
+          console.log('❌ Failed to stop title/mission failed music:', error);
+        }
+
+        // Play gameplay music if enabled and not already playing
+        if (musicEnabled) {
+          try {
+            if (!gameplayMusicPlaying.current) {
+              // Only restart from beginning if not already playing
+              await gameplayMusic.current.setPositionAsync(0); // Restart from beginning
+              await gameplayMusic.current.setVolumeAsync(musicVolume);
+              await gameplayMusic.current.playAsync();
+              gameplayMusicPlaying.current = true;
+              console.log('🎵 Gameplay music started from beginning');
+            } else {
+              // Just ensure proper volume if already playing
+              await gameplayMusic.current.setVolumeAsync(musicVolume);
+              console.log('🎵 Gameplay music continues playing');
+            }
+          } catch (error) {
+            console.log('❌ Failed to start/continue gameplay music:', error);
           }
         } else {
-          await titleMusic.current.setVolumeAsync(0);
+          // Music disabled - mute if playing
+          if (gameplayMusicPlaying.current) {
+            try {
+              await gameplayMusic.current.setVolumeAsync(0);
+            } catch (error) {
+              console.log('❌ Failed to mute gameplay music:', error);
+            }
+          }
         }
+      } else if (phase === "respawning") {
+        // Keep gameplay music playing during respawn screens
+        // Only adjust volume based on music settings
+        if (musicEnabled) {
+          try {
+            if (gameplayMusic.current) {
+              await gameplayMusic.current.setVolumeAsync(musicVolume);
+            }
+            console.log('🎵 Gameplay music continues during respawn');
+          } catch (error) {
+            console.log('❌ Failed to adjust gameplay music volume:', error);
+          }
+        } else {
+          try {
+            if (gameplayMusic.current) {
+              await gameplayMusic.current.setVolumeAsync(0);
+            }
+          } catch (error) {
+            console.log('❌ Failed to mute gameplay music:', error);
+          }
+        }
+      } else if (phase === "dead") {
+        // Final game over - play mission failed music
+        await playMissionFailedMusic();
+      } else if (phase === "win") {
+        // Play Earth reached music for victory screen
+        await playEarthReachedMusic();
+        console.log('🎵 Earth reached music playing for victory screen');
       } else {
-        // Not on menu: mute music but keep playing for smooth transitions
+        // Other phases: keep gameplay music if it was playing
+        // This covers any other intermediate states
+        console.log('🎵 Audio state maintained for phase:', phase);
+      }
+    };
+
+    handlePhaseAudio();
+  }, [phase, musicEnabled, musicVolume, audioLoaded]);
+
+  // Auto-start music when user interacts with the page (browser autoplay policy)
+  useEffect(() => {
+    const startMusicOnInteraction = async () => {
+      if (audioLoaded && phase === "menu" && musicEnabled && titleMusic.current && !userInteracted.current) {
         try {
-          await titleMusic.current.setVolumeAsync(0);
-          console.log('🎵 Music muted for gameplay');
+          await titleMusic.current.stopAsync(); // Stop first to reset
+          await titleMusic.current.setPositionAsync(0);
+          await titleMusic.current.setVolumeAsync(musicVolume);
+          await titleMusic.current.playAsync();
+          userInteracted.current = true; // Mark as started
+          console.log('🎵 Started title music after user interaction');
         } catch (error) {
-          console.log('❌ Failed to mute music:', error);
+          console.log('❌ Failed to start title music after interaction:', error);
         }
       }
     };
-    
-    handlePhaseAudio();
-  }, [phase, musicEnabled]);
+
+    const handleUserInteraction = () => {
+      if (audioLoaded && !userInteracted.current) {
+        startMusicOnInteraction();
+      }
+    };
+
+    // Add global listeners for any user interaction
+    if (audioLoaded && !userInteracted.current) {
+      document.addEventListener('click', handleUserInteraction, { once: true });
+      document.addEventListener('touchstart', handleUserInteraction, { once: true });
+      document.addEventListener('keydown', handleUserInteraction, { once: true });
+    }
+
+    // Cleanup
+    return () => {
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('touchstart', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+    };
+  }, [audioLoaded, phase, musicEnabled, musicVolume]);
 
   /* ----- Render ----- */
   const rNow = currentRingRadius();
@@ -3393,7 +4841,7 @@ function Game() {
           }}
         >
           <Text style={styles.score}>
-            LVL {level.current} • ⏱ {Math.floor(timeSec)}s • ❤️ {lives.current}
+            🎯 {currentScore.current.toLocaleString()} • LVL {level.current} • ⏱ {Math.floor(timeSec)}s • ❤️ {lives.current}
             {level.current < 5 && shipsRequiredForLevel.current > 0 && (
               <Text style={styles.shipProgress}> • 🚀 {shipsKilledThisLevel.current}/{shipsRequiredForLevel.current}</Text>
             )}
@@ -3629,8 +5077,28 @@ function Game() {
         <View key={`PT-${pa.id}`} style={[styles.particle, { backgroundColor: pa.color, width: pa.r * 2, height: pa.r * 2, borderRadius: pa.r, transform: [{ translateX: pa.x - pa.r }, { translateY: yToScreen(pa.y - pa.r) }] }]} />
       ))}
 
-      {/* Pod (show during gameplay) */}
-      {phase === "playing" && podY.current > -500 && (
+      {/* Score Popups */}
+      {scorePopups.current.map((popup) => {
+        const progress = 1 - (popup.ttl / popup.maxTtl);
+        const opacity = progress < 0.8 ? 1 : (1 - progress) / 0.2; // Fade out in last 20%
+        return (
+          <Text
+            key={`SP-${popup.id}`}
+            style={[
+              styles.scorePopup,
+              {
+                opacity,
+                transform: [{ translateX: popup.x - 20 }, { translateY: yToScreen(popup.y) - 10 }]
+              }
+            ]}
+          >
+            +{popup.score}
+          </Text>
+        );
+      })}
+
+      {/* Pod (show during gameplay, but not during final death sequence) */}
+      {phase === "playing" && podY.current > -500 && !finalDeathSequence.current && (
         <>
           <View
             style={[
@@ -3773,12 +5241,20 @@ function Game() {
         onMoveShouldSetResponder={() => false} // Don't steal moves from other components
         onResponderTerminationRequest={() => true} // Always allow termination
         onResponderGrant={(e) => {
+          console.log('🎮 TELEGRAM DEBUG - Touch detected, phase:', phase);
           if (phase !== "playing") return;
-          
+
           const touch = e.nativeEvent;
-          const x = touch.locationX || touch.pageX || 0;
-          const y = touch.locationY || touch.pageY || 0;
-          
+          // Robust coordinate extraction with validation
+          let x = touch.locationX ?? touch.pageX ?? 0;
+          let y = touch.locationY ?? touch.pageY ?? 0;
+
+          // Validate coordinates are within screen bounds to prevent edge glitches
+          if (x < 0 || x > width || y < 0 || y > height) {
+            console.log(`⚠️ Invalid touch coordinates: (${x}, ${y}) - ignoring touch event`);
+            return;
+          }
+
           touching.current = true;
           touchStartX.current = x;
           touchStartY.current = y;
@@ -3787,17 +5263,34 @@ function Game() {
         }}
         onResponderMove={(e) => {
           if (!touching.current || phase !== "playing") return;
-          
+
           const touch = e.nativeEvent;
-          const currentX = touch.locationX || touch.pageX || touchStartX.current;
-          const currentY = touch.locationY || touch.pageY || touchStartY.current;
-          
+          // Robust coordinate extraction with fallback to last known position
+          let currentX = touch.locationX ?? touch.pageX;
+          let currentY = touch.locationY ?? touch.pageY;
+
+          // If coordinates are invalid or out of bounds, use fallback
+          if (currentX == null || currentY == null ||
+              currentX < 0 || currentX > width ||
+              currentY < 0 || currentY > height) {
+            console.log(`⚠️ Invalid move coordinates: (${currentX}, ${currentY}) - using fallback`);
+            currentX = touchStartX.current;
+            currentY = touchStartY.current;
+          }
+
           const deltaX = currentX - touchStartX.current;
           const deltaY = currentY - touchStartY.current;
-          
+
+          // Additional safety: prevent extremely large jumps that could cause glitches
+          const maxDelta = Math.max(width, height) * 0.8; // Max 80% of screen in one frame
+          if (Math.abs(deltaX) > maxDelta || Math.abs(deltaY) > maxDelta) {
+            console.log(`⚠️ Extreme touch delta detected: (${deltaX}, ${deltaY}) - clamping movement`);
+            return; // Skip this movement frame
+          }
+
           const newX = clamp(podStartX.current + deltaX, POD_RADIUS, width - POD_RADIUS);
           const newY = clamp(podStartY.current + deltaY, POD_RADIUS, height - POD_RADIUS);
-          
+
           podX.current = newX;
           podY.current = newY;
         }}
@@ -3879,17 +5372,22 @@ function Game() {
             </Text>
           )}
 
-          {phase === "menu" && <EnhancedMenu 
-            onStart={startGame} 
-            leftHandedMode={leftHandedMode.current} 
+          {phase === "menu" && <EnhancedMenu
+            onStart={startGame}
+            leftHandedMode={leftHandedMode.current}
             onToggleHandedness={toggleHandedness}
             musicEnabled={musicEnabled}
             onToggleMusic={toggleMusic}
+            onShowLeaderboard={() => setShowLeaderboard(true)}
           />}
 
           {phase === "win" && (
             <>
               <Text style={styles.overlayText}>Congratulations Pupil! You have made it to Earth — you are one step closer to world domination!</Text>
+              <View style={styles.finalScoreContainer}>
+                <Text style={styles.finalScoreLabel}>FINAL SCORE</Text>
+                <Text style={styles.finalScoreValue}>{currentScore.current.toLocaleString()}</Text>
+              </View>
               <Pressable onPress={goMenu} style={styles.startBtn}>
                 <Text style={styles.startBtnText}>BACK TO MENU</Text>
               </Pressable>
@@ -4002,6 +5500,10 @@ function Game() {
                 <Text style={styles.overlayText}>Return to base for reassignment.</Text>
                 <Text style={styles.overlayText}>The galaxy needs better-trained pilots.</Text>
               </View>
+              <View style={styles.finalScoreContainer}>
+                <Text style={styles.finalScoreLabel}>FINAL SCORE</Text>
+                <Text style={styles.finalScoreValue}>{currentScore.current.toLocaleString()}</Text>
+              </View>
               <View style={styles.buttonContainer}>
                 <Pressable onPress={startGame} style={styles.startBtn}>
                   <Text style={styles.startBtnText}>NEW MISSION</Text>
@@ -4012,6 +5514,130 @@ function Game() {
               </View>
             </>
           )}
+        </View>
+      )}
+
+      {/* AAA Name Entry Modal for High Scores */}
+      {showNameEntry && (
+        <View style={styles.nameEntryOverlay} pointerEvents="box-none">
+          <View style={styles.nameEntryModal} pointerEvents="auto">
+            <Text style={styles.nameEntryTitle}>🏆 HIGH SCORE! 🏆</Text>
+            <Text style={styles.nameEntrySubtitle}>
+              Score: {gameResultData?.score.toLocaleString()} • Level: {gameResultData?.level}
+            </Text>
+            <Text style={styles.nameEntryPrompt}>Enter your pilot name:</Text>
+
+            {telegramUsername && (
+              <Text style={styles.telegramUserDetected}>
+                🤖 Telegram User Detected: @{telegramUsername}
+              </Text>
+            )}
+
+            <TextInput
+              style={[
+                styles.nameEntryInput,
+                playerName.trim() && styles.nameEntryInputActive,
+                telegramUsername && styles.nameEntryInputTelegram
+              ]}
+              value={playerName}
+              onChangeText={(text) => {
+                // Auto-uppercase and limit based on source
+                const maxLength = telegramUsername ? 8 : 3;
+                const cleanText = text.toUpperCase().slice(0, maxLength);
+                setPlayerName(cleanText);
+              }}
+              placeholder={telegramUsername ? telegramUsername.toUpperCase() : "ACE"}
+              placeholderTextColor={telegramUsername ? "#4CAF50" : "#888"}
+              maxLength={telegramUsername ? 8 : 3}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              autoComplete="off"
+              autoFocus={!telegramUsername} // Don't auto-focus if Telegram detected
+              selectTextOnFocus={true}
+              returnKeyType="done"
+              onSubmitEditing={handleNameSubmit}
+              editable={true}
+              // React Native Web specific fixes
+              {...(Platform.OS === 'web' && {
+                // @ts-ignore
+                style: {
+                  ...StyleSheet.flatten([
+                    styles.nameEntryInput,
+                    playerName.trim() && styles.nameEntryInputActive,
+                    telegramUsername && styles.nameEntryInputTelegram
+                  ]),
+                  outline: 'none',
+                  userSelect: 'text',
+                  pointerEvents: 'auto'
+                }
+              })}
+            />
+
+            <View style={styles.nameEntryButtons}>
+              <Pressable
+                onPress={handleNameSubmit}
+                disabled={!playerName.trim()}
+                style={[
+                  styles.nameEntryButton,
+                  styles.nameEntrySubmit,
+                  !playerName.trim() && styles.nameEntryButtonDisabled
+                ]}
+              >
+                <Text style={[
+                  styles.nameEntryButtonText,
+                  !playerName.trim() && styles.nameEntryButtonTextDisabled
+                ]}>
+                  SUBMIT
+                </Text>
+              </Pressable>
+            </View>
+
+            <Text style={styles.nameEntryHint}>3 characters max • Will be shown in CAPS</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Leaderboard Display Modal */}
+      {showLeaderboard && (
+        <View style={styles.leaderboardOverlay}>
+          <View style={styles.leaderboardModal}>
+            <Text style={styles.leaderboardTitle}>🏆 TOP PILOTS 🏆</Text>
+
+            <ScrollView style={styles.leaderboardList}>
+              {leaderboardState.entries.map((entry, index) => {
+                const rank = index + 1;
+                const isPersonalBest = entry.score === leaderboardState.personalBest;
+
+                return (
+                  <View key={entry.id} style={[
+                    styles.leaderboardEntry,
+                    isPersonalBest && styles.leaderboardEntryPersonal
+                  ]}>
+                    <Text style={styles.leaderboardRank}>
+                      {LeaderboardManager.getRankSuffix(rank)}
+                    </Text>
+                    <Text style={styles.leaderboardName}>{entry.playerName}</Text>
+                    <Text style={styles.leaderboardScore}>
+                      {LeaderboardManager.formatScore(entry.score)}
+                    </Text>
+                    <Text style={styles.leaderboardLevel}>Lvl {entry.level}</Text>
+                    {entry.victory && <Text style={styles.leaderboardVictory}>🌍</Text>}
+                  </View>
+                );
+              })}
+
+              {leaderboardState.entries.length === 0 && (
+                <Text style={styles.leaderboardEmpty}>No scores yet. Be the first!</Text>
+              )}
+            </ScrollView>
+
+            <Pressable
+              onPress={() => setShowLeaderboard(false)}
+              style={styles.leaderboardCloseButton}
+            >
+              <Text style={styles.leaderboardCloseText}>CLOSE</Text>
+            </Pressable>
+          </View>
         </View>
       )}
     </View>
@@ -4672,9 +6298,10 @@ const styles = StyleSheet.create({
   menuContainer: {
     flex: 1,
     position: 'relative',
-    justifyContent: 'flex-end', // Position content towards bottom
+    justifyContent: 'flex-start', // Start from top but with padding
     paddingHorizontal: 20,
-    paddingBottom: '20%', // Push content up from very bottom
+    paddingTop: 80, // Increase top padding to push content down
+    paddingBottom: 20, // Keep bottom padding reasonable
   },
   menuParticles: {
     position: 'absolute',
@@ -4686,7 +6313,8 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 20, // Reduced from 30
+    marginBottom: 25,
+    marginTop: 20, // Reduced since container now has more top padding
     zIndex: 2,
   },
   logoMain: {
@@ -4698,9 +6326,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   logoImage: {
-    width: 250,
-    height: 80,
-    marginBottom: 5,
+    width: 220, // Reduced from 250 for better fit
+    height: 70,  // Reduced from 80 for better fit
+    marginBottom: 8,
     alignSelf: 'center',
   },
   logoSub: {
@@ -4720,7 +6348,6 @@ const styles = StyleSheet.create({
   },
   menuScrollView: {
     flex: 1,
-    maxHeight: "70%",
     paddingBottom: 20,
     zIndex: 2,
   },
@@ -4910,5 +6537,316 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "rgba(90,214,111,0.3)",
+  },
+
+  finalScoreContainer: {
+    marginTop: 20,
+    marginBottom: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "rgba(255,215,0,0.5)",
+    alignItems: "center",
+  },
+
+  finalScoreLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFD700",
+    marginBottom: 5,
+    textShadowColor: "rgba(0,0,0,0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+    letterSpacing: 1.5,
+  },
+
+  finalScoreValue: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    textShadowColor: "rgba(255,215,0,0.6)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+
+  scorePopup: {
+    position: "absolute",
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#FFD700",
+    textShadowColor: "rgba(0,0,0,0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+    zIndex: 1000,
+  },
+
+  // AAA Leaderboard Name Entry Styles
+  nameEntryOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 2000,
+  },
+  nameEntryModal: {
+    backgroundColor: "#1a1a2e",
+    borderRadius: 16,
+    padding: 32,
+    width: "85%",
+    maxWidth: 400,
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FFD700",
+    shadowColor: "#FFD700",
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  nameEntryTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#FFD700",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  nameEntrySubtitle: {
+    fontSize: 16,
+    color: "#FFFFFF",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  nameEntryPrompt: {
+    fontSize: 18,
+    color: "#FFFFFF",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  nameEntryInput: {
+    backgroundColor: "#2a2a3e",
+    borderWidth: 2,
+    borderColor: "#FFD700",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    textAlign: "center",
+    width: "100%",
+    marginBottom: 20,
+    minHeight: 56,
+    letterSpacing: 4,
+    // Prevent layout shift and improve stability
+    includeFontPadding: false,
+    textAlignVertical: "center",
+    // Web-specific input fixes
+    ...(Platform.OS === 'web' && {
+      outline: 'none',
+      userSelect: 'text',
+      cursor: 'text',
+    }),
+  },
+  nameEntryInputActive: {
+    borderColor: "#00FFFF",
+    backgroundColor: "#1f1f33",
+    shadowColor: "#00FFFF",
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  nameEntryInputTelegram: {
+    borderColor: "#4CAF50", // Green border for Telegram
+    backgroundColor: "#0f2a0f", // Dark green background
+    shadowColor: "#4CAF50",
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  telegramUserDetected: {
+    fontSize: 14,
+    color: "#4CAF50",
+    textAlign: "center",
+    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: "rgba(76, 175, 80, 0.1)",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(76, 175, 80, 0.3)",
+  },
+  nameEntryButtons: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  nameEntryButton: {
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 10,
+    borderWidth: 2,
+    minWidth: 140,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nameEntrySubmit: {
+    backgroundColor: "#FFD700",
+    borderColor: "#FFD700",
+    shadowColor: "#FFD700",
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  nameEntryButtonDisabled: {
+    backgroundColor: "#444",
+    borderColor: "#666",
+  },
+  nameEntryButtonText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    textAlign: "center",
+    color: "#1a1a2e",
+  },
+  nameEntryButtonTextDisabled: {
+    color: "#888",
+  },
+  nameEntryHint: {
+    fontSize: 12,
+    color: "#888",
+    textAlign: "center",
+  },
+
+  // AAA Leaderboard Display Styles
+  leaderboardOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 2000,
+  },
+  leaderboardModal: {
+    backgroundColor: "#1a1a2e",
+    borderRadius: 16,
+    padding: 24,
+    width: "90%",
+    maxWidth: 500,
+    height: "70%",
+    borderWidth: 2,
+    borderColor: "#FFD700",
+    shadowColor: "#FFD700",
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  leaderboardTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#FFD700",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  leaderboardList: {
+    flex: 1,
+    marginBottom: 20,
+  },
+  leaderboardEntry: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#2a2a3e",
+    marginBottom: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#444",
+  },
+  leaderboardEntryPersonal: {
+    borderColor: "#FFD700",
+    backgroundColor: "rgba(255, 215, 0, 0.1)",
+  },
+  leaderboardRank: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#FFD700",
+    width: 50,
+  },
+  leaderboardName: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    flex: 1,
+  },
+  leaderboardScore: {
+    fontSize: 16,
+    color: "#FFFFFF",
+    width: 80,
+    textAlign: "right",
+  },
+  leaderboardLevel: {
+    fontSize: 14,
+    color: "#888",
+    width: 50,
+    textAlign: "right",
+  },
+  leaderboardVictory: {
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  leaderboardEmpty: {
+    fontSize: 16,
+    color: "#888",
+    textAlign: "center",
+    marginTop: 50,
+  },
+  leaderboardCloseButton: {
+    backgroundColor: "#FFD700",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignSelf: "center",
+  },
+  leaderboardCloseText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#1a1a2e",
+  },
+
+  // Menu Leaderboard Button Styles
+  leaderboardButton: {
+    backgroundColor: "rgba(255, 215, 0, 0.15)",
+    borderWidth: 2,
+    borderColor: "#FFD700",
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 16,
+    marginBottom: 8,
+    shadowColor: "#FFD700",
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  leaderboardButtonPressed: {
+    backgroundColor: "rgba(255, 215, 0, 0.3)",
+    transform: [{ scale: 0.98 }],
+  },
+  leaderboardButtonText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#FFD700",
+    textShadowColor: "rgba(255, 215, 0, 0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 });
