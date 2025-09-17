@@ -1,9 +1,11 @@
-import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import React, { useRef, useEffect, useState } from 'react';
+import { View, StyleSheet, useWindowDimensions, Animated } from 'react-native';
 import { useGameStore } from '../state/store';
 import { useAudioSystem } from '../systems/AudioSystem';
+import { MainMenu } from '../components/Menu/MainMenu';
 
 export default function MenuScene() {
+  const { width, height } = useWindowDimensions();
   const {
     startGame,
     leftHandedMode,
@@ -12,6 +14,41 @@ export default function MenuScene() {
   } = useGameStore();
 
   const audio = useAudioSystem();
+
+  // Animation state for the original menu
+  const [animPhase, setAnimPhase] = useState(0);
+  const menuStarsRef = useRef<Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}>>([]);
+
+  // Initialize menu stars animation (from the original)
+  useEffect(() => {
+    const stars: Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}> = [];
+    const layers = [
+      { count: 15, parallax: 0.3, size: 2, opacity: 0.4 },
+      { count: 12, parallax: 0.6, size: 3, opacity: 0.6 },
+      { count: 8, parallax: 0.9, size: 4, opacity: 0.8 },
+    ];
+
+    layers.forEach((layer, li) => {
+      for (let i = 0; i < layer.count; i++) {
+        stars.push({
+          id: `menu-L${li}-${i}`,
+          x: Math.random() * width,
+          y: Math.random() * height,
+          size: layer.size,
+          parallax: layer.parallax,
+          opacity: layer.opacity
+        });
+      }
+    });
+    menuStarsRef.current = stars;
+
+    // Animation loop for subtle effects
+    const interval = setInterval(() => {
+      setAnimPhase(prev => prev + 1);
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [width, height]);
 
   const handleStartGame = () => {
     startGame();
@@ -26,44 +63,47 @@ export default function MenuScene() {
     audio.toggleSfx();
   };
 
+  const handleShowSettings = () => {
+    // Could implement settings modal later
+  };
+
+  // Create the subtle fade animation value
+  const subtleFade = new Animated.Value(0.85 + Math.sin(animPhase * 0.06) * 0.15);
+
   return (
     <View style={styles.container}>
-      {/* Background stars effect */}
-      <View style={styles.content}>
-        <Text style={styles.title}>PUPILZ POD DESCENT</Text>
-
-        <View style={styles.buttonContainer}>
-          <Pressable style={styles.button} onPress={handleStartGame}>
-            <Text style={styles.buttonText}>🚀 START GAME</Text>
-          </Pressable>
-
-          <Pressable style={styles.button} onPress={() => toggleLeaderboard()}>
-            <Text style={styles.buttonText}>🏆 LEADERBOARD</Text>
-          </Pressable>
-
-          <View style={styles.settingsContainer}>
-            <Text style={styles.settingsTitle}>SETTINGS</Text>
-
-            <Pressable style={styles.settingButton} onPress={toggleHandedness}>
-              <Text style={styles.settingText}>
-                🖐️ {leftHandedMode ? 'LEFT-HANDED' : 'RIGHT-HANDED'}
-              </Text>
-            </Pressable>
-
-            <Pressable style={styles.settingButton} onPress={toggleMusic}>
-              <Text style={styles.settingText}>
-                🎵 MUSIC: {audio.musicEnabled ? 'ON' : 'OFF'}
-              </Text>
-            </Pressable>
-
-            <Pressable style={styles.settingButton} onPress={toggleSfx}>
-              <Text style={styles.settingText}>
-                🔊 SFX: {audio.sfxEnabled ? 'ON' : 'OFF'}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
+      {/* Smooth background stars */}
+      <View style={styles.menuParticles} pointerEvents="none">
+        {menuStarsRef.current.map((star) => (
+          <View
+            key={star.id}
+            style={{
+              position: 'absolute',
+              left: star.x,
+              top: star.y,
+              width: star.size,
+              height: star.size,
+              backgroundColor: '#8FB7FF',
+              borderRadius: star.size / 2,
+              opacity: star.opacity * (0.7 + Math.sin((animPhase + star.x) * 0.02) * 0.3),
+            }}
+          />
+        ))}
       </View>
+
+      {/* Original MainMenu component */}
+      <MainMenu
+        onStart={handleStartGame}
+        onShowLeaderboard={() => toggleLeaderboard()}
+        onShowSettings={handleShowSettings}
+        leftHandedMode={leftHandedMode}
+        onToggleHandedness={toggleHandedness}
+        musicEnabled={audio.musicEnabled}
+        onToggleMusic={toggleMusic}
+        sfxEnabled={audio.sfxEnabled}
+        onToggleSfx={toggleSfx}
+        subtleFade={subtleFade}
+      />
     </View>
   );
 }
