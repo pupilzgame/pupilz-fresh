@@ -6919,6 +6919,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 6,
     alignItems: "center",
+    justifyContent: "center",
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
