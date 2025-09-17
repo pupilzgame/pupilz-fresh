@@ -318,6 +318,28 @@ export default function GameScene() {
           />
         ))}
 
+        {/* DEBUG: Bright test element to see if anything renders */}
+        <View style={{
+          position: 'absolute',
+          top: 50,
+          left: 50,
+          width: 100,
+          height: 100,
+          backgroundColor: 'red',
+          zIndex: 999,
+        }} />
+
+        <View style={{
+          position: 'absolute',
+          top: 20,
+          left: 20,
+          padding: 10,
+          backgroundColor: 'yellow',
+          zIndex: 999,
+        }}>
+          <Text style={{ color: 'black', fontSize: 16 }}>GAME SCENE LOADED!</Text>
+        </View>
+
         {/* HUD */}
         <GameHUD
           level={level}
