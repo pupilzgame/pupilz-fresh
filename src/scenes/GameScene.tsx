@@ -55,6 +55,14 @@ export default function GameScene() {
 
   // Initialize game systems
   useEffect(() => {
+    console.log('🎮 GAME SCENE: Initializing with dimensions', width, 'x', height);
+
+    // Initialize pod position at center of screen
+    const centerX = width / 2;
+    const centerY = height * 0.7; // 70% down the screen
+    updatePodPosition(centerX, centerY);
+    console.log('🎯 GAME SCENE: Pod positioned at', centerX, centerY);
+
     // Initialize stars
     const initStars = [];
     const starLayers = [
@@ -76,6 +84,7 @@ export default function GameScene() {
       }
     });
     stars.current = initStars;
+    console.log('⭐ GAME SCENE: Initialized', initStars.length, 'stars');
 
     // Initialize enemy spawner
     enemySpawner.initializeSpawnPositions({
@@ -87,6 +96,7 @@ export default function GameScene() {
     });
 
     // Start game loop
+    console.log('🔄 GAME SCENE: Starting game loop');
     stopLoopRef.current = startLoop((deltaTime) => {
       // Update world scroll
       const newScrollY = scrollY + worldV * deltaTime;
