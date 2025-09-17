@@ -1632,24 +1632,7 @@ function Game() {
 
   // Audio wrapper functions for backward compatibility
 
-  const loadGameplayMusic = async () => {
-    try {
-      if (gameplayMusic.current) {
-        await gameplayMusic.current.unloadAsync();
-      }
-      const { sound } = await Audio.Sound.createAsync(
-        require('./assets/audio/Pupilz_gameplay_Loopedx4.mp3'),
-        {
-          isLooping: true,
-          volume: musicVolume,
-        }
-      );
-      gameplayMusic.current = sound;
-      console.log('🎵 Gameplay music loaded');
-    } catch (error) {
-      console.log('❌ Failed to load gameplay music:', error);
-    }
-  };
+  // Legacy audio function references removed - now handled by AudioSystem
 
   const loadMissionFailedMusic = async () => {
     try {
