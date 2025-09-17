@@ -940,7 +940,7 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
           ]}
         >
           <View style={styles.menuCTAGlow} />
-          <Text style={styles.menuCTAText}>INVADE EARTH!</Text>
+          <Text style={styles.menuCTAText}>DESCEND TO EARTH</Text>
         </Pressable>
       </ScrollView>
 
