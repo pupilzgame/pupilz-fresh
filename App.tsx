@@ -32,7 +32,8 @@ import {
   POD_RADIUS, GLOW_RADIUS, FREE_FALL, HORIZONTAL_SPEED, VERTICAL_SPEED,
   HIT_INVULN_TIME, RESPAWN_DELAY, NUKE_RANGE, SWEEP_SPEED,
   PROJECTILE_SPEED, LASER_SPEED, FIRE_SPEED, HOMING_SPEED,
-  SHIP_QUOTAS, BOSS_LEVEL, MIN_SCORE_THRESHOLD, COLORS
+  SHIP_QUOTAS, BOSS_LEVEL, MIN_SCORE_THRESHOLD, COLORS,
+  MAX_SHIELD_LIVES, MAX_DRONES, DRONE_ORBIT_RADIUS, DRONE_ORBIT_SPEED
 } from './src/utils/constants';
 /* ---------- CSS Hexagon Component ---------- */
 function HexagonAsteroid({ 
@@ -442,108 +443,7 @@ type LeaderboardState = {
   newHighScore: boolean;
 };
 
-/* ---------- Tunables ---------- */
-const POD_RADIUS = 18;
-
-// Descent feel
-const FREE_FALL = 220;
-const MIN_DESCENT = 140;
-const MAX_DESCENT = 520;
-const RETURN_TO_FF = 3.0;
-
-// Free-move handling
-const MAX_H   = 560;
-const MAX_V   = 520;
-
-// Gesture
-const GESTURE_VEL_GAIN = 28.0;
-const GESTURE_DEADZONE = 6;   // pixels, prevents micro jitter
-const GESTURE_PAD_DIV  = 60;
-
-// Distance between ring goals
-const LEVEL_MIN = 2000;
-const LEVEL_MAX = 2800;
-
-// Spawns
-const AST_BASE_SPACING = 280;
-const BAR_BASE_SPACING = 560;
-const PWR_BASE_SPACING = 800;
-const SHIP_BASE_SPACING = 1100;
-
-const AST_MIN_R = 14;
-const AST_MAX_R = 32;
-const AST_MAX_VX = 55;
-const AST_REL_VY = 30;
-
-const BAR_W_MIN = 90;
-const BAR_W_MAX = 170;
-const BAR_H = 16;
-const BAR_VX = 60;
-const BAR_REL_VY = 20;
-
-// Stars BG
-const STAR_LAYERS = [
-  { count: 28, parallax: 0.3, size: 2, opacity: 0.35 },
-  { count: 20, parallax: 0.55, size: 3, opacity: 0.55 },
-  { count: 14, parallax: 0.8, size: 4, opacity: 0.8 },
-];
-
-// Projectiles
-const BULLET_SPEED = 900;
-const LASER_SPEED  = 1250;
-const FIRE_SPEED   = 800;
-const HOMING_SPEED = 720;
-
-// Enemy projectiles
-const EN_MISSILE_SPEED = 360;
-const EN_PLASMA_SPEED  = 540;
-
-// Weapon cooldowns
-// Professional weapon balance: Trade-offs for strategic depth
-const CD = { 
-  basic: 0.22,  // Basic blaster - decent but makes pickups feel better
-  M: 0.16,  // Fast crowd control (was 0.18)
-  S: 0.32,  // Slower but devastating burst (was 0.26) 
-  L: 0.35,  // Slow but piercing precision (was 0.3)
-  F: 0.20,  // Steady sustained DPS (was 0.22)
-  H: 0.45   // Slowest but explosive smart targeting (was 0.38)
-} as const;
-const RAPID_FACTOR = 0.14;
-
-// Nuke sweep
-const SWEEP_SPEED = 2200; // px/sec
-const NUKE_FLASH_TIME = 0.12;
-
-// Ring difficulty/scaling
-const RING_SHRINK_RATE = 0.03;
-const RING_MIN_FRACTION = 0.55;
-
-// Shields
-const MAX_SHIELD_LIVES = 6;
-const HIT_INVULN_TIME = 1.0;
-
-// Time Slow
-const TIME_SLOW_DURATION = 5.0; // 5 seconds
-const TIME_SLOW_FACTOR = 0.3; // 30% speed (70% slower)
-
-// Drones
-const MAX_DRONES = 3;
-const DRONE_ORBIT_RADIUS = 35;
-const DRONE_ORBIT_SPEED = 2.0; // radians per second
-const DRONE_KAMIKAZE_SPEED = 400; // fast kamikaze attack speed
-const DRONE_ACTIVATION_DISTANCE = 190; // pixels - optimal game studio standard for mobile emergency response
-
-// Energy Cell
-const ENERGY_IFRAME_TIME = 3.0;  // 3 seconds
-const ENERGY_SHIELD_GAIN = 3;    // +3 rings
-
-// Boss (decoupled collision radius for consistency)
-const BOSS_COLLISION_RADIUS = 28; // matches 56px visual boss size
-
-/* ---------- Helpers ---------- */
-const rand = (min: number, max: number) => Math.random() * (max - min) + min;
-const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+/* ---------- Constants now imported from src/utils/constants.ts ---------- */
 
 /* ---------- Small UI: Accordion ---------- */
 function Accordion({
