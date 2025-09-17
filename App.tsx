@@ -2933,7 +2933,7 @@ function Game() {
 
   /* ----- Weapons & Actions ----- */
   const currentCooldown = () => {
-    const base = CD[weapon.current.kind];
+    const base = GameConfig.CD[weapon.current.kind];
     const mult = 1 - GameConfig.RAPID_FACTOR * rapidLevel.current;
     const lvlBonus = 1 - 0.06 * (weapon.current.level - 1);
     return base * mult * lvlBonus;
@@ -3504,7 +3504,7 @@ function Game() {
     if (invulnTime.current > 0) invulnTime.current = Math.max(0, invulnTime.current - dt);
     if (hudFadeT.current > 0)  hudFadeT.current = Math.max(0, hudFadeT.current - dt);
     if (timeSlowRemaining.current > 0) timeSlowRemaining.current = Math.max(0, timeSlowRemaining.current - dt);
-    if (droneDeployGameConfig.CD.current > 0) droneDeployGameConfig.CD.current = Math.max(0, droneDeployGameConfig.CD.current - dt);
+    if (droneDeployCD.current > 0) droneDeployCD.current = Math.max(0, droneDeployCD.current - dt);
     
     // Victory beam-up animation (2-second duration)
     if (victoryBeamActive.current) {
@@ -3553,7 +3553,7 @@ function Game() {
     }
     
     // Deploy closest available drone if threat found (with cooldown to prevent spam)
-    if (threatFound && droneDeployGameConfig.CD.current <= 0) {
+    if (threatFound && droneDeployCD.current <= 0) {
       let closestDrone: { drone: typeof drones.current[0]; index: number } | null = null;
       let minDroneDist = Infinity;
       
@@ -3591,7 +3591,7 @@ function Game() {
           drone.vx = 0;
           drone.vy = -GameConfig.DRONE_KAMIKAZE_SPEED; // default upward movement
         }
-        droneDeployGameConfig.CD.current = 0.5; // 0.5 second cooldown between deployments
+        droneDeployCD.current = 0.5; // 0.5 second cooldown between deployments
         
         // Add visual feedback - screen shake when drone deploys
         shakeT.current = 0.3;
