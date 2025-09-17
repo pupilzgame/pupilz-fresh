@@ -563,7 +563,7 @@ type SettingsAccordionProps = {
   onToggle: () => void;
   leftHandedMode: boolean;
   onToggleHandedness: () => void;
-  audioSystem.musicEnabled: boolean;
+  musicEnabled: boolean;
   onToggleMusic: () => void;
 };
 
@@ -649,9 +649,9 @@ type EnhancedMenuProps = {
   onStart: () => void;
   leftHandedMode: boolean;
   onToggleHandedness: () => void;
-  audioSystem.musicEnabled: boolean;
+  musicEnabled: boolean;
   onToggleMusic: () => void;
-  audioSystem.sfxEnabled: boolean;
+  sfxEnabled: boolean;
   onToggleSfx: () => void;
   onShowLeaderboard: () => void;
 };
