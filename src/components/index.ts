@@ -1,8 +1,8 @@
 // UI Components barrel export
-export { MainMenu } from './MainMenu';
-export { GameHUD } from './GameHUD';
-export { LeaderboardModal } from './LeaderboardModal';
-export { ParticleSystem } from './ParticleSystem';
+export { MainMenu } from './Menu/MainMenu';
+export { GameHUD } from './UI/GameHUD';
+export { LeaderboardModal } from './UI/LeaderboardModal';
+export { ParticleSystem } from './Game/ParticleSystem';
 export { VictoryScreen } from './VictoryScreen';
 export { GameOverScreen } from './GameOverScreen';
 export { RespawnOverlay } from './RespawnOverlay';
