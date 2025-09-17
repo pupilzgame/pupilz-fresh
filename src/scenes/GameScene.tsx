@@ -300,7 +300,21 @@ export default function GameScene() {
               transform: [{ translateX: podX - 18 }, { translateY: podY - 18 }]
             }
           ]}
-        />
+        >
+          {/* Debug: Show pod coordinates */}
+          <View style={{
+            position: 'absolute',
+            top: -25,
+            left: -10,
+            backgroundColor: 'rgba(0,0,0,0.7)',
+            padding: 2,
+            borderRadius: 3,
+          }}>
+            <Text style={{ color: 'white', fontSize: 10 }}>
+              POD {Math.round(podX)},{Math.round(podY)}
+            </Text>
+          </View>
+        </View>
 
         {/* Particles */}
         {particles.current.map((p) => (
@@ -368,9 +382,13 @@ const styles = StyleSheet.create({
   },
   star: {
     position: 'absolute',
-    backgroundColor: '#8FB7FF',
+    backgroundColor: '#FFFFFF',
     borderRadius: 2,
-    zIndex: 0,
+    zIndex: 1,
+    shadowColor: '#8FB7FF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 3,
   },
   pod: {
     position: 'absolute',
@@ -378,9 +396,13 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     backgroundColor: '#39D3FF',
-    borderWidth: 2,
-    borderColor: '#0AA3C2',
-    zIndex: 4,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    zIndex: 10,
+    shadowColor: '#39D3FF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 10,
   },
   projectile: {
     position: 'absolute',
