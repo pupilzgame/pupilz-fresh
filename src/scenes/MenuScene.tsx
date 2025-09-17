@@ -3,13 +3,16 @@ import { View, StyleSheet } from 'react-native';
 import { useGameStore } from '../state/store';
 import { useAudioSystem } from '../systems/AudioSystem';
 import EnhancedMenu from '../components/Menu/EnhancedMenu';
+import { LeaderboardModal } from '../components/UI/LeaderboardModal';
 
 export default function MenuScene() {
   const {
     startGame,
     leftHandedMode,
     toggleHandedness,
-    toggleLeaderboard
+    toggleLeaderboard,
+    showLeaderboard,
+    score
   } = useGameStore();
 
   const audio = useAudioSystem();
@@ -41,6 +44,15 @@ export default function MenuScene() {
         onToggleMusic={toggleMusic}
         sfxEnabled={audio.sfxEnabled}
         onToggleSfx={toggleSfx}
+      />
+
+      {/* Leaderboard Modal */}
+      <LeaderboardModal
+        visible={showLeaderboard}
+        entries={[]} // TODO: Load actual leaderboard data
+        onClose={() => toggleLeaderboard()}
+        personalBest={score}
+        lastRank={null}
       />
     </View>
   );
