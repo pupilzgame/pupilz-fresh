@@ -1603,11 +1603,17 @@ function Game() {
         } catch (error) {
           console.error('Failed to auto-submit score:', error);
           // Fall back to manual entry
+          if (!playerName.trim()) {
+            setPlayerName("PLAYER"); // Default name if none exists
+          }
           setGameResultData({ score, level, victory });
           setShowNameEntry(true);
         }
       } else {
         // No Telegram username, show manual entry
+        if (!playerName.trim()) {
+          setPlayerName("PLAYER"); // Default name if none exists
+        }
         setGameResultData({ score, level, victory });
         setShowNameEntry(true);
       }
