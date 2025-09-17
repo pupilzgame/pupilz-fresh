@@ -1023,6 +1023,9 @@ function Game() {
   const shakeMag = useRef(0);
   const flashTime = useRef(0);
 
+  // Stars for background
+  const stars = useRef<Array<{id: string, x: number, y: number, size: number, parallax: number, opacity: number}>>([]);
+
   // Phase management with callbacks
   const phaseCallbacks = {
     onGameStart: () => {
@@ -1050,6 +1053,28 @@ function Game() {
 
   // Initialize game systems
   useEffect(() => {
+    // Initialize background stars
+    const initStars = [];
+    const starLayers = [
+      { count: 25, parallax: 0.2, size: 1, opacity: 0.3 },
+      { count: 20, parallax: 0.5, size: 2, opacity: 0.5 },
+      { count: 15, parallax: 0.8, size: 3, opacity: 0.7 },
+    ];
+
+    starLayers.forEach((layer, li) => {
+      for (let i = 0; i < layer.count; i++) {
+        initStars.push({
+          id: `L${li}-${i}`,
+          x: Math.random() * width,
+          y: Math.random() * height,
+          size: layer.size,
+          parallax: layer.parallax,
+          opacity: layer.opacity
+        });
+      }
+    });
+    stars.current = initStars;
+
     // Initialize spawn positions
     enemySpawner.initializeSpawnPositions({
       width,
@@ -1172,6 +1197,15 @@ function Game() {
 
       // Update visual effects
       updateVisualEffects(deltaTime);
+
+      // Update stars parallax scrolling
+      for (const s of stars.current) {
+        s.y += worldV.current * s.parallax * deltaTime;
+        if (s.y > height + 4) {
+          s.y = -4;
+          s.x = Math.random() * width;
+        }
+      }
 
       // Check level progression
       checkLevelProgression();
@@ -1373,9 +1407,116 @@ function Game() {
         onTouchEnd={handleTouchEnd}
       >
         {/* Background stars */}
-        {/* Game entities */}
+        {stars.current.map((s) => (
+          <View key={s.id} style={[styles.star, {
+            width: s.size,
+            height: s.size,
+            opacity: s.opacity,
+            transform: [{ translateX: s.x }, { translateY: s.y + insets.top }]
+          }]} />
+        ))}
+
+        {/* Game entities - Asteroids */}
+        {entityManager.getEntities('asteroids').map((a) => {
+          const rotation = (a.id * 17 + (timeSec.current * 10)) % 360;
+          return (
+            <View
+              key={`A-${a.id}`}
+              style={{
+                position: 'absolute',
+                width: a.r * 2,
+                height: a.r * 2,
+                transform: [
+                  { translateX: a.x - a.r },
+                  { translateY: a.y - scrollY.current - a.r },
+                ]
+              }}
+            >
+              <HexagonAsteroid
+                size={a.r}
+                backgroundColor={a.color || '#8B4513'}
+                borderColor="#654321"
+                opacity={1}
+                rotation={rotation}
+                damageFlash={false}
+              />
+            </View>
+          );
+        })}
+
+        {/* Game entities - Barriers */}
+        {entityManager.getEntities('barriers').map((b) => (
+          <View
+            key={`B-${b.id}`}
+            style={[
+              styles.barrier,
+              {
+                width: b.w,
+                height: b.h,
+                backgroundColor: b.color || '#666',
+                transform: [{ translateX: b.x }, { translateY: b.y - scrollY.current }]
+              }
+            ]}
+          />
+        ))}
+
+        {/* Game entities - Ships */}
+        {entityManager.getEntities('ships').map((s) => (
+          <View
+            key={`S-${s.id}`}
+            style={[
+              styles.ship,
+              {
+                width: s.r * 2,
+                height: s.r * 2,
+                backgroundColor: s.color || '#FF4444',
+                transform: [{ translateX: s.x - s.r }, { translateY: s.y - scrollY.current - s.r }]
+              }
+            ]}
+          />
+        ))}
+
+        {/* Game entities - Projectiles */}
+        {entityManager.getEntities('projectiles').map((p) => (
+          <View
+            key={`P-${p.id}`}
+            style={[
+              styles.projectile,
+              {
+                width: 4,
+                height: 8,
+                backgroundColor: p.color || '#FFE486',
+                transform: [{ translateX: p.x - 2 }, { translateY: p.y - scrollY.current - 4 }]
+              }
+            ]}
+          />
+        ))}
+
         {/* Player pod */}
+        <View
+          style={[
+            styles.pod,
+            {
+              transform: [{ translateX: podX.current - 18 }, { translateY: podY.current - 18 }]
+            }
+          ]}
+        />
+
         {/* Particles */}
+        {particles.current.map((p) => (
+          <View
+            key={p.id}
+            style={[
+              styles.particle,
+              {
+                width: p.r * 2,
+                height: p.r * 2,
+                backgroundColor: p.color,
+                transform: [{ translateX: p.x - p.r }, { translateY: p.y - p.r }]
+              }
+            ]}
+          />
+        ))}
 
         {/* HUD */}
         {phaseManager.canPlay() && (
