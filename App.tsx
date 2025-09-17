@@ -940,7 +940,7 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
           ]}
         >
           <View style={styles.menuCTAGlow} />
-          <Text style={styles.menuCTAText}>DESCEND TO EARTH</Text>
+          <Text style={styles.menuCTAText}>DESCEND TO EARTH!</Text>
         </Pressable>
       </ScrollView>
 
@@ -6590,6 +6590,7 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
+    textAlign: 'center',
   },
   
   // Ship progress indicator
