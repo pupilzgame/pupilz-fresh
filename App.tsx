@@ -28,82 +28,31 @@ import { useFullScreenPWA } from './useFullScreenPWA';
 import './global.css';
 import { Audio } from 'expo-av';
 import { rand, clamp, lerp, distance, circleCollision, rectCircleCollision, normalize, degToRad, radToDeg } from './src/utils/math';
+import { calculateEnemyScore, addScore, createScorePopup, calculateFinalScore, SCORING_CONFIG, ScorePopup } from './src/utils/scoring';
+import { updateParticles, createEnergySparkles, createExplosionParticles, createDebrisParticles, createPowerExplosion, createPodDeathParticles, createRingImpactParticles, createConfettiParticles, createFireworkBurst, clearParticles, Particle, ParticleContainer } from './src/systems/particles';
+import { updateAnimations, addScreenShake, addFlashEffect, addWeaponShake, addExplosionShake, resetAnimations, AnimationState } from './src/systems/animations';
+import { checkProjectileAsteroidCollision, checkProjectileBarrierCollision, checkProjectileShipCollision, checkProjectileBossCollision, checkPodAsteroidCollision, checkPodBarrierCollision, checkPodShipCollision, checkPodEnemyProjectileCollision, checkPodPowerUpCollision, checkDroneEnemyProjectileCollision, checkDroneShipCollision, checkRingCollision, checkNukeCollisions } from './src/systems/collision';
 import * as GameConfig from './src/config/gameConstants';
 import { useAudioSystem } from './src/systems/audioSystem';
+import { HexagonAsteroid } from './src/components/HexagonAsteroid';
+import { Accordion } from './src/components/Accordion';
+import { MenuSection, EnhancedMenuProps } from './src/types/menuTypes';
+import { MENU_SECTIONS } from './src/config/menuConstants';
+import {
+  AsteroidType,
+  BarrierType,
+  getAsteroidTypeData,
+  getBarrierTypeData,
+  AVAILABLE_BARRIER_TYPES
+} from './src/config/enemyTypes';
+import { COLORS } from './src/config/colors';
 
-/* ---------- CSS Hexagon Component ---------- */
-function HexagonAsteroid({ 
-  size, 
-  backgroundColor, 
-  borderColor, 
-  opacity = 1, 
-  rotation = 0, 
-  damageFlash = false 
-}: { 
-  size: number; 
-  backgroundColor: string; 
-  borderColor: string; 
-  opacity?: number; 
-  rotation?: number; 
-  damageFlash?: boolean; 
-}) {
-  // Always use backgroundColor, ignore damageFlash to prevent white flashing
-  const displayColor = backgroundColor;
-
-  return (
-    <View style={{
-      width: size * 2,
-      height: size * 2,
-      opacity,
-      transform: [{ rotate: `${rotation}deg` }],
-    }}>
-      {/* Hexagon made from 3 rotated rectangles */}
-      <View style={{
-        position: 'absolute',
-        width: size * 1.732, // sqrt(3) for proper hexagon
-        height: size * 1.2,
-        backgroundColor: displayColor,
-        borderWidth: 2,
-        borderColor: borderColor,
-        borderRadius: size * 0.2,
-        top: size * 0.4,
-        left: size * 0.134,
-      }} />
-      <View style={{
-        position: 'absolute',
-        width: size * 1.732,
-        height: size * 1.2,
-        backgroundColor: displayColor,
-        borderWidth: 2,
-        borderColor: borderColor,
-        borderRadius: size * 0.2,
-        top: size * 0.4,
-        left: size * 0.134,
-        transform: [{ rotate: '60deg' }],
-      }} />
-      <View style={{
-        position: 'absolute',
-        width: size * 1.732,
-        height: size * 1.2,
-        backgroundColor: displayColor,
-        borderWidth: 2,
-        borderColor: borderColor,
-        borderRadius: size * 0.2,
-        top: size * 0.4,
-        left: size * 0.134,
-        transform: [{ rotate: '120deg' }],
-      }} />
-    </View>
-  );
-}
 
 /* ---------- Types ---------- */
-type AsteroidType = "rock" | "metal" | "crystal" | "debris" | "wreckage";
-type Asteroid = { 
+type Asteroid = {
   id: number; x: number; y: number; vx: number; vy: number; r: number;
   type: AsteroidType; hp: number; maxHp: number; lastHit: number;
 };
-type BarrierType = "metal" | "energy" | "asteroid" | "debris";
 type Barrier = { 
   id: number; x: number; y: number; w: number; h: number; vx: number; vy: number;
   type: BarrierType; hp: number; maxHp: number; lastHit: number;
@@ -115,36 +64,6 @@ type Phase    = "menu" | "playing" | "dead" | "win" | "respawning";
 type PUKind = "S" | "M" | "L" | "F" | "H" | "R" | "B" | "E" | "T" | "D" | "N";
 
 // Scalable AAA Scoring System Configuration
-const SCORING_CONFIG = {
-  basePoints: {
-    asteroid: 10,
-    barrier: 20,
-    ship: 100,
-    boss: 1000,
-    // Future extensibility: drone: 75, mothership: 5000, etc.
-  },
-
-  typeMultipliers: {
-    debris: 0.5,
-    crystal: 0.7,
-    rock: 1.0,
-    energy: 1.0,
-    metal: 1.5,
-    asteroid: 2.0,
-    wreckage: 1.8,
-    // Future extensibility: plasma: 2.5, quantum: 3.0, etc.
-  },
-
-  // Scales infinitely for future levels
-  levelMultipliers: [1.0, 1.0, 1.5, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0],
-
-  bonuses: {
-    survival: 2,        // per second survived
-    levelComplete: 200, // × level number
-    lifeBonus: 300,     // × remaining lives
-    victoryBonus: 2000, // complete game victory
-  }
-} as const;
 
 // AAA Leaderboard Management System with Vercel KV
 class LeaderboardManager {
@@ -353,19 +272,6 @@ class LeaderboardManager {
 }
 
 // Universal scoring function for any enemy type
-const calculateEnemyScore = (
-  enemyType: 'asteroid' | 'barrier' | 'ship' | 'boss',
-  subType: string,
-  radius: number = 20,
-  level: number = 1
-): number => {
-  const basePoints = SCORING_CONFIG.basePoints[enemyType] || 10;
-  const typeMultiplier = SCORING_CONFIG.typeMultipliers[subType as keyof typeof SCORING_CONFIG.typeMultipliers] || 1.0;
-  const sizeMultiplier = Math.max(0.5, radius / 20);
-  const levelMultiplier = SCORING_CONFIG.levelMultipliers[level - 1] || (level * 0.5);
-
-  return Math.round(basePoints * typeMultiplier * sizeMultiplier * levelMultiplier);
-};
 
 type ProjKind = "bullet" | "laser" | "fire" | "homing";
 type Projectile = {
@@ -410,16 +316,7 @@ type Boss = {
   pattern: number;
 };
 
-type Particle = { id: number; x: number; y: number; vx: number; vy: number; r: number; ttl: number; color: string };
 
-type ScorePopup = {
-  id: number;
-  x: number;
-  y: number;
-  score: number;
-  ttl: number;
-  maxTtl: number;
-};
 
 // AAA Leaderboard System Types
 type LeaderboardEntry = {
@@ -447,60 +344,10 @@ type LeaderboardState = {
 /* ---------- Helpers ---------- */
 // Math utilities moved to src/utils/math.ts
 
-/* ---------- Small UI: Accordion ---------- */
-function Accordion({
-  title,
-  children,
-  initial = false,
-}: { title: string; children: React.ReactNode; initial?: boolean }) {
-  const [open, setOpen] = useState(initial);
-  return (
-    <View style={styles.card}>
-      <Pressable
-        onPress={() => setOpen((o) => !o)}
-        style={styles.accordionHeader}
-      >
-        <Text style={styles.cardTitle}>{title}</Text>
-        <Text style={styles.accordionChevron}>{open ? "▾" : "▸"}</Text>
-      </Pressable>
-      {open && <View style={{ gap: 4 }}>{children}</View>}
-    </View>
-  );
-}
 
 /* ---------- Component ---------- */
 /* ---------- Enhanced Menu Component ---------- */
-type MenuSection = {
-  id: string;
-  icon: string;
-  title: string;
-  bullets?: string[];
-};
 
-const MENU_SECTIONS: MenuSection[] = [
-  {
-    id: "gameplay",
-    icon: "🎮",
-    title: "HOW TO PLAY",
-    bullets: [
-      "Drag anywhere to move pod",
-      "Auto-fire weapons continuously", 
-      "Kill required ships each level",
-      "Fly through rings to advance levels",
-      "Defeat boss at Level 5 → fly through EARTH ring to win",
-    ],
-  },
-  {
-    id: "items",
-    icon: "📦",
-    title: "ITEMS & WEAPONS",
-    bullets: [
-      "🔫 Multi/Spread/Laser/Flame/Homing — collect to upgrade firepower",
-      "⚡ Shield/Drone/Rapid/Time-slow — instant effects",
-      "🎒 Energy/Nuke — tap bottom icons to use stored items",
-    ],
-  },
-];
 
 type AccordionItemProps = {
   section: MenuSection;
@@ -627,15 +474,15 @@ const SettingsAccordion: React.FC<SettingsAccordionProps> = ({
           style={styles.handednessToggle}
         >
           <Text style={styles.handednessLabel}>
-            {audioSystem.musicEnabled ? '🎵 Music On' : '🔇 Music Off'}
+            {musicEnabled ? '🎵 Music On' : '🔇 Music Off'}
           </Text>
           <View style={[
             styles.toggleSwitch,
-            audioSystem.musicEnabled && styles.toggleSwitchActive
+            musicEnabled && styles.toggleSwitchActive
           ]}>
             <View style={[
               styles.toggleKnob,
-              audioSystem.musicEnabled && styles.toggleKnobActive
+              musicEnabled && styles.toggleKnobActive
             ]} />
           </View>
         </Pressable>
@@ -645,16 +492,6 @@ const SettingsAccordion: React.FC<SettingsAccordionProps> = ({
   );
 };
 
-type EnhancedMenuProps = {
-  onStart: () => void;
-  leftHandedMode: boolean;
-  onToggleHandedness: () => void;
-  musicEnabled: boolean;
-  onToggleMusic: () => void;
-  sfxEnabled: boolean;
-  onToggleSfx: () => void;
-  onShowLeaderboard: () => void;
-};
 
 const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, onToggleHandedness, musicEnabled, onToggleMusic, sfxEnabled, onToggleSfx, onShowLeaderboard }) => {
   const [openId, setOpenId] = useState<string>("");
@@ -898,15 +735,15 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
                 style={styles.settingItem}
               >
                 <Text style={styles.settingText}>
-                  {audioSystem.musicEnabled ? '🎵 Music' : '🔇 Music'}
+                  {musicEnabled ? '🎵 Music' : '🔇 Music'}
                 </Text>
                 <View style={[
                   styles.settingToggle,
-                  audioSystem.musicEnabled && styles.settingToggleActive
+                  musicEnabled && styles.settingToggleActive
                 ]}>
                   <View style={[
                     styles.settingToggleKnob,
-                    audioSystem.musicEnabled && styles.settingToggleKnobActive
+                    musicEnabled && styles.settingToggleKnobActive
                   ]} />
                 </View>
               </Pressable>
@@ -916,15 +753,15 @@ const EnhancedMenu: React.FC<EnhancedMenuProps> = ({ onStart, leftHandedMode, on
                 style={styles.settingItem}
               >
                 <Text style={styles.settingText}>
-                  {audioSystem.sfxEnabled ? '🔊 Sound Effects' : '🔇 Sound Effects'}
+                  {sfxEnabled ? '🔊 Sound Effects' : '🔇 Sound Effects'}
                 </Text>
                 <View style={[
                   styles.settingToggle,
-                  audioSystem.sfxEnabled && styles.settingToggleActive
+                  sfxEnabled && styles.settingToggleActive
                 ]}>
                   <View style={[
                     styles.settingToggleKnob,
-                    audioSystem.sfxEnabled && styles.settingToggleKnobActive
+                    sfxEnabled && styles.settingToggleKnobActive
                   ]} />
                 </View>
               </Pressable>
@@ -1311,6 +1148,9 @@ function Game() {
   const shakeMag = useRef(0);
   const flashTime = useRef(0);
   const crashFlashTime = useRef(0); // Separate flash timer for crashes
+
+  // Animation state for extracted system
+  const animationState: AnimationState = { shakeT, shakeMag, flashTime, crashFlashTime };
   
   // Victory beam-up sequence
   const victoryBeamActive = useRef(false);
@@ -1414,75 +1254,54 @@ function Game() {
   };
 
   // AAA Scoring System Functions
-  const addScore = (points: number, source?: string) => {
-    console.log(`🎯 Adding ${points} points from ${source} (Before: ${currentScore.current})`);
-    currentScore.current += points;
-    console.log(`🎯 Score now: ${currentScore.current}`);
-    if (points < 0) {
-      console.warn(`⚠️ NEGATIVE POINTS DETECTED! ${points} from ${source}`);
-      console.trace(); // Show stack trace for negative scores
-    }
+  const handleAddScore = (points: number, source?: string) => {
+    addScore(currentScore, points, source);
   };
 
   const scoreAsteroidKill = (asteroid: Asteroid) => {
     const points = calculateEnemyScore('asteroid', asteroid.type, asteroid.r, level.current);
-    addScore(points, `${asteroid.type} asteroid`);
+    handleAddScore(points, `${asteroid.type} asteroid`);
     spawnScorePopup(asteroid.x, asteroid.y, points);
     killsAst.current += 1;
   };
 
   const scoreBarrierKill = (barrier: Barrier) => {
     const points = calculateEnemyScore('barrier', barrier.type, Math.max(barrier.w, barrier.h), level.current);
-    addScore(points, `${barrier.type} barrier`);
+    handleAddScore(points, `${barrier.type} barrier`);
     spawnScorePopup(barrier.x + barrier.w/2, barrier.y + barrier.h/2, points);
     killsBar.current += 1;
   };
 
   const scoreShipKill = (ship: EnemyShip) => {
     const points = calculateEnemyScore('ship', ship.kind, 20, level.current);
-    addScore(points, `${ship.kind} ship`);
+    handleAddScore(points, `${ship.kind} ship`);
     spawnScorePopup(ship.x, ship.y, points);
     killsShip.current += 1;
   };
 
   const scoreBossKill = () => {
     const points = calculateEnemyScore('boss', 'boss', 50, level.current);
-    addScore(points, 'boss defeated');
+    handleAddScore(points, 'boss defeated');
     spawnScorePopup(boss.current.x, boss.current.y, points);
   };
 
   const scoreLevelComplete = () => {
     const points = SCORING_CONFIG.bonuses.levelComplete * level.current;
-    addScore(points, `level ${level.current} complete`);
+    handleAddScore(points, `level ${level.current} complete`);
     // Show score popup at ring center
     spawnScorePopup(ringCenterX.current, ringCenterY.current, points);
   };
 
-  const calculateFinalScore = () => {
-    console.log(`🔍 FINAL SCORE DEBUG - Starting score: ${currentScore.current}`);
-    console.log(`🔍 Time: ${timeSec}, SessionStart: ${sessionStartTime.current}, Lives: ${lives.current}, Level: ${level.current}`);
-
-    // Add survival bonus
-    const survivalTime = Math.floor(timeSec - sessionStartTime.current);
-    const survivalPoints = survivalTime * SCORING_CONFIG.bonuses.survival;
-    console.log(`🔍 Survival: ${survivalTime}s * ${SCORING_CONFIG.bonuses.survival} = ${survivalPoints}`);
-    addScore(survivalPoints, `${survivalTime}s survival`);
-
-    // Add life bonus
-    const lifePoints = lives.current * SCORING_CONFIG.bonuses.lifeBonus;
-    console.log(`🔍 Life bonus: ${lives.current} lives * ${SCORING_CONFIG.bonuses.lifeBonus} = ${lifePoints}`);
-    if (lifePoints > 0) {
-      addScore(lifePoints, `${lives.current} lives remaining`);
-    }
-
-    // Add victory bonus if won
-    if (level.current >= 5) {
-      console.log(`🔍 Victory bonus: ${SCORING_CONFIG.bonuses.victoryBonus}`);
-      addScore(SCORING_CONFIG.bonuses.victoryBonus, 'victory bonus');
-    }
-
-    console.log(`🔍 FINAL SCORE DEBUG - End score: ${currentScore.current}`);
-    return currentScore.current;
+  const handleCalculateFinalScore = () => {
+    const isVictory = level.current >= 5;
+    return calculateFinalScore(
+      currentScore,
+      timeSec,
+      sessionStartTime.current,
+      lives.current,
+      level.current,
+      isVictory
+    );
   };
 
   // AAA Leaderboard Integration Functions
@@ -2249,20 +2068,6 @@ function Game() {
     stars.current = s;
   };
 
-  const getAsteroidTypeData = (type: AsteroidType) => {
-    switch (type) {
-      case "rock":
-        return { hpMult: 1.0, sizeMult: 1.0, speedMult: 1.0, color: "#7E8799", border: "#3E4654", damageColor: "#B91C1C" };
-      case "metal":
-        return { hpMult: 2.0, sizeMult: 0.8, speedMult: 0.7, color: "#9BACC7", border: "#4A5568", damageColor: "#DC2626" };
-      case "crystal":
-        return { hpMult: 0.6, sizeMult: 1.2, speedMult: 1.3, color: "#A78BFA", border: "#6D28D9", damageColor: "#EF4444" };
-      case "debris":
-        return { hpMult: 0.4, sizeMult: 0.6, speedMult: 1.5, color: "#DC8B47", border: "#8B4513", damageColor: "#F87171" };
-      case "wreckage":
-        return { hpMult: 1.5, sizeMult: 1.4, speedMult: 0.6, color: "#6B7280", border: "#374151", damageColor: "#B91C1C" };
-    }
-  };
 
   const getAsteroidDamageColor = (asteroid: Asteroid) => {
     const healthPercent = asteroid.hp / asteroid.maxHp;
@@ -2322,22 +2127,10 @@ function Game() {
     };
   };
 
-  const getBarrierTypeData = (type: BarrierType) => {
-    switch (type) {
-      case "metal":
-        return { hpMult: 1.5, color: "#C04E4E", border: "#7A2F2F", height: GameConfig.BAR_H };
-      case "energy":
-        return { hpMult: 1.0, color: "#9333EA", border: "#5B21B6", height: GameConfig.BAR_H * 1.2 };
-      case "asteroid":
-        return { hpMult: 2.0, color: "#78716C", border: "#44403C", height: GameConfig.BAR_H * 0.8 };
-      case "debris":
-        return { hpMult: 0.8, color: "#EA580C", border: "#C2410C", height: GameConfig.BAR_H * 0.6 };
-    }
-  };
 
   const seedBarrier = (id: number, worldY: number): Barrier => {
     // Weighted barrier types
-    const barrierTypes: BarrierType[] = ["metal", "energy", "asteroid", "debris"];
+    const barrierTypes = AVAILABLE_BARRIER_TYPES;
     const weights = [40, 25, 20, 15];
     
     const total = weights.reduce((a, b) => a + b, 0);
@@ -2537,7 +2330,7 @@ function Game() {
     invulnTime.current = 2.5; // Generous invulnerability
     hudFadeT.current = 4.0; // Extended HUD visibility
     canSkipCountdown.current = false;
-    playRespawnSound(); // Play SFX for pod respawn
+    audioSystem.playRespawnSound(); // Play SFX for pod respawn
     console.log('🎮 TELEGRAM DEBUG - Setting phase to "playing" from respawnPlayer');
     setPhase("playing");
   };
@@ -2959,7 +2752,7 @@ function Game() {
     switch (weapon.current.kind) {
       case "basic": {
         // Basic pod blaster - single weak shot to encourage pickup hunting
-        playWeaponFireSound(); // Play SFX for basic weapon fire
+        audioSystem.playWeaponFireSound(); // Play SFX for basic weapon fire
         projs.current.push({ id: nextId(), kind: "bullet", x: wX, y: wz + GameConfig.POD_RADIUS + 4, vx: 0, vy: GameConfig.BULLET_SPEED * 0.9, r: 3, ttl: 1.8 });
         break;
       }
@@ -2971,7 +2764,7 @@ function Game() {
           const offset = (i - (count - 1) / 2) * spreadPx;
           projs.current.push({ id: nextId(), kind: "bullet", x: wX + offset, y: wz + GameConfig.POD_RADIUS + 4, vx: 0, vy: GameConfig.BULLET_SPEED, r: 4, ttl: 2.0 });
         }
-        playMultiGunSound(); // Play multi-gun sound effect
+        audioSystem.playMultiGunSound(); // Play multi-gun sound effect
         break;
       }
       case "S": {
@@ -2990,7 +2783,7 @@ function Game() {
       }
       case "L": {
         // Laser progression: Increasingly powerful and visually impressive
-        playLaserGunSound(); // Play SFX for laser weapon fire
+        audioSystem.playLaserGunSound(); // Play SFX for laser weapon fire
         const L = weapon.current.level;
         const pierce = 3 + L * 2; // 5/7/9 pierce - dramatically more
         const laserCount = L; // 1/2/3 parallel lasers
@@ -3002,7 +2795,7 @@ function Game() {
         if (L === 1) {
           // Level 1: Single powerful laser
           projs.current.push({ id: nextId(), kind: "laser", x: wX, y: wz + GameConfig.POD_RADIUS + 4, vx: 0, vy: speed, r: radius, ttl, pierce });
-          spawnMuzzle(wX, wz + GameConfig.POD_RADIUS + 2, "#B1E1FF");
+          spawnMuzzle(wX, wz + GameConfig.POD_RADIUS + 2, COLORS.MUZZLE_FLASH.BASIC);
           // Light screen shake for L1
           shakeT.current = 0.1;
           shakeMag.current = 2.0;
@@ -3011,7 +2804,7 @@ function Game() {
           const spacing = 25;
           for (const offset of [-spacing, spacing]) {
             projs.current.push({ id: nextId(), kind: "laser", x: wX + offset, y: wz + GameConfig.POD_RADIUS + 4, vx: 0, vy: speed, r: radius, ttl, pierce });
-            spawnMuzzle(wX + offset, wz + GameConfig.POD_RADIUS + 2, "#A0E0FF");
+            spawnMuzzle(wX + offset, wz + GameConfig.POD_RADIUS + 2, COLORS.MUZZLE_FLASH.MULTI_1);
           }
           // Medium screen shake for L2
           shakeT.current = 0.15;
@@ -3021,7 +2814,7 @@ function Game() {
           const spacing = 35;
           for (const offset of [-spacing, 0, spacing]) {
             projs.current.push({ id: nextId(), kind: "laser", x: wX + offset, y: wz + GameConfig.POD_RADIUS + 4, vx: 0, vy: speed, r: radius, ttl, pierce });
-            spawnMuzzle(wX + offset, wz + GameConfig.POD_RADIUS + 2, "#80D0FF");
+            spawnMuzzle(wX + offset, wz + GameConfig.POD_RADIUS + 2, COLORS.MUZZLE_FLASH.MULTI_2);
           }
           // Heavy screen shake for L3 - feels like a cannon
           shakeT.current = 0.2;
@@ -3035,8 +2828,8 @@ function Game() {
         for (const lane of lanes) {
           projs.current.push({ id: nextId(), kind: "fire", x: wX, y: wz + GameConfig.POD_RADIUS + 4, vx: lane * 50, vy: GameConfig.FIRE_SPEED, r: 4, ttl: 2.2, t: 0 });
         }
-        spawnMuzzle(wX, wz + GameConfig.POD_RADIUS + 2, "#FFB46B");
-        playFireGunSound(); // Play fire gun sound effect
+        spawnMuzzle(wX, wz + GameConfig.POD_RADIUS + 2, COLORS.MUZZLE_FLASH.FIRE);
+        audioSystem.playFireGunSound(); // Play fire gun sound effect
         break;
       }
       case "H": {
@@ -3045,8 +2838,8 @@ function Game() {
         for (let i = 0; i < count; i++) {
           projs.current.push({ id: nextId(), kind: "homing", x: wX, y: wz + GameConfig.POD_RADIUS + 4, vx: 0, vy: GameConfig.HOMING_SPEED, r: 5, ttl: 3.0, turn: 1100 + 140 * (weapon.current.level - 1) });
         }
-        spawnMuzzle(wX, wz + GameConfig.POD_RADIUS + 2, "#FFE486");
-        playHomingMissilesGunSound(); // Play homing missiles sound effect
+        spawnMuzzle(wX, wz + GameConfig.POD_RADIUS + 2, COLORS.MUZZLE_FLASH.HOMING);
+        audioSystem.playHomingMissilesGunSound(); // Play homing missiles sound effect
         break;
       }
     }
@@ -3055,7 +2848,7 @@ function Game() {
   const tryNuke = () => {
     if (phaseRef.current !== "playing") return;
     if (nukesLeft.current <= 0) return;
-    playUseItemSound(); // Play SFX for nuke usage
+    audioSystem.playUseItemSound(); // Play SFX for nuke usage
     nukesLeft.current -= 1;
 
     // start sweep from pod
@@ -3067,7 +2860,7 @@ function Game() {
   const activateEnergyCell = () => {
     if (phaseRef.current !== "playing") return;
     if (energyCells.current <= 0) return;
-    playUseItemSound(); // Play SFX for energy cell usage
+    audioSystem.playUseItemSound(); // Play SFX for energy cell usage
     energyCells.current -= 1;
 
     // +3 shields (stacking) & 3s i-frames
@@ -3075,21 +2868,7 @@ function Game() {
     invulnTime.current = Math.max(invulnTime.current, GameConfig.ENERGY_IFRAME_TIME);
 
     // sparkles
-    const idBase = (particles.current[particles.current.length - 1]?.id ?? 0) + 1;
-    const cx = podX.current, cy = scrollY.current + podY.current;
-    for (let i = 0; i < 16; i++) {
-      const ang = Math.random() * Math.PI * 2;
-      const spd = rand(90, 180);
-      particles.current.push({
-        id: idBase + i,
-        x: cx, y: cy,
-        vx: Math.cos(ang) * spd,
-        vy: Math.sin(ang) * spd,
-        r: rand(2.0, 3.2),
-        ttl: rand(0.35, 0.65),
-        color: i % 3 === 0 ? "#FFE486" : i % 3 === 1 ? "#A7F3D0" : "#B1E1FF",
-      });
-    }
+    createEnergySparkles(particles, podX.current, scrollY.current + podY.current);
   };
 
   /* ---------- ID helper ---------- */
@@ -3212,39 +2991,18 @@ function Game() {
 
   const boom = (x: number, y: number, power: number, color: string) => {
     // Play explosion sound with volume based on power
-    
-    const idBase = particles.current[particles.current.length - 1]?.id ?? 0;
-    const count = Math.floor(8 + power * 6);
-    for (let i = 0; i < count; i++) {
-      const ang = Math.random() * Math.PI * 2;
-      const spd = rand(80, 220) * (0.8 + power * 0.4);
-      particles.current.push({
-        id: idBase + i + 1,
-        x, y,
-        vx: Math.cos(ang) * spd,
-        vy: Math.sin(ang) * spd + 40,
-        r: rand(2.5, 4.5),
-        ttl: 0.45 + Math.random() * 0.35,
-        color,
-      });
-    }
+
+    // Create explosion particles using extracted system
+    createPowerExplosion(particles, x, y, power, color);
+
     // smack (short & decaying)
     shakeMag.current = Math.max(shakeMag.current, 6 + power * 7);
     shakeT.current = Math.max(shakeT.current, 0.10 + power * 0.05);
   };
 
   const spawnScorePopup = (x: number, y: number, score: number) => {
-    const id = (scorePopups.current[scorePopups.current.length - 1]?.id ?? 0) + 1;
-    const maxTtl = 1.5; // 1.5 seconds duration
-
-    scorePopups.current.push({
-      id,
-      x: x + rand(-10, 10), // Small random horizontal offset for variety
-      y,
-      score,
-      ttl: maxTtl,
-      maxTtl
-    });
+    const popup = createScorePopup(x, y, score, scorePopups.current);
+    scorePopups.current.push(popup);
   };
 
   const showAcquisitionMessage = (message: string) => {
@@ -3277,7 +3035,7 @@ function Game() {
         vy: Math.sin(outwardAngle) * speed,
         r: rand(2.0, 4.0),
         ttl: rand(0.6, 1.2),
-        color: boss.current.active ? "#FF8A80" : "#A7F3D0", // Red for boss, green for normal
+        color: boss.current.active ? COLORS.EXPLOSION.LIGHT_RED : COLORS.EXPLOSION.GREEN, // Red for boss, green for normal
       });
     }
     
@@ -3293,7 +3051,7 @@ function Game() {
         vy: Math.sin(sparkleAngle) * sparkleSpeed,
         r: rand(1.5, 3.0),
         ttl: rand(0.4, 0.8),
-        color: boss.current.active ? "#FFE486" : "#CFFFD1",
+        color: boss.current.active ? COLORS.EXPLOSION.YELLOW : COLORS.EXPLOSION.BRIGHT_GREEN,
       });
     }
     
@@ -3383,7 +3141,7 @@ function Game() {
     if (drones.current.length > 0) {
       // Remove one drone (first one)
       const sacrificedDrone = drones.current.shift()!;
-      boom(sacrificedDrone.x, sacrificedDrone.y, 0.8, "#FFD700");
+      boom(sacrificedDrone.x, sacrificedDrone.y, 0.8, COLORS.EXPLOSION.GOLD);
       invulnTime.current = GameConfig.HIT_INVULN_TIME;
       return true; // Drone took the hit
     }
@@ -3399,7 +3157,7 @@ function Game() {
     deathStats.current[cause] += 1;
 
     // Play pod explosion sound
-    playHumanShipExplodeSound();
+    audioSystem.playHumanShipExplodeSound();
     
     // Generate tip once for this death
     currentDeathTip.current = getContextualTip();
@@ -3414,19 +3172,7 @@ function Game() {
     // megaman pop
     const cx = podX.current;
     const cy = scrollY.current + podY.current;
-    for (let i = 0; i < 24; i++) {
-      const ang = Math.random() * Math.PI * 2;
-      const spd = rand(130, 260);
-      particles.current.push({
-        id: (particles.current[particles.current.length - 1]?.id ?? 0) + 1 + i,
-        x: cx, y: cy,
-        vx: Math.cos(ang) * spd,
-        vy: Math.sin(ang) * spd,
-        r: rand(2.2, 3.5),
-        ttl: rand(0.5, 0.9),
-        color: i % 3 === 0 ? "#39D3FF" : i % 3 === 1 ? "#A7F3D0" : "#FFE486",
-      });
-    }
+    createPodDeathParticles(particles, cx, cy);
     // Dramatic crash effects
     shakeMag.current = Math.max(shakeMag.current, 20); // Increased from 14 to 20 for more impact
     shakeT.current = Math.max(shakeT.current, 0.35);   // Increased from 0.22 to 0.35 for longer shake
@@ -3468,7 +3214,7 @@ function Game() {
       // No lives left - true game over with dramatic pause
       finalDeathSequence.current = true; // Hide pod during final death
       projs.current = []; // Clear all player projectiles immediately
-      const finalScore = calculateFinalScore(); // Calculate final score with bonuses
+      const finalScore = handleCalculateFinalScore(); // Calculate final score with bonuses
       console.log(`💀 GAME OVER! Final score: ${finalScore}, Level: ${level.current}`);
       // Check for leaderboard entry (don't await to avoid blocking)
       checkLeaderboardQualification(finalScore, level.current, false).catch(error => {
@@ -3499,9 +3245,7 @@ function Game() {
       s.y += worldV.current * s.parallax * dt;
       if (s.y > height + 4) { s.y = -4; s.x = rand(0, width); }
     }
-    if (flashTime.current > 0) flashTime.current = Math.max(0, flashTime.current - dt);
-    if (crashFlashTime.current > 0) crashFlashTime.current = Math.max(0, crashFlashTime.current - dt);
-    if (shakeT.current > 0) { shakeT.current = Math.max(0, shakeT.current - dt); shakeMag.current *= 0.9; }
+    updateAnimations(animationState, dt);
     if (invulnTime.current > 0) invulnTime.current = Math.max(0, invulnTime.current - dt);
     if (hudFadeT.current > 0)  hudFadeT.current = Math.max(0, hudFadeT.current - dt);
     if (timeSlowRemaining.current > 0) timeSlowRemaining.current = Math.max(0, timeSlowRemaining.current - dt);
@@ -3686,7 +3430,7 @@ function Game() {
         const dx = a.x - cx, dy = a.y - cy;
         if (dx*dx + dy*dy <= (sweepR.current + a.r) * (sweepR.current + a.r)) {
           scoreAsteroidKill(a);
-          playAsteroidBreakingSound(); // Play SFX for asteroid destruction
+          audioSystem.playAsteroidBreakingSound(); // Play SFX for asteroid destruction
           asteroids.current.splice(i, 1);
           boom(a.x, a.y, 0.9 + a.r * 0.02, getAsteroidTypeData(a.type).color);
         }
@@ -3699,7 +3443,7 @@ function Game() {
         const dx = bx - cx, dy = by - cy;
         if (dx*dx + dy*dy <= sweepR.current * sweepR.current) {
           scoreBarrierKill(b);
-          playAsteroidBreakingSound(); // Play SFX for barrier destruction
+          audioSystem.playAsteroidBreakingSound(); // Play SFX for barrier destruction
           barriers.current.splice(i, 1);
           boom(bx, by, 1.0, getBarrierTypeData(b.type).color);
         }
@@ -3710,9 +3454,9 @@ function Game() {
         const dx = s.x - cx, dy = s.y - cy;
         if (dx*dx + dy*dy <= (sweepR.current + 14) * (sweepR.current + 14)) {
           onShipKilled(s);
-          playHumanShipExplodeSound(); // Play SFX for ship explosion
+          audioSystem.playHumanShipExplodeSound(); // Play SFX for ship explosion
           ships.current.splice(i, 1);
-          boom(s.x, s.y, 1.2, "#FFD890");
+          boom(s.x, s.y, 1.2, COLORS.EXPLOSION.LIGHT_GOLD);
         }
       }
       // enemy projectiles
@@ -3730,13 +3474,13 @@ function Game() {
         if (dx*dx + dy*dy <= (sweepR.current + br) * (sweepR.current + br)) {
           const chunk = Math.max(1, Math.floor(boss.current.hpMax * 0.25));
           boss.current.hp = Math.max(0, boss.current.hp - chunk);
-          boom(boss.current.x, boss.current.y, 1.4, "#B1E1FF");
+          boom(boss.current.x, boss.current.y, 1.4, COLORS.EXPLOSION.BLUE);
           if (boss.current.hp <= 0) {
             boss.current.active = false;
             bossGateCleared.current = true;
             console.log('BOSS DEFEATED - bossGateCleared set to TRUE');
             scoreBossKill(); // Award points and show score popup
-            boom(boss.current.x, boss.current.y, 1.8, "#FFE486");
+            boom(boss.current.x, boss.current.y, 1.8, COLORS.EXPLOSION.YELLOW);
             
             // Dramatic EARTH ring entrance effects (no distracting white flash)
             hudFadeT.current = 8.0; // Longer HUD visibility for dramatic effect
@@ -3979,8 +3723,8 @@ function Game() {
                   other.hp = Math.max(0, other.hp - explosionDamage);
                   if (other.hp <= 0) {
                     scoreAsteroidKill(other);
-                    playAsteroidBreakingSound(); // Play SFX for asteroid destruction
-                    boom(other.x, other.y, 1.0, "#FF6B35");
+                    audioSystem.playAsteroidBreakingSound(); // Play SFX for asteroid destruction
+                    boom(other.x, other.y, 1.0, COLORS.EXPLOSION.ORANGE_RED);
                     asteroids.current.splice(k, 1);
                     if (k < j) j--; // Adjust index if we removed an earlier element
                   }
@@ -3995,29 +3739,29 @@ function Game() {
                 const edx = bcx - p.x, edy = bcy - p.y;
                 const dist = Math.sqrt(edx * edx + edy * edy);
                 if (dist <= explosionRadius) {
-                  playAsteroidBreakingSound(); // Play SFX for barrier destruction
-                  boom(bcx, bcy, 1.2, "#FF4444");
+                  audioSystem.playAsteroidBreakingSound(); // Play SFX for barrier destruction
+                  boom(bcx, bcy, 1.2, COLORS.EXPLOSION.RED);
                   barriers.current.splice(k, 1);
                   killsBar.current += 1;
                 }
               }
 
               // Create explosion effect
-              boom(p.x, p.y, 1.5, "#FF4444");
+              boom(p.x, p.y, 1.5, COLORS.EXPLOSION.RED);
               for (let e = 0; e < 4; e++) {
                 const angle = (e / 4) * Math.PI * 2;
                 const vx = Math.cos(angle) * 100;
                 const vy = Math.sin(angle) * 100;
                 particles.current.push({
                   id: nextId(), x: p.x, y: p.y, vx, vy, r: 3, 
-                  ttl: 0.6, color: "#FF4444"
+                  ttl: 0.6, color: COLORS.EFFECT.DAMAGE_FLASH
                 });
               }
             }
             a.lastHit = timeSec; // Record hit time for visual feedback
             
             // Create hit effect particles
-            const hitColor = p.kind === "laser" ? "#B1E1FF" : p.kind === "fire" ? "#FFB46B" : "#FFE486";
+            const hitColor = p.kind === "laser" ? COLORS.WEAPON_HIT.LASER : p.kind === "fire" ? COLORS.WEAPON_HIT.FIRE : COLORS.WEAPON_HIT.DEFAULT;
             for (let k = 0; k < Math.min(2 + damage, 5); k++) {
               const angle = Math.random() * Math.PI * 2;
               const speed = rand(60, 120);
@@ -4035,7 +3779,7 @@ function Game() {
             if (a.hp <= 0) {
               // Asteroid destroyed
               scoreAsteroidKill(a);
-              playAsteroidBreakingSound(); // Play SFX for asteroid destruction
+              audioSystem.playAsteroidBreakingSound(); // Play SFX for asteroid destruction
               asteroids.current.splice(j, 1);
               boom(a.x, a.y, 0.8 + a.r * 0.02, getAsteroidTypeData(a.type).color);
             }
@@ -4063,7 +3807,7 @@ function Game() {
               br.lastHit = timeSec;
               
               // Hit effect particles
-              const hitColor = p.kind === "laser" ? "#B1E1FF" : p.kind === "fire" ? "#FFB46B" : "#FFE486";
+              const hitColor = p.kind === "laser" ? COLORS.WEAPON_HIT.LASER : p.kind === "fire" ? COLORS.WEAPON_HIT.FIRE : COLORS.WEAPON_HIT.DEFAULT;
               for (let k = 0; k < Math.min(1 + damage, 4); k++) {
                 const angle = Math.random() * Math.PI * 2;
                 const speed = rand(50, 100);
@@ -4080,7 +3824,7 @@ function Game() {
               
               if (br.hp <= 0) {
                 scoreBarrierKill(br);
-                playAsteroidBreakingSound(); // Play SFX for barrier destruction
+                audioSystem.playAsteroidBreakingSound(); // Play SFX for barrier destruction
                 barriers.current.splice(j, 1);
                 boom(cx, cy, 1.0, getBarrierTypeData(br.type).color);
               }
@@ -4104,12 +3848,12 @@ function Game() {
               else if (p.kind === "fire")   dmg = 2 + (weapon.current.level - 1);
               else                          dmg = 1 + (weapon.current.level - 1);
               s.hp -= dmg;
-              boom(p.x, p.y, 0.7, "#FFD890");
+              boom(p.x, p.y, 0.7, COLORS.EXPLOSION.LIGHT_GOLD);
               if (s.hp <= 0) {
                 onShipKilled(s);
-                playHumanShipExplodeSound(); // Play SFX for ship explosion
+                audioSystem.playHumanShipExplodeSound(); // Play SFX for ship explosion
                 ships.current.splice(j, 1);
-                boom(s.x, s.y, 1.1, "#FFB46B");
+                boom(s.x, s.y, 1.1, COLORS.MUZZLE_FLASH.FIRE);
               }
               if (p.kind === "laser" && (p.pierce ?? 0) > 1) { p.pierce!--; hit = false; }
               else hit = true;
@@ -4129,13 +3873,13 @@ function Game() {
             else if (p.kind === "fire")   dmg = 2 + (weapon.current.level - 1);
             else                          dmg = 1 + (weapon.current.level - 1);
             b.hp = Math.max(0, b.hp - dmg);
-            boom(p.x, p.y, 0.9, "#B1E1FF");
+            boom(p.x, p.y, 0.9, COLORS.EXPLOSION.BLUE);
             if (b.hp <= 0) {
               b.active = false;
               bossGateCleared.current = true;
               console.log('BOSS DEFEATED (projectile) - bossGateCleared set to TRUE');
               scoreBossKill(); // Award points and show score popup
-              boom(b.x, b.y, 1.6, "#FFE486");
+              boom(b.x, b.y, 1.6, COLORS.EXPLOSION.YELLOW);
               
               // Dramatic EARTH ring entrance effects (no distracting white flash)
               hudFadeT.current = 8.0; // Longer HUD visibility for dramatic effect
@@ -4170,15 +3914,15 @@ function Game() {
               // Drone sacrifices itself
               sacrificeDrone(a.x, a.y);
               scoreAsteroidKill(a); // Award points and show popup for drone kill
-              playAsteroidBreakingSound(); // Play SFX for asteroid destruction
-              boom(a.x, a.y, 0.9, "#FFD700");
+              audioSystem.playAsteroidBreakingSound(); // Play SFX for asteroid destruction
+              boom(a.x, a.y, 0.9, COLORS.EXPLOSION.GOLD);
               asteroids.current.splice(i, 1);
               break;
             } else if (shieldLives.current > 0) {
               shieldLives.current -= 1;
               invulnTime.current = GameConfig.HIT_INVULN_TIME;
-              playAsteroidBreakingSound(); // Play SFX for asteroid destruction
-              boom(a.x, a.y, 0.9, "#9FFFB7");
+              audioSystem.playAsteroidBreakingSound(); // Play SFX for asteroid destruction
+              boom(a.x, a.y, 0.9, COLORS.EXPLOSION.MINT_GREEN);
               asteroids.current.splice(i, 1);
               break;
             } else {
@@ -4197,14 +3941,14 @@ function Game() {
               // Drone sacrifices itself
               sacrificeDrone(cx, cy);
               scoreBarrierKill(br); // Award points and show popup for drone kill
-              playAsteroidBreakingSound(); // Play SFX for barrier destruction
+              audioSystem.playAsteroidBreakingSound(); // Play SFX for barrier destruction
               boom(cx, cy, 0.9, "#FFD700");
               barriers.current.splice(i, 1);
               break;
             } else if (shieldLives.current > 0) {
               shieldLives.current -= 1;
               invulnTime.current = GameConfig.HIT_INVULN_TIME;
-              playAsteroidBreakingSound(); // Play SFX for barrier destruction
+              audioSystem.playAsteroidBreakingSound(); // Play SFX for barrier destruction
               boom(cx, cy, 0.9, "#9FFFB7");
               barriers.current.splice(i, 1);
               break;
@@ -4272,7 +4016,7 @@ function Game() {
               boom(drone.x, drone.y, 1.4, "#FFD700"); // Large gold explosion for drone impact
               boom(ship.x, shipScreenY, 1.0, "#FF6B35"); // Ship impact explosion
               if (ship.hp <= 0) {
-                playHumanShipExplodeSound(); // Play SFX for ship explosion
+                audioSystem.playHumanShipExplodeSound(); // Play SFX for ship explosion
                 ships.current.splice(j, 1);
                 onShipKilled(ship); // Pass ship data for proper scoring and popup
                 boom(ship.x, ship.y, 1.5, "#FFD890"); // Larger ship destruction explosion
@@ -4295,13 +4039,13 @@ function Game() {
               // Drone sacrifices itself
               sacrificeDrone(s.x, s.y);
               scoreShipKill(s); // Award points and show popup for drone kill
-              playHumanShipExplodeSound(); // Play SFX for ship explosion
+              audioSystem.playHumanShipExplodeSound(); // Play SFX for ship explosion
               boom(s.x, s.y, 1.0, "#FFD700");
               ships.current.splice(i, 1);
             } else if (shieldLives.current > 0) {
               shieldLives.current -= 1;
               invulnTime.current = GameConfig.HIT_INVULN_TIME;
-              playHumanShipExplodeSound(); // Play SFX for ship explosion
+              audioSystem.playHumanShipExplodeSound(); // Play SFX for ship explosion
               boom(s.x, s.y, 1.0, "#9FFFB7");
               ships.current.splice(i, 1);
             } else {
@@ -4355,7 +4099,7 @@ function Game() {
           } else {
             // Weapon pickup (S/M/L/F/H): swap or level up (cap at 3)
             const newKind = p.kind as Weapon["kind"];
-            playGunCockingSound(); // Play SFX for weapon upgrade pickup
+            audioSystem.playGunCockingSound(); // Play SFX for weapon upgrade pickup
             if (weapon.current.kind === newKind) {
               weapon.current.level = Math.min(3, weapon.current.level + 1) as 1 | 2 | 3;
             } else {
@@ -4364,7 +4108,7 @@ function Game() {
           }
 
           // pickup feedback
-          playGetItemSound(); // Play SFX for item pickup
+          audioSystem.playGetItemSound(); // Play SFX for item pickup
           boom(p.x, p.y, 0.6, "#CFFFD1");
           powerups.current.splice(i, 1);
           hudFadeT.current = 2.0; // briefly keep HUD visible
@@ -4410,12 +4154,12 @@ function Game() {
             console.log('🤖 All drones recalled to mothership for victory sequence');
 
             // Play space bubbles SFX for mothership beam-up
-            playSpaceBubblesSound();
+            audioSystem.playSpaceBubblesSound();
             
             // 2-second delay for dramatic effect after ring disintegrates
             setTimeout(() => {
               console.log('VICTORY SEQUENCE - Showing EARTH REACHED message');
-              const finalScore = calculateFinalScore(); // Calculate final score with victory bonus
+              const finalScore = handleCalculateFinalScore(); // Calculate final score with victory bonus
               console.log(`🎉 VICTORY! Final score: ${finalScore}, Level: ${level.current}`);
               // Check for leaderboard entry (don't await to avoid blocking)
               checkLeaderboardQualification(finalScore, level.current, true).catch(error => {
@@ -4429,7 +4173,7 @@ function Game() {
             // Boss not cleared yet - trigger boss fight
             if (!levelUpProcessed.current) {
               levelUpProcessed.current = true;
-              playClearLevelSound(); // Play SFX for level ring pop
+              audioSystem.playClearLevelSound(); // Play SFX for level ring pop
               levelUp();
             }
             return;
@@ -4451,7 +4195,7 @@ function Game() {
               showAcquisitionMessage("FINAL APPROACH • BOSS ENCOUNTER IMMINENT");
             }
 
-            playClearLevelSound(); // Play SFX for level ring pop
+            audioSystem.playClearLevelSound(); // Play SFX for level ring pop
             levelUp();
           }
           return;
@@ -4493,14 +4237,7 @@ function Game() {
     }
 
     // particles update
-    for (let i = particles.current.length - 1; i >= 0; i--) {
-      const pa = particles.current[i];
-      pa.ttl -= dt;
-      pa.x += pa.vx * enemyDt;
-      pa.y += pa.vy * enemyDt;
-      pa.vx *= 0.98; pa.vy *= 0.98;
-      if (pa.ttl <= 0 || pa.y - scrollY.current < -80) particles.current.splice(i, 1);
-    }
+    updateParticles(particles, dt, enemyDt, scrollY.current);
 
     // Conservative particle limit for stability
     if (particles.current.length > 100) {
@@ -4530,7 +4267,7 @@ function Game() {
 
   /* ----- Start / Restart ----- */
   const startGame = () => {
-    playButtonPressSound(); // Play button press SFX
+    audioSystem.playButtonPressSound(); // Play button press SFX
     console.log('🚀 GAME START: Simple dispatch message');
 
     hardResetWorld();
@@ -4553,7 +4290,7 @@ function Game() {
     // Audio handled by phase useEffect
   };
   const goMenu = () => {
-    playButtonPressSound(); // Play button press SFX
+    audioSystem.playButtonPressSound(); // Play button press SFX
     setPhase("menu");
     hardResetWorld();
     // Audio handled by phase useEffect
